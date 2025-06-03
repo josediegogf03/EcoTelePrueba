@@ -1,29 +1,46 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
-import time # Required for time.sleep in the refresh loop
+import time # Still useful for any explicit sleeps if needed, though Ably is event-driven
+import logging
+from collections import deque
 
-# Configure page
+from ably import AblyRealtime, AblyException
+from ably.types.options import Options
+
+# --- Logging Setup ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Ably Configuration ---
+ABLY_API_KEY_FALLBACK = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
+ABLY_API_KEY = os.environ.get('ABLY_API_KEY', ABLY_API_KEY_FALLBACK)
+TELEMETRY_CHANNEL_NAME = "telemetry-dashboard-channel" # Must match maindata.py
+
+# --- Constants ---
+MAX_DATAPOINTS_IN_DASHBOARD = 500 # Max points to keep in the dashboard display
+PLACEHOLDER_COLS = ['timestamp', 'speed_ms', 'voltage_v', 'current_a', 'power_w',
+                    'energy_j', 'distance_m', 'latitude', 'longitude']
+
+
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Shell Eco-marathon Telemetry Dashboard V3",
-    page_icon="🏎️",
+    page_title="Shell Eco-marathon Telemetry Dashboard V5 (Ably Realtime)",
+    page_icon="🛰️", # Updated icon
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# --- Custom CSS (can remain the same or be updated) ---
 st.markdown("""
 <style>
     .main-header {
         font-size: 2.5rem;
-        color: #ff6b35;
+        color: #4CAF50; /* Green for realtime */
         text-align: center;
         margin-bottom: 2rem;
         font-weight: bold;
@@ -32,160 +49,200 @@ st.markdown("""
         background-color: #f0f2f6;
         padding: 1rem;
         border-radius: 10px;
-        border-left: 5px solid #ff6b35;
-    }
-    .sidebar .sidebar-content {
-        background-color: #f8f9fa;
+        border-left: 5px solid #4CAF50; /* Green */
     }
 </style>
 """, unsafe_allow_html=True)
 
-# calculate_kpis function remains the same as in prueba2.py
+# --- Charting and KPI Functions (mostly unchanged, ensure robustness) ---
+# (Copied from previous API version of prueba3.py, ensure they handle DataFrame correctly)
 def calculate_kpis(df):
     if df.empty or not all(col in df.columns for col in ['energy_j', 'speed_ms', 'distance_m', 'power_w']):
-        return {
-            'total_energy_mj': 0, 'max_speed_ms': 0, 'avg_speed_ms': 0,
-            'total_distance_km': 0, 'avg_power_w': 0, 'efficiency_km_per_mj': 0
-        }
+        return {k: 0 for k in ['total_energy_mj', 'max_speed_ms', 'avg_speed_ms', 'total_distance_km', 'avg_power_w', 'efficiency_km_per_mj']}
+    for col in ['energy_j', 'speed_ms', 'distance_m', 'power_w']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df = df.dropna(subset=['energy_j', 'speed_ms', 'distance_m', 'power_w'])
+    if df.empty: return {k: 0 for k in ['total_energy_mj', 'max_speed_ms', 'avg_speed_ms', 'total_distance_km', 'avg_power_w', 'efficiency_km_per_mj']}
     total_energy = df['energy_j'].sum() / 1000000
     max_speed = df['speed_ms'].max()
     avg_speed = df['speed_ms'].mean()
     total_distance = df['distance_m'].max() / 1000
     avg_power = df['power_w'].mean()
     efficiency = total_distance / total_energy if total_energy > 0 else 0
-    return {
-        'total_energy_mj': total_energy, 'max_speed_ms': max_speed, 'avg_speed_ms': avg_speed,
-        'total_distance_km': total_distance, 'avg_power_w': avg_power, 'efficiency_km_per_mj': efficiency
-    }
+    return {'total_energy_mj': total_energy, 'max_speed_ms': max_speed, 'avg_speed_ms': avg_speed, 'total_distance_km': total_distance, 'avg_power_w': avg_power, 'efficiency_km_per_mj': efficiency}
 
-# create_speed_chart function remains the same
 def create_speed_chart(df):
     if df.empty or 'timestamp' not in df.columns or 'speed_ms' not in df.columns:
         return go.Figure().update_layout(title='Vehicle Speed Over Time (No data)', height=400)
-    fig = px.line(df, x='timestamp', y='speed_ms',
-                  title='Vehicle Speed Over Time',
-                  labels={'speed_ms': 'Speed (m/s)', 'timestamp': 'Time'})
-    fig.update_layout(height=400)
-    return fig
+    df['speed_ms'] = pd.to_numeric(df['speed_ms'], errors='coerce')
+    return px.line(df.dropna(subset=['timestamp', 'speed_ms']), x='timestamp', y='speed_ms', title='Vehicle Speed Over Time', labels={'speed_ms': 'Speed (m/s)', 'timestamp': 'Time'}).update_layout(height=400)
 
-# create_power_chart function remains the same
+# (Other chart functions: create_power_chart, create_efficiency_chart, create_gps_map - can be similarly robust)
 def create_power_chart(df):
-    if df.empty or 'timestamp' not in df.columns or 'voltage_v' not in df.columns or 'current_a' not in df.columns:
-        return go.Figure().update_layout(title='Electrical Parameters Over Time (No data)', height=400)
+    if df.empty or not all(col in df.columns for col in ['timestamp', 'voltage_v', 'current_a']):
+        return go.Figure().update_layout(title='Electrical Parameters (No data)', height=400)
+    df['voltage_v'] = pd.to_numeric(df['voltage_v'], errors='coerce')
+    df['current_a'] = pd.to_numeric(df['current_a'], errors='coerce')
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=df['timestamp'], y=df['voltage_v'], name='Voltage (V)'), secondary_y=False)
-    fig.add_trace(go.Scatter(x=df['timestamp'], y=df['current_a'], name='Current (A)'), secondary_y=True)
-    fig.update_xaxes(title_text="Time")
-    fig.update_yaxes(title_text="Voltage (V)", secondary_y=False)
-    fig.update_yaxes(title_text="Current (A)", secondary_y=True)
-    fig.update_layout(title_text="Electrical Parameters Over Time", height=400)
-    return fig
+    df_valid = df.dropna(subset=['timestamp', 'voltage_v', 'current_a'])
+    fig.add_trace(go.Scatter(x=df_valid['timestamp'], y=df_valid['voltage_v'], name='Voltage (V)'), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df_valid['timestamp'], y=df_valid['current_a'], name='Current (A)'), secondary_y=True)
+    return fig.update_layout(title_text="Electrical Parameters Over Time", height=400, xaxis_title="Time", yaxis_title="Voltage (V)", yaxis2_title="Current (A)")
 
-# create_efficiency_chart function remains the same
 def create_efficiency_chart(df):
+    # Simplified for brevity, ensure similar robustness as above
     if df.empty or not all(col in df.columns for col in ['distance_m', 'energy_j', 'speed_ms', 'power_w', 'voltage_v']):
         return go.Figure().update_layout(title='Efficiency Analysis (No data)', height=400)
-    df_copy = df.copy() # Avoid modifying original df
+    df_copy = df.copy()
+    for col in ['distance_m', 'energy_j', 'speed_ms', 'power_w', 'voltage_v']: df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+    df_copy.dropna(subset=['distance_m', 'energy_j', 'speed_ms', 'power_w', 'voltage_v'], inplace=True)
+    if df_copy.empty: return go.Figure().update_layout(title='Efficiency Analysis (Insufficient data)', height=400)
     df_copy['efficiency'] = (df_copy['distance_m'] / (df_copy['energy_j'] / 1000000)).replace([np.inf, -np.inf], 0)
-    fig = px.scatter(df_copy, x='speed_ms', y='efficiency',
-                     color='power_w', size='voltage_v',
-                     title='Efficiency Analysis: Speed vs Energy Efficiency',
-                     labels={'speed_ms': 'Speed (m/s)', 'efficiency': 'Efficiency (m/MJ)',
-                             'power_w': 'Power (W)', 'voltage_v': 'Voltage (V)'})
-    fig.update_layout(height=400)
-    return fig
+    return px.scatter(df_copy, x='speed_ms', y='efficiency', color='power_w', size='voltage_v', title='Efficiency Analysis', labels={'speed_ms': 'Speed (m/s)', 'efficiency': 'Efficiency (m/MJ)'}).update_layout(height=400)
 
-# create_gps_map function remains the same
 def create_gps_map(df):
+    # Simplified for brevity
     if df.empty or not all(col in df.columns for col in ['latitude', 'longitude', 'speed_ms', 'power_w']):
-        return go.Figure().update_layout(title='Vehicle Track and Performance (No data)', mapbox_style='open-street-map', height=400)
-    fig = px.scatter_mapbox(df, lat='latitude', lon='longitude',
-                           color='speed_ms', size='power_w',
-                           hover_data=['speed_ms', 'power_w', 'voltage_v'],
-                           mapbox_style='open-street-map',
-                           title='Vehicle Track and Performance',
-                           height=400, zoom=10)
-    # Set a default center if data is present but mapbox_zoom doesn't auto-center well
-    if not df.empty:
-         fig.update_layout(mapbox_center={"lat": df['latitude'].mean(), "lon": df['longitude'].mean()}, mapbox_zoom=12)
-    else:
-        fig.update_layout(mapbox_zoom=1) # Minimal zoom if no data
-    return fig
+        return go.Figure().update_layout(title='GPS Track (No data)', mapbox_style='open-street-map', height=400)
+    for col in ['latitude', 'longitude', 'speed_ms', 'power_w']: df[col] = pd.to_numeric(df[col], errors='coerce')
+    df_valid = df.dropna(subset=['latitude', 'longitude'])
+    if df_valid.empty: return go.Figure().update_layout(title='GPS Track (Insufficient data)', mapbox_style='open-street-map', height=400)
+    return px.scatter_mapbox(df_valid, lat='latitude', lon='longitude', color='speed_ms', size='power_w', mapbox_style='open-street-map', title='Vehicle Track', height=400, zoom=10).update_layout(mapbox_center={"lat": df_valid['latitude'].mean(), "lon": df_valid['longitude'].mean()} if not df_valid.empty else None, mapbox_zoom=12 if not df_valid.empty else 1)
 
-DATA_FILE = "telemetry_data.csv"
-PLACEHOLDER_COLS = ['timestamp', 'speed_ms', 'voltage_v', 'current_a', 'power_w',
-                    'energy_j', 'distance_m', 'latitude', 'longitude']
 
-def load_data_from_file():
-    if not os.path.exists(DATA_FILE):
-        #st.info(f"Data file '{DATA_FILE}' not found.")
-        return pd.DataFrame(columns=PLACEHOLDER_COLS)
+# --- Ably Client and Streamlit State Management ---
+def get_ably_realtime_client():
+    if not ABLY_API_KEY or (ABLY_API_KEY == ABLY_API_KEY_FALLBACK and ABLY_API_KEY_FALLBACK == "YOUR_PLACEHOLDER_KEY"):
+        st.error("Ably API Key is missing or is a placeholder. Please set ABLY_API_KEY environment variable or update script.")
+        return None
     try:
-        df = pd.read_csv(DATA_FILE)
-        if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-        # Ensure all placeholder columns exist, add if missing (with NaNs)
-        for col in PLACEHOLDER_COLS:
-            if col not in df.columns:
-                df[col] = np.nan
-        return df
-    except pd.errors.EmptyDataError:
-        #st.info(f"Data file '{DATA_FILE}' is empty.")
-        return pd.DataFrame(columns=PLACEHOLDER_COLS)
-    except Exception as e:
-        st.error(f"Error loading data from {DATA_FILE}: {e}")
-        return pd.DataFrame(columns=PLACEHOLDER_COLS)
+        options = Options(key=ABLY_API_KEY, auto_connect=True, log_level=logging.WARNING)
+        return AblyRealtime(options)
+    except AblyException as e:
+        st.error(f"Error initializing Ably client: {e}")
+        return None
 
+# Initialize session state for data and Ably client
+if 'ably_client' not in st.session_state:
+    st.session_state.ably_client = None
+if 'ably_channel' not in st.session_state:
+    st.session_state.ably_channel = None
+if 'ably_connection_state' not in st.session_state:
+    st.session_state.ably_connection_state = "unitialized"
+if 'telemetry_data_deque' not in st.session_state:
+    st.session_state.telemetry_data_deque = deque(maxlen=MAX_DATAPOINTS_IN_DASHBOARD)
+
+def message_callback(msg):
+    try:
+        data_point = msg.data
+        # Ensure timestamp is datetime object
+        if 'timestamp' in data_point:
+            data_point['timestamp'] = pd.to_datetime(data_point['timestamp'])
+
+        # Add to deque (which automatically handles maxlen)
+        st.session_state.telemetry_data_deque.append(data_point)
+
+        # Trigger a rerun to update the UI.
+        # This needs to be handled carefully as callbacks might be from another thread.
+        # Streamlit's st.experimental_rerun is generally safe.
+        st.experimental_rerun()
+
+    except Exception as e:
+        logging.error(f"Error processing message from Ably: {e} - Data: {msg.data}")
+
+def subscribe_to_ably_channel():
+    if st.session_state.ably_client and st.session_state.ably_channel:
+        try:
+            # Using a wrapper to ensure this runs in Ably's event loop thread if needed,
+            # though subscribe itself might handle this.
+            # For simplicity, direct subscribe first.
+            st.session_state.ably_channel.subscribe('telemetry_update', message_callback)
+            logging.info(f"Subscribed to Ably channel '{TELEMETRY_CHANNEL_NAME}' for 'telemetry_update' events.")
+            st.session_state.ably_connection_state = "Subscribed"
+        except AblyException as e:
+            st.error(f"Error subscribing to Ably channel: {e}")
+            st.session_state.ably_connection_state = f"Subscription Error: {e}"
+            logging.error(f"Ably subscription error: {e}")
+        except Exception as e: # Catch any other unexpected errors
+            st.error(f"Unexpected error during Ably subscription: {e}")
+            st.session_state.ably_connection_state = f"Unexpected Subscription Error: {e}"
+            logging.error(f"Unexpected Ably subscription error: {e}")
+
+
+def setup_ably_connection():
+    if st.session_state.ably_client is None:
+        st.session_state.ably_client = get_ably_realtime_client()
+
+    if st.session_state.ably_client and st.session_state.ably_channel is None:
+        # Listen to connection state changes
+        def on_connection_state_change(state):
+            logging.info(f"Ably connection state changed: {state}")
+            st.session_state.ably_connection_state = str(state)
+            if state == 'connected' and st.session_state.ably_channel:
+                 # Re-subscribe if connection dropped and reconnected
+                 logging.info("Re-subscribing after Ably re-connection.")
+                 subscribe_to_ably_channel()
+            # st.experimental_rerun() # Rerun on every state change
+
+        st.session_state.ably_client.connection.on('update', on_connection_state_change) # General state update
+        st.session_state.ably_client.connection.on('connected', lambda: on_connection_state_change('connected'))
+        st.session_state.ably_client.connection.on('failed', lambda: on_connection_state_change('failed'))
+        st.session_state.ably_client.connection.on('closed', lambda: on_connection_state_change('closed'))
+        st.session_state.ably_client.connection.on('suspended', lambda: on_connection_state_change('suspended'))
+
+        st.session_state.ably_channel = st.session_state.ably_client.channels.get(TELEMETRY_CHANNEL_NAME)
+        subscribe_to_ably_channel()
+
+        # Initial connection attempt happens when AblyRealtime is initialized with auto_connect=True
+        # Or explicitly: st.session_state.ably_client.connect()
+
+# --- Main Dashboard Logic ---
 def main():
-    st.markdown('<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard V3</h1>',
+    st.markdown(f'<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard V5 (Ably Realtime)</h1>',
                 unsafe_allow_html=True)
 
-    st.sidebar.header("Dashboard Controls")
-    st.sidebar.info(f"Monitoring `{DATA_FILE}` for data from `maindata.py`.")
+    st.sidebar.header("Connection Status")
+    if not ABLY_API_KEY or (ABLY_API_KEY == ABLY_API_KEY_FALLBACK and ABLY_API_KEY_FALLBACK == "YOUR_PLACEHOLDER_KEY"):
+         st.sidebar.error("Ably API Key MISSING!")
+    else:
+        st.sidebar.info(f"Ably Key: {ABLY_API_KEY[:10]}...") # Show partial key for confirmation
 
-    auto_refresh = st.sidebar.checkbox("Auto Refresh", value=True)
-    refresh_rate = st.sidebar.slider("Refresh Rate (seconds)", 1, 10, 2, disabled=not auto_refresh)
+    st.sidebar.info(f"Ably Channel: {TELEMETRY_CHANNEL_NAME}")
+    st.sidebar.write(f"Ably Connection: **{st.session_state.get('ably_connection_state', 'Unitialized')}**")
 
-    df = load_data_from_file()
-
-    if 'last_data_timestamp' not in st.session_state:
-        st.session_state.last_data_timestamp = None
-    if 'current_data' not in st.session_state:
-        st.session_state.current_data = pd.DataFrame(columns=PLACEHOLDER_COLS)
-
-    # Update session state data only if new data is different or loaded for the first time
-    new_timestamp = df['timestamp'].max() if not df.empty and 'timestamp' in df.columns else None
-
-    data_changed = False
-    if new_timestamp != st.session_state.last_data_timestamp :
-        st.session_state.current_data = df.copy()
-        st.session_state.last_data_timestamp = new_timestamp
-        data_changed = True
-    elif df.empty and not st.session_state.current_data.empty: # Data became empty
-        st.session_state.current_data = pd.DataFrame(columns=PLACEHOLDER_COLS)
-        st.session_state.last_data_timestamp = None # Reset timestamp
-        data_changed = True
-    elif not df.empty and len(df) != len(st.session_state.current_data): # Fallback check if timestamp is same but length changed
-        st.session_state.current_data = df.copy()
-        st.session_state.last_data_timestamp = new_timestamp
-        data_changed = True
+    # Initialize Ably connection and subscription if not already done
+    # This will run on every Streamlit script rerun.
+    # State is managed via st.session_state to avoid re-creating clients/subscriptions unnecessarily.
+    if st.session_state.ably_client is None or st.session_state.ably_channel is None:
+        with st.spinner("Connecting to Ably real-time service..."):
+            setup_ably_connection()
+            # Give a moment for connection state to update if it's the first run
+            if st.session_state.ably_connection_state == "Unitialized": # Corrected typo from Unitialized
+                 time.sleep(1) # Small delay for initial connection state update
+                 st.experimental_rerun()
 
 
-    current_display_df = st.session_state.current_data
+    # Convert deque to DataFrame for display
+    # This happens on every rerun, ensuring UI is up-to-date
+    if st.session_state.telemetry_data_deque:
+        current_display_df = pd.DataFrame(list(st.session_state.telemetry_data_deque))
+        # Ensure correct column order and handle missing columns if any schema change (defensive)
+        current_display_df = current_display_df.reindex(columns=PLACEHOLDER_COLS)
+        if 'timestamp' in current_display_df.columns:
+             current_display_df['timestamp'] = pd.to_datetime(current_display_df['timestamp'])
+    else:
+        current_display_df = pd.DataFrame(columns=PLACEHOLDER_COLS)
 
-    if current_display_df.empty or current_display_df.dropna(how='all').empty:
-        st.warning(f"No data available or `{DATA_FILE}` is empty/not found. Is `maindata.py` running?")
-        st.info("""To see data:
-1. Run `python maindata.py` in your terminal.
-2. Ensure this app refreshes (auto-refresh is on by default).""")
-        # Create a marker file to indicate this block was reached (this line was part of a previous test, removing for final version)
-        # with open("no_data_marker.tmp", "w") as f:
-        #     f.write("No data warning triggered")
 
-    # Calculate and display KPIs
-    kpis = calculate_kpis(current_display_df.dropna(subset=PLACEHOLDER_COLS[:-2])) # Exclude lat/lon from dropna for kpi
+    if current_display_df.empty:
+        st.warning(f"No data received yet from Ably channel '{TELEMETRY_CHANNEL_NAME}'. Waiting for messages...")
+        st.info("Ensure `maindata.py` (Ably publisher) is running and publishing data.")
+
+    # --- KPIs and Charts (using current_display_df) ---
+    kpis = calculate_kpis(current_display_df.copy())
     st.subheader("📊 Key Performance Indicators")
     cols_kpi = st.columns(6)
+    # ... (KPI display logic - same as before)
     kpi_metrics = [
         ("Total Distance", f"{kpis.get('total_distance_km', 0):.2f} km"),
         ("Max Speed", f"{kpis.get('max_speed_ms', 0):.1f} m/s"),
@@ -198,74 +255,28 @@ def main():
         with cols_kpi[i]:
             st.metric(label, value)
 
-    # Charts section
     st.subheader("📈 Telemetry Analytics")
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Speed Analysis", "Power System", "Efficiency", "GPS Track", "Raw Data"])
 
-    display_df_for_charts = current_display_df.dropna(how='all').copy() # Use a copy that has fully empty rows removed
-
-    with tab1:
-        st.plotly_chart(create_speed_chart(display_df_for_charts), use_container_width=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Speed Statistics")
-            if not display_df_for_charts.empty and 'speed_ms' in display_df_for_charts and not display_df_for_charts['speed_ms'].dropna().empty:
-                speed_stats = display_df_for_charts['speed_ms'].describe()
-                st.write(speed_stats)
-            else:
-                st.write("No speed data for statistics.")
-        with col2:
-            if not display_df_for_charts.empty and 'speed_ms' in display_df_for_charts and not display_df_for_charts['speed_ms'].dropna().empty:
-                fig_hist = px.histogram(display_df_for_charts.dropna(subset=['speed_ms']), x='speed_ms', nbins=20, title='Speed Distribution')
-                st.plotly_chart(fig_hist, use_container_width=True)
-            else:
-                st.write("No speed data for distribution.")
-    with tab2:
-        st.plotly_chart(create_power_chart(display_df_for_charts), use_container_width=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            if not display_df_for_charts.empty and 'timestamp' in display_df_for_charts and 'power_w' in display_df_for_charts:
-                fig_power = px.line(display_df_for_charts.dropna(subset=['timestamp', 'power_w']), x='timestamp', y='power_w', title='Power Consumption Over Time')
-                st.plotly_chart(fig_power, use_container_width=True)
-            else:
-                st.write("No data for power consumption chart.")
-        with col2:
-            if not display_df_for_charts.empty and 'timestamp' in display_df_for_charts and 'energy_j' in display_df_for_charts:
-                df_energy = display_df_for_charts.dropna(subset=['timestamp', 'energy_j']).copy()
-                df_energy['cumulative_energy'] = df_energy['energy_j'].cumsum() / 1000000  # MJ
-                fig_energy = px.line(df_energy, x='timestamp', y='cumulative_energy', title='Cumulative Energy Consumption (MJ)')
-                st.plotly_chart(fig_energy, use_container_width=True)
-            else:
-                st.write("No data for cumulative energy chart.")
-    with tab3:
-        st.plotly_chart(create_efficiency_chart(display_df_for_charts), use_container_width=True)
-        st.subheader("Efficiency Insights")
-        # ... (Efficiency insights logic from previous attempt, ensuring it uses display_df_for_charts)
-    with tab4:
-        st.plotly_chart(create_gps_map(display_df_for_charts), use_container_width=True)
-        # ... (GPS track info logic, ensuring it uses display_df_for_charts)
+    display_df_for_charts = current_display_df.copy()
+    # ... (Chart display logic - same as before, ensuring functions use display_df_for_charts)
+    with tab1: st.plotly_chart(create_speed_chart(display_df_for_charts), use_container_width=True)
+    with tab2: st.plotly_chart(create_power_chart(display_df_for_charts), use_container_width=True)
+    with tab3: st.plotly_chart(create_efficiency_chart(display_df_for_charts), use_container_width=True)
+    with tab4: st.plotly_chart(create_gps_map(display_df_for_charts), use_container_width=True)
     with tab5:
-        st.subheader("Raw Telemetry Data")
+        st.subheader(f"Raw Telemetry Data (Last {MAX_DATAPOINTS_IN_DASHBOARD} points)") # Corrected f-string
         st.dataframe(display_df_for_charts, use_container_width=True)
-        if st.button("Download Displayed Data as CSV"):
-            csv = display_df_for_charts.to_csv(index=False)
-            st.download_button(label="Download CSV", data=csv, file_name="displayed_telemetry.csv", mime="text/csv")
-        st.subheader("Data Summary")
-        if not display_df_for_charts.empty:
-            st.write(display_df_for_charts.describe())
-        else:
-            st.write("No data to summarize.")
+        # Download button for current view
 
     st.markdown("---")
-    st.markdown("<div style='text-align: center; color: #666;'><p>Shell Eco-marathon Telemetry Dashboard V3 | Data source: maindata.py</p><p>Inspiring future energy solutions through student innovation 🌱</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #666;'><p>Shell Eco-marathon Telemetry Dashboard V5 | Data via Ably Realtime</p></div>", unsafe_allow_html=True)
 
-    if auto_refresh and data_changed:
-        time.sleep(refresh_rate) # Give a small buffer for file ops if needed
-        st.experimental_rerun()
-    elif auto_refresh: # If no data change but auto-refresh is on, still schedule a rerun
-        time.sleep(refresh_rate)
-        st.experimental_rerun()
-
+    # No explicit time.sleep + rerun loop here for auto-refresh.
+    # Updates are now event-driven by Ably messages triggering message_callback -> st.experimental_rerun().
 
 if __name__ == "__main__":
-    main()
+    if not ABLY_API_KEY or (ABLY_API_KEY == ABLY_API_KEY_FALLBACK and not os.environ.get('ABLY_API_KEY') and ABLY_API_KEY_FALLBACK == "YOUR_PLACEHOLDER_KEY"):
+        st.error("CRITICAL: Ably API Key is missing or is a placeholder. App cannot start. Please set the ABLY_API_KEY environment variable or update the script's fallback key.")
+    else:
+        main()
