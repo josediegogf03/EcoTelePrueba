@@ -52,7 +52,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- Custom CSS with Updated Colors ---
+# --- Custom CSS ---
 st.markdown(
     """
 <style>
@@ -70,52 +70,37 @@ st.markdown(
         border-left: 5px solid #4CAF50;
     }
     .error-card {
-        background: linear-gradient(135deg, #ff6b35, #f7931e);
+        background-color: #ff6b35;
         border: 2px solid #e55100;
-        border-radius: 12px;
+        border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
         color: white;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .error-card h3 {
-        color: white;
-        margin-top: 0;
     }
     .warning-card {
-        background: linear-gradient(135deg, #ff5722, #ff9800);
-        border: 2px solid #d84315;
-        border-radius: 12px;
+        background-color: #d32f2f;
+        border: 2px solid #b71c1c;
+        border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
         color: white;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .warning-card h3, .warning-card h4 {
-        color: white;
-        margin-top: 0;
     }
     .info-card {
-        background: linear-gradient(135deg, #2196f3, #03a9f4);
-        border: 2px solid #1976d2;
-        border-radius: 12px;
+        background-color: #1976d2;
+        border: 2px solid #0d47a1;
+        border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
         color: white;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     .info-card h4, .info-card h5 {
-        color: white;
-        margin-top: 0;
+        color: #e3f2fd;
     }
-    .info-card ul, .info-card li {
-        color: white;
+    .info-card ul {
+        color: #f3e5f5;
     }
-    .info-card code {
-        background-color: rgba(255,255,255,0.2);
-        color: #ffeb3b;
-        padding: 2px 4px;
-        border-radius: 4px;
+    .warning-card h3 {
+        color: #ffebee;
     }
 </style>
 """,
@@ -123,11 +108,34 @@ st.markdown(
 )
 
 
-# --- Cached Functions for Efficiency ---
-@st.cache_data(ttl=60)  # Cache for 60 seconds
-def calculate_kpis(df_dict):
-    """Calculate KPIs from DataFrame dictionary (for caching)"""
-    df = pd.DataFrame(df_dict)
+# --- Initialize Session State (Run once) ---
+@st.cache_data
+def initialize_session_defaults():
+    """Initialize default values - cached to prevent re-execution"""
+    return {
+        "ably_client": None,
+        "ably_channel": None,
+        "ably_connection_state": "uninitialized",
+        "connection_error": None,
+        "use_mock_data": False,
+    }
+
+
+# Initialize session state only if not already done
+if "initialized" not in st.session_state:
+    defaults = initialize_session_defaults()
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    st.session_state.initialized = True
+    st.session_state.telemetry_data_deque = deque(maxlen=MAX_DATAPOINTS_IN_DASHBOARD)
+
+
+# --- Charting and KPI Functions (Cached for efficiency) ---
+@st.cache_data
+def calculate_kpis(df_hash):
+    """Calculate KPIs - cached based on data hash"""
+    df = pd.DataFrame(df_hash)
     if df.empty or not all(
         col in df.columns for col in ["energy_j", "speed_ms", "distance_m", "power_w"]
     ):
@@ -177,40 +185,36 @@ def calculate_kpis(df_dict):
     }
 
 
-@st.cache_data(ttl=30)  # Cache for 30 seconds
-def create_speed_chart(df_dict):
-    """Create speed chart from DataFrame dictionary"""
-    df = pd.DataFrame(df_dict)
+@st.cache_data
+def create_speed_chart(df_hash):
+    """Create speed chart - cached based on data hash"""
+    df = pd.DataFrame(df_hash)
     if df.empty or "timestamp" not in df.columns or "speed_ms" not in df.columns:
         return go.Figure().update_layout(
             title="Vehicle Speed Over Time (No data)", height=400
         )
     
     df["speed_ms"] = pd.to_numeric(df["speed_ms"], errors="coerce")
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df_clean = df.dropna(subset=["timestamp", "speed_ms"]).sort_values("timestamp")
+    df_clean = df.dropna(subset=["timestamp", "speed_ms"])
     
     if df_clean.empty:
         return go.Figure().update_layout(
             title="Vehicle Speed Over Time (No valid data)", height=400
         )
     
-    fig = px.line(
+    return px.line(
         df_clean,
         x="timestamp",
         y="speed_ms",
         title="Vehicle Speed Over Time",
         labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
-    )
-    fig.update_layout(height=400, showlegend=False)
-    fig.update_traces(line=dict(color="#4CAF50", width=2))
-    return fig
+    ).update_layout(height=400)
 
 
-@st.cache_data(ttl=30)
-def create_power_chart(df_dict):
-    """Create power chart from DataFrame dictionary"""
-    df = pd.DataFrame(df_dict)
+@st.cache_data
+def create_power_chart(df_hash):
+    """Create power chart - cached based on data hash"""
+    df = pd.DataFrame(df_hash)
     if df.empty or not all(
         col in df.columns for col in ["timestamp", "voltage_v", "current_a"]
     ):
@@ -220,8 +224,7 @@ def create_power_chart(df_dict):
     
     df["voltage_v"] = pd.to_numeric(df["voltage_v"], errors="coerce")
     df["current_a"] = pd.to_numeric(df["current_a"], errors="coerce")
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df_valid = df.dropna(subset=["timestamp", "voltage_v", "current_a"]).sort_values("timestamp")
+    df_valid = df.dropna(subset=["timestamp", "voltage_v", "current_a"])
     
     if df_valid.empty:
         return go.Figure().update_layout(
@@ -229,41 +232,31 @@ def create_power_chart(df_dict):
         )
     
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
     fig.add_trace(
         go.Scatter(
-            x=df_valid["timestamp"], 
-            y=df_valid["voltage_v"], 
-            name="Voltage (V)",
-            line=dict(color="#2196F3", width=2)
+            x=df_valid["timestamp"], y=df_valid["voltage_v"], name="Voltage (V)"
         ),
         secondary_y=False,
     )
     fig.add_trace(
         go.Scatter(
-            x=df_valid["timestamp"], 
-            y=df_valid["current_a"], 
-            name="Current (A)",
-            line=dict(color="#FF9800", width=2)
+            x=df_valid["timestamp"], y=df_valid["current_a"], name="Current (A)"
         ),
         secondary_y=True,
     )
-    
-    fig.update_layout(
+    return fig.update_layout(
         title_text="Electrical Parameters Over Time",
         height=400,
         xaxis_title="Time",
+        yaxis_title="Voltage (V)",
+        yaxis2_title="Current (A)",
     )
-    fig.update_yaxes(title_text="Voltage (V)", secondary_y=False)
-    fig.update_yaxes(title_text="Current (A)", secondary_y=True)
-    
-    return fig
 
 
-@st.cache_data(ttl=30)
-def create_efficiency_chart(df_dict):
-    """Create efficiency chart from DataFrame dictionary"""
-    df = pd.DataFrame(df_dict)
+@st.cache_data
+def create_efficiency_chart(df_hash):
+    """Create efficiency chart - cached based on data hash"""
+    df = pd.DataFrame(df_hash)
     if df.empty or not all(
         col in df.columns
         for col in ["distance_m", "energy_j", "speed_ms", "power_w", "voltage_v"]
@@ -275,7 +268,6 @@ def create_efficiency_chart(df_dict):
     df_copy = df.copy()
     for col in ["distance_m", "energy_j", "speed_ms", "power_w", "voltage_v"]:
         df_copy[col] = pd.to_numeric(df_copy[col], errors="coerce")
-    
     df_copy.dropna(
         subset=["distance_m", "energy_j", "speed_ms", "power_w", "voltage_v"],
         inplace=True,
@@ -286,23 +278,11 @@ def create_efficiency_chart(df_dict):
             title="Efficiency Analysis (Insufficient data)", height=400
         )
     
-    # Calculate efficiency (avoid division by zero)
-    df_copy["efficiency"] = np.where(
-        df_copy["energy_j"] > 0,
-        (df_copy["distance_m"] / (df_copy["energy_j"] / 1000000)),
-        0
-    )
-    df_copy["efficiency"] = df_copy["efficiency"].replace([np.inf, -np.inf], 0)
+    df_copy["efficiency"] = (
+        df_copy["distance_m"] / (df_copy["energy_j"] / 1000000)
+    ).replace([np.inf, -np.inf], 0)
     
-    # Filter out extreme values for better visualization
-    df_copy = df_copy[df_copy["efficiency"] < df_copy["efficiency"].quantile(0.95)]
-    
-    if df_copy.empty:
-        return go.Figure().update_layout(
-            title="Efficiency Analysis (No valid data after filtering)", height=400
-        )
-    
-    fig = px.scatter(
+    return px.scatter(
         df_copy,
         x="speed_ms",
         y="efficiency",
@@ -310,16 +290,13 @@ def create_efficiency_chart(df_dict):
         size="voltage_v",
         title="Efficiency Analysis",
         labels={"speed_ms": "Speed (m/s)", "efficiency": "Efficiency (m/MJ)"},
-        color_continuous_scale="Viridis"
-    )
-    fig.update_layout(height=400)
-    return fig
+    ).update_layout(height=400)
 
 
-@st.cache_data(ttl=30)
-def create_gps_map(df_dict):
-    """Create GPS map from DataFrame dictionary"""
-    df = pd.DataFrame(df_dict)
+@st.cache_data
+def create_gps_map(df_hash):
+    """Create GPS map - cached based on data hash"""
+    df = pd.DataFrame(df_hash)
     if df.empty or not all(
         col in df.columns
         for col in ["latitude", "longitude", "speed_ms", "power_w"]
@@ -330,7 +307,6 @@ def create_gps_map(df_dict):
     
     for col in ["latitude", "longitude", "speed_ms", "power_w"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    
     df_valid = df.dropna(subset=["latitude", "longitude"])
     
     if df_valid.empty:
@@ -340,20 +316,7 @@ def create_gps_map(df_dict):
             height=400,
         )
     
-    # Filter out unrealistic coordinates
-    df_valid = df_valid[
-        (df_valid["latitude"].between(-90, 90)) & 
-        (df_valid["longitude"].between(-180, 180))
-    ]
-    
-    if df_valid.empty:
-        return go.Figure().update_layout(
-            title="GPS Track (No valid coordinates)",
-            mapbox_style="open-street-map",
-            height=400,
-        )
-    
-    fig = px.scatter_mapbox(
+    return px.scatter_mapbox(
         df_valid,
         lat="latitude",
         lon="longitude",
@@ -362,23 +325,17 @@ def create_gps_map(df_dict):
         mapbox_style="open-street-map",
         title="Vehicle Track",
         height=400,
-        zoom=12,
-        color_continuous_scale="Plasma"
+        zoom=10,
+    ).update_layout(
+        mapbox_center={
+            "lat": df_valid["latitude"].mean(),
+            "lon": df_valid["longitude"].mean(),
+        },
+        mapbox_zoom=12,
     )
-    
-    center_lat = df_valid["latitude"].mean()
-    center_lon = df_valid["longitude"].mean()
-    
-    fig.update_layout(
-        mapbox_center={"lat": center_lat, "lon": center_lon},
-        mapbox_zoom=12
-    )
-    
-    return fig
 
 
 # --- Error Handling and Connection Status ---
-@st.cache_data(ttl=300)  # Cache for 5 minutes
 def check_event_loop():
     """Check if there's a running event loop"""
     try:
@@ -446,9 +403,9 @@ def display_connection_issues():
 
 
 # --- Safe Ably Client Management ---
-@st.cache_resource
-def get_ably_realtime_client():
-    """Safely attempt to create Ably client with comprehensive error handling"""
+@st.cache_data
+def get_ably_connection_status():
+    """Check Ably connection status - cached to avoid repeated attempts"""
     if not ABLY_AVAILABLE:
         return None, "Ably library not available"
 
@@ -458,191 +415,133 @@ def get_ably_realtime_client():
     ):
         return None, "API key missing or placeholder"
 
-    # Check for event loop
     if not check_event_loop():
         return None, "No event loop available"
 
-    try:
-        # Attempt to create client with minimal configuration
-        client = AblyRealtime(key=ABLY_API_KEY, auto_connect=False)
-        return client, "Success"
-    except RuntimeError as e:
-        if "no running event loop" in str(e):
-            return None, "Event loop error"
-        return None, f"Runtime error: {str(e)}"
-    except AblyException as e:
-        return None, f"Ably error: {str(e)}"
-    except Exception as e:
-        return None, f"Unexpected error: {str(e)}"
+    return "available", "Connection possible"
 
 
 # --- Mock Data Generation ---
-@st.cache_data(ttl=2)  # Cache for 2 seconds to simulate real-time updates
-def generate_mock_data():
-    """Generate realistic mock telemetry data"""
+@st.cache_data
+def generate_mock_data(num_points=100):
+    """Generate realistic mock telemetry data - cached for efficiency"""
     import random
     
     current_time = datetime.now()
     mock_data = []
-
-    # Generate more realistic data with trends
-    base_speed = 15  # Base speed in m/s
-    base_voltage = 48  # Base voltage
-    base_current = 10  # Base current
     
-    for i in range(100):  # More data points for better visualization
+    # Generate more realistic data with trends
+    base_speed = 15
+    base_voltage = 48
+    base_current = 10
+    cumulative_distance = 0
+    cumulative_energy = 0
+
+    for i in range(num_points):
         timestamp = current_time - timedelta(seconds=i * 2)
         
-        # Add some realistic trends and variations
-        time_factor = i / 100.0
-        speed_variation = 5 * np.sin(time_factor * 2 * np.pi) + random.gauss(0, 2)
+        # Add some realistic variation and trends
+        speed_variation = random.gauss(0, 2) + np.sin(i * 0.1) * 3
         speed = max(0, base_speed + speed_variation)
         
         voltage = base_voltage + random.gauss(0, 1.5)
-        current = max(0, base_current + random.gauss(0, 1.5))
+        current = max(0, base_current + random.gauss(0, 1.5) + (speed - base_speed) * 0.3)
         power = voltage * current
-        energy = power * 2  # 2 seconds per data point
-        distance = sum([max(0, base_speed + 5 * np.sin(j / 100.0 * 2 * np.pi)) * 2 
-                       for j in range(i + 1)])  # Cumulative realistic distance
-
-        # Realistic GPS coordinates (simulating a track)
-        lat_base = 40.7128
-        lon_base = -74.0060
-        track_radius = 0.002
-        angle = (i / 100.0) * 4 * np.pi  # Multiple laps
+        energy_increment = power * 2  # 2 seconds per data point
+        cumulative_energy += energy_increment
         
-        latitude = lat_base + track_radius * np.cos(angle) + random.gauss(0, 0.0001)
-        longitude = lon_base + track_radius * np.sin(angle) + random.gauss(0, 0.0001)
+        distance_increment = speed * 2  # 2 seconds per data point
+        cumulative_distance += distance_increment
 
-        mock_data.append(
-            {
-                "timestamp": timestamp,
-                "speed_ms": round(speed, 2),
-                "voltage_v": round(voltage, 2),
-                "current_a": round(current, 2),
-                "power_w": round(power, 2),
-                "energy_j": round(energy, 2),
-                "distance_m": round(distance, 2),
-                "latitude": round(latitude, 6),
-                "longitude": round(longitude, 6),
-            }
-        )
+        # GPS coordinates with realistic movement
+        lat_base = 40.7128 + (i * 0.0001)  # Moving north
+        lon_base = -74.0060 + (i * 0.0001)  # Moving east
+        
+        mock_data.append({
+            "timestamp": timestamp,
+            "speed_ms": round(speed, 2),
+            "voltage_v": round(voltage, 2),
+            "current_a": round(current, 2),
+            "power_w": round(power, 2),
+            "energy_j": round(cumulative_energy, 2),
+            "distance_m": round(cumulative_distance, 2),
+            "latitude": round(lat_base + random.gauss(0, 0.0001), 6),
+            "longitude": round(lon_base + random.gauss(0, 0.0001), 6),
+        })
 
-    return pd.DataFrame(mock_data)
-
-
-# --- Initialize Session State ---
-def initialize_session_state():
-    """Initialize session state variables"""
-    if "ably_client" not in st.session_state:
-        st.session_state.ably_client = None
-    if "ably_channel" not in st.session_state:
-        st.session_state.ably_channel = None
-    if "ably_connection_state" not in st.session_state:
-        st.session_state.ably_connection_state = "uninitialized"
-    if "connection_error" not in st.session_state:
-        st.session_state.connection_error = None
-    if "telemetry_data_deque" not in st.session_state:
-        st.session_state.telemetry_data_deque = deque(
-            maxlen=MAX_DATAPOINTS_IN_DASHBOARD
-        )
-    if "use_mock_data" not in st.session_state:
-        st.session_state.use_mock_data = False
+    # Reverse to get chronological order
+    return pd.DataFrame(mock_data[::-1])
 
 
-# --- Sidebar Component ---
-@st.fragment
+# --- Sidebar Configuration (Optimized) ---
 def render_sidebar():
-    """Render sidebar with connection status and controls"""
-    st.sidebar.header("🔧 Configuration")
-    st.sidebar.subheader("Connection Status")
+    """Render sidebar configuration - isolated to prevent full reruns"""
+    with st.sidebar:
+        st.header("🔧 Configuration")
+        st.subheader("Connection Status")
 
-    # Try to initialize Ably client safely
-    if st.session_state.ably_client is None and st.session_state.connection_error is None:
-        client, error_msg = get_ably_realtime_client()
-        if client:
-            st.session_state.ably_client = client
-            st.session_state.ably_connection_state = "Connected"
-            st.sidebar.success("✅ Ably client initialized")
+        # Check connection status
+        if st.session_state.connection_error:
+            st.error(f"❌ Connection Error: {st.session_state.connection_error}")
+            
+            st.subheader("📊 Data Source")
+            use_mock = st.checkbox(
+                "Use Mock Data for Demo",
+                value=st.session_state.use_mock_data,
+                help="Generate simulated telemetry data for testing",
+            )
+            
+            if use_mock != st.session_state.use_mock_data:
+                st.session_state.use_mock_data = use_mock
+                st.rerun()
+
+            if use_mock:
+                st.info("🎭 Using simulated telemetry data")
+            else:
+                st.warning("⏸️ No data source available")
         else:
-            st.session_state.connection_error = error_msg
-            st.session_state.ably_connection_state = f"Error: {error_msg}"
-
-    # Display connection status
-    if st.session_state.connection_error:
-        st.sidebar.error(f"❌ Connection Error: {st.session_state.connection_error}")
-
-        # Mock data option
-        st.sidebar.subheader("📊 Data Source")
-        use_mock = st.sidebar.checkbox(
-            "Use Mock Data for Demo",
-            value=st.session_state.use_mock_data,
-            help="Generate simulated telemetry data for testing",
-        )
-        st.session_state.use_mock_data = use_mock
-
-        if use_mock:
-            st.sidebar.info("🎭 Using simulated telemetry data")
-            if st.sidebar.button("🔄 Refresh Mock Data"):
-                st.cache_data.clear()
-        else:
-            st.sidebar.warning("⏸️ No data source available")
-
-    else:
-        st.sidebar.success("✅ Real-time connection available")
-        st.sidebar.info(f"Channel: {TELEMETRY_CHANNEL_NAME}")
+            st.success("✅ Real-time connection available")
+            st.info(f"Channel: {TELEMETRY_CHANNEL_NAME}")
 
 
 # --- Main Dashboard Logic ---
 def main():
-    # Initialize session state
-    initialize_session_state()
-    
     st.markdown(
         f'<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard V5</h1>',
         unsafe_allow_html=True,
     )
 
-    # Render sidebar (isolated component)
+    # Initialize connection status only once
+    if st.session_state.connection_error is None and st.session_state.ably_client is None:
+        client_status, error_msg = get_ably_connection_status()
+        if client_status != "available":
+            st.session_state.connection_error = error_msg
+
+    # Render sidebar
     render_sidebar()
 
-    # Determine data source
+    # Get current data
     if st.session_state.connection_error and not st.session_state.use_mock_data:
-        # Display connection issues and solutions
         display_connection_issues()
         current_display_df = pd.DataFrame(columns=PLACEHOLDER_COLS)
-
     elif st.session_state.use_mock_data:
-        # Use mock data
         current_display_df = generate_mock_data()
         st.info("🎭 Currently displaying simulated telemetry data for demonstration purposes")
-
     else:
-        # Use real data (if available)
         if st.session_state.telemetry_data_deque:
-            current_display_df = pd.DataFrame(
-                list(st.session_state.telemetry_data_deque)
-            )
+            current_display_df = pd.DataFrame(list(st.session_state.telemetry_data_deque))
             current_display_df = current_display_df.reindex(columns=PLACEHOLDER_COLS)
             if "timestamp" in current_display_df.columns:
-                current_display_df["timestamp"] = pd.to_datetime(
-                    current_display_df["timestamp"]
-                )
+                current_display_df["timestamp"] = pd.to_datetime(current_display_df["timestamp"])
         else:
             current_display_df = pd.DataFrame(columns=PLACEHOLDER_COLS)
-            st.warning(
-                f"⏳ Waiting for real-time data from channel '{TELEMETRY_CHANNEL_NAME}'"
-            )
+            st.warning(f"⏳ Waiting for real-time data from channel '{TELEMETRY_CHANNEL_NAME}'")
 
-    # Convert DataFrame to dict for caching
-    df_dict = current_display_df.to_dict('records') if not current_display_df.empty else {}
+    # Convert DataFrame to hashable format for caching
+    df_hash = current_display_df.to_dict('records') if not current_display_df.empty else []
 
-    # --- KPIs Section (cached) ---
-    if df_dict:
-        kpis = calculate_kpis(df_dict)
-    else:
-        kpis = {k: 0 for k in ['total_energy_mj', 'max_speed_ms', 'avg_speed_ms', 'total_distance_km', 'avg_power_w', 'efficiency_km_per_mj']}
-    
+    # --- KPIs (Cached) ---
+    kpis = calculate_kpis(df_hash)
     st.subheader("📊 Key Performance Indicators")
     cols_kpi = st.columns(6)
 
@@ -659,42 +558,29 @@ def main():
         with cols_kpi[i]:
             st.metric(label, value)
 
-    # --- Charts Section (cached and isolated) ---
+    # --- Charts (Cached) ---
     st.subheader("📈 Telemetry Analytics")
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["Speed Analysis", "Power System", "Efficiency", "GPS Track", "Raw Data"]
     )
 
     with tab1:
-        if df_dict:
-            st.plotly_chart(create_speed_chart(df_dict), use_container_width=True)
-        else:
-            st.info("No data available for speed analysis")
-
+        st.plotly_chart(create_speed_chart(df_hash), use_container_width=True)
+    
     with tab2:
-        if df_dict:
-            st.plotly_chart(create_power_chart(df_dict), use_container_width=True)
-        else:
-            st.info("No data available for power analysis")
-
+        st.plotly_chart(create_power_chart(df_hash), use_container_width=True)
+    
     with tab3:
-        if df_dict:
-            st.plotly_chart(create_efficiency_chart(df_dict), use_container_width=True)
-        else:
-            st.info("No data available for efficiency analysis")
-
+        st.plotly_chart(create_efficiency_chart(df_hash), use_container_width=True)
+    
     with tab4:
-        if df_dict:
-            st.plotly_chart(create_gps_map(df_dict), use_container_width=True)
-        else:
-            st.info("No data available for GPS tracking")
-
+        st.plotly_chart(create_gps_map(df_hash), use_container_width=True)
+    
     with tab5:
         st.subheader(f"Raw Telemetry Data (Last {MAX_DATAPOINTS_IN_DASHBOARD} points)")
         if not current_display_df.empty:
             st.dataframe(current_display_df, use_container_width=True)
             
-            # Download button
             csv = current_display_df.to_csv(index=False)
             st.download_button(
                 label="📥 Download Data as CSV",
@@ -705,9 +591,9 @@ def main():
         else:
             st.info("No data available to display")
 
-    # Auto-refresh for mock data (only when using mock data)
+    # Auto-refresh for mock data (less frequent to reduce load)
     if st.session_state.use_mock_data:
-        time.sleep(2)
+        time.sleep(5)  # Increased interval for efficiency
         st.rerun()
 
     st.markdown("---")
