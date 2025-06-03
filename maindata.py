@@ -1,125 +1,108 @@
-import pandas as pd
-import numpy as np
+import asyncio
+import os
 import random
-import time
 from datetime import datetime, timedelta
+import logging
 
-# Copied from prueba2.py
-def simulate_telemetry_data(num_points=100, real_time=False):
-    """
-    Simulate telemetry data for Shell Eco-marathon vehicle
-    """
-    if real_time:
-        # For real-time simulation, generate single data point
-        current_time = datetime.now()
+from ably import AblyRealtime
+from ably.types.options import Options
 
-        # Base values with some realistic constraints
-        speed = max(0, random.gauss(15, 3))  # Average speed around 15 m/s
-        voltage = random.gauss(48, 2)  # Battery voltage around 48V
-        current = max(0, random.gauss(8, 2))  # Current consumption
-        power = voltage * current  # Power calculation
+# --- Logging Setup ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-        # Simulate GPS coordinates (example location)
-        lat_base, lon_base = 40.7128, -74.0060  # NYC as example
-        latitude = lat_base + random.gauss(0, 0.001)
-        longitude = lon_base + random.gauss(0, 0.001)
+# --- Ably Configuration ---
+# Fallback to the user-provided key if environment variable is not set.
+ABLY_API_KEY_FALLBACK = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ" # Directly embedded
+ABLY_API_KEY = os.environ.get('ABLY_API_KEY', ABLY_API_KEY_FALLBACK)
+TELEMETRY_CHANNEL_NAME = "telemetry-dashboard-channel"
 
-        return pd.DataFrame({
-            'timestamp': [current_time],
-            'speed_ms': [speed],
-            'voltage_v': [voltage],
-            'current_a': [current],
-            'power_w': [power],
-            'energy_j': [power * 1000],  # Simplified energy calculation
-            'distance_m': [speed * 1000],  # Simplified distance
-            'latitude': [latitude],
-            'longitude': [longitude]
-        })
+if not ABLY_API_KEY:
+    logging.error("ABLY_API_KEY not found. Please set the ABLY_API_KEY environment variable or ensure fallback is present. Exiting.")
+    exit()
+# Check if we are using the fallback and it's not the placeholder
+elif ABLY_API_KEY == ABLY_API_KEY_FALLBACK and not os.environ.get('ABLY_API_KEY'):
+    if ABLY_API_KEY_FALLBACK == "YOUR_ACTUAL_API_KEY_PLACEHOLDER": # Example placeholder check
+         logging.error("CRITICAL: Ably API Key is a placeholder. Please update the script or set the ABLY_API_KEY environment variable.")
+         exit()
+    logging.warning(f"Using fallback ABLY_API_KEY: {ABLY_API_KEY_FALLBACK[:10]}... For production, prefer setting the ABLY_API_KEY environment variable.")
+else:
+    logging.info(f"Using ABLY_API_KEY from environment variable: {os.environ.get('ABLY_API_KEY')[:10]}...")
 
-    else:
-        # Generate historical data
-        start_time = datetime.now() - timedelta(hours=2)
-        timestamps = [start_time + timedelta(seconds=i*5) for i in range(num_points)]
 
-        # Simulate realistic telemetry patterns
-        speeds = []
-        voltages = []
-        currents = []
+# --- Data Simulation Logic ---
+def simulate_telemetry_data_point():
+    current_time = datetime.now()
+    speed = max(0, random.gauss(15, 3))
+    voltage = random.gauss(48, 2)
+    current = max(0, random.gauss(8, 2))
+    power = voltage * current
+    lat_base, lon_base = 40.7128, -74.0060
+    latitude = lat_base + random.gauss(0, 0.001)
+    longitude = lon_base + random.gauss(0, 0.001)
 
-        for i in range(num_points):
-            # Simulate race patterns - start slow, accelerate, maintain, slow down
-            if i < num_points * 0.2:  # Start phase
-                speed = random.gauss(5, 1)
-            elif i < num_points * 0.8:  # Main race phase
-                speed = random.gauss(18, 4)
-            else:  # End phase
-                speed = random.gauss(8, 2)
+    return {
+        'timestamp': current_time.isoformat(),
+        'speed_ms': speed,
+        'voltage_v': voltage,
+        'current_a': current,
+        'power_w': power,
+        'energy_j': power * 1000,
+        'distance_m': speed * 1000,
+        'latitude': latitude,
+        'longitude': longitude
+    }
 
-            speeds.append(max(0, speed))
+# --- Main Ably Publisher Logic ---
+async def main_publisher():
+    logging.info(f"Initializing Ably Realtime client...")
+    if not ABLY_API_KEY or ABLY_API_KEY == "YOUR_ACTUAL_API_KEY_PLACEHOLDER": # Final check before use
+        logging.error("CRITICAL: Ably API Key is missing or still a placeholder value before attempting to connect. Exiting.")
+        return
 
-            # Voltage decreases over time (battery drain)
-            voltage = 48 - (i / num_points) * 5 + random.gauss(0, 0.5)
-            voltages.append(max(30, voltage))
+    try:
+        options = Options(key=ABLY_API_KEY, log_level=logging.WARNING) # Quieter Ably logs
+        realtime = AblyRealtime(options)
+        await realtime.connection.once_async('connected')
+        logging.info("Successfully connected to Ably.")
+    except Exception as e:
+        logging.error(f"Error connecting to Ably: {e}")
+        return
 
-            # Current varies with speed and efficiency
-            current = max(0, speeds[i] * 0.5 + random.gauss(0, 1))
-            currents.append(current)
+    channel = realtime.channels.get(TELEMETRY_CHANNEL_NAME)
+    logging.info(f"Publishing data to Ably channel: {TELEMETRY_CHANNEL_NAME}")
 
-        powers = [v * c for v, c in zip(voltages, currents)]
-        energies = [p * 1000 for p in powers]  # Simplified energy
-        distances = np.cumsum([s * 5 for s in speeds])  # Distance traveled
+    try:
+        while True:
+            data_point = simulate_telemetry_data_point()
+            try:
+                await channel.publish('telemetry_update', data_point)
+                logging.info(f"Published data at {data_point['timestamp']}")
+            except Exception as e:
+                logging.error(f"Error publishing to Ably channel: {e}")
+                await asyncio.sleep(5)
 
-        # GPS simulation (moving along a track)
-        lat_base, lon_base = 40.7128, -74.0060
-        latitudes = [lat_base + i * 0.0001 + random.gauss(0, 0.00005) for i in range(num_points)]
-        longitudes = [lon_base + i * 0.0001 + random.gauss(0, 0.00005) for i in range(num_points)]
+            await asyncio.sleep(2)
 
-        return pd.DataFrame({
-            'timestamp': timestamps,
-            'speed_ms': speeds,
-            'voltage_v': voltages,
-            'current_a': currents,
-            'power_w': powers,
-            'energy_j': energies,
-            'distance_m': distances,
-            'latitude': latitudes,
-            'longitude': longitudes
-        })
-
-def main_data_loop():
-    print("Starting maindata.py loop...")
-    output_file = "telemetry_data.csv"
-    # For this version, we'll focus on real-time data generation and saving.
-    # The Streamlit app (prueba3.py) will handle historical data by reading
-    # a potentially larger file if maindata.py was run in a historical mode.
-    # Or, maindata.py could be enhanced to take an argument for mode.
-    # For now, it defaults to generating single points for real-time.
-
-    # Accumulate data in memory before writing to file
-    # This is a simple approach. For long-running processes,
-    # one might append or use a database.
-    all_data_df = pd.DataFrame()
-    max_rows_in_memory = 150 # Keep a sliding window of data
-
-    while True:
-        try:
-            new_data_point = simulate_telemetry_data(real_time=True)
-
-            # Append new data and keep a sliding window
-            all_data_df = pd.concat([all_data_df, new_data_point], ignore_index=True)
-            if len(all_data_df) > max_rows_in_memory:
-                all_data_df = all_data_df.tail(max_rows_in_memory)
-
-            all_data_df.to_csv(output_file, index=False)
-            print(f"{datetime.now()}: Data point generated and {output_file} updated with {len(all_data_df)} rows.")
-
-            time.sleep(2)  # Simulate data generation interval
-        except KeyboardInterrupt:
-            print("maindata.py loop stopped by user.")
-            break
-        except Exception as e:
-            print(f"Error in maindata.py loop: {e}")
-            time.sleep(5) # Wait a bit before retrying on error
+    except KeyboardInterrupt:
+        logging.info("Publisher stopping due to KeyboardInterrupt.")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred in main_publisher: {e}")
+    finally:
+        if 'realtime' in locals() and realtime.connection.state in ['connected', 'connecting', 'initialized']:
+            logging.info("Closing Ably connection...")
+            await realtime.close()
+            logging.info("Ably connection closed.")
 
 if __name__ == "__main__":
-    main_data_loop()
+    if not ABLY_API_KEY or ABLY_API_KEY == ABLY_API_KEY_FALLBACK and ABLY_API_KEY_FALLBACK == "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ" and not os.environ.get('ABLY_API_KEY'):
+        pass # Allow fallback if env var is not set
+
+    if not ABLY_API_KEY or (ABLY_API_KEY == "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ" and not os.environ.get('ABLY_API_KEY') and ABLY_API_KEY == "YOUR_ACTUAL_API_KEY_PLACEHOLDER"): # A bit redundant, but defensive
+         logging.error("CRITICAL: Ably API Key is effectively missing or a placeholder. Please set the ABLY_API_KEY environment variable or ensure the script has a valid hardcoded key (for dev only).")
+    else:
+        try:
+            asyncio.run(main_publisher())
+        except KeyboardInterrupt:
+            logging.info("maindata.py (Ably Publisher) stopped by user.")
+        except Exception as e:
+            logging.error(f"Unhandled exception in __main__: {e}")
