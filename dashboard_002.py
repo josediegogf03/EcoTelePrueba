@@ -116,6 +116,7 @@ if "initialized" not in st.session_state:
     st.session_state.setdefault("use_mock_data", False)
     st.session_state.setdefault("ably_rest", None)
     st.session_state.setdefault("ably_channel", None)
+    st.session_state.setdefault("last_fetch_time", None)
     st.session_state.telemetry_data_deque = deque(
         maxlen=MAX_DATAPOINTS_IN_DASHBOARD
     )
@@ -136,6 +137,46 @@ if (
     except AblyException as e:
         st.session_state.connection_error = f"Ably REST init failed: {e}"
         logging.error(st.session_state.connection_error)
+
+# --- Async Helper ---
+async def fetch_history_async(channel, limit):
+    """Async wrapper for channel history"""
+    try:
+        history = await channel.history(direction="forwards", limit=limit)
+        return history
+    except Exception as e:
+        raise AblyException(f"Failed to fetch history: {e}")
+
+def fetch_ably_data():
+    """Fetch data from Ably channel, handling both sync and async cases"""
+    if not st.session_state.ably_channel:
+        return
+    
+    try:
+        # Try async approach first
+        loop = None
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            history = loop.run_until_complete(
+                fetch_history_async(
+                    st.session_state.ably_channel, 
+                    MAX_DATAPOINTS_IN_DASHBOARD
+                )
+            )
+        finally:
+            if loop:
+                loop.close()
+        
+        # Clear and refill the deque
+        st.session_state.telemetry_data_deque.clear()
+        for msg in history.items:
+            st.session_state.telemetry_data_deque.append(msg.data)
+        
+        st.session_state.last_fetch_time = datetime.now()
+        
+    except Exception as e:
+        st.error(f"Error fetching from Ably: {e}")
 
 # --- KPI & Chart Helpers ---
 @st.cache_data
@@ -344,6 +385,7 @@ def render_sidebar():
     with st.sidebar:
         st.header("🔧 Configuration")
         st.subheader("Connection Status")
+        
         if st.session_state.connection_error:
             st.error(f"❌ Connection Error: {st.session_state.connection_error}")
             st.subheader("📊 Data Source")
@@ -361,6 +403,24 @@ def render_sidebar():
         else:
             st.success("✅ Real-time connection available")
             st.info(f"Channel: {TELEMETRY_CHANNEL_NAME}")
+            
+            # Manual refresh button
+            if st.button("🔄 Refresh Data"):
+                fetch_ably_data()
+                st.rerun()
+            
+            # Auto-refresh toggle
+            auto_refresh = st.checkbox("🔄 Auto-refresh (5s)", value=False)
+            if auto_refresh:
+                # Check if we need to refresh
+                now = datetime.now()
+                if (st.session_state.last_fetch_time is None or 
+                    (now - st.session_state.last_fetch_time).seconds >= 5):
+                    fetch_ably_data()
+                    st.rerun()
+            
+            if st.session_state.last_fetch_time:
+                st.caption(f"Last updated: {st.session_state.last_fetch_time.strftime('%H:%M:%S')}")
 
 # --- Main ---
 def main():
@@ -373,27 +433,14 @@ def main():
 
     render_sidebar()
 
-    # --- FETCH via Ably REST (sync or async) ---
+    # Fetch data on initial load
     if (
         st.session_state.ably_channel
         and not st.session_state.use_mock_data
         and not st.session_state.connection_error
+        and st.session_state.last_fetch_time is None
     ):
-        try:
-            hist_call = st.session_state.ably_channel.history(
-                direction="forwards",
-                limit=MAX_DATAPOINTS_IN_DASHBOARD,
-            )
-            history = (
-                asyncio.run(hist_call)
-                if asyncio.iscoroutine(hist_call)
-                else hist_call
-            )
-            st.session_state.telemetry_data_deque.clear()
-            for msg in history.items:
-                st.session_state.telemetry_data_deque.append(msg.data)
-        except AblyException as e:
-            st.error(f"Error fetching from Ably REST: {e}")
+        fetch_ably_data()
 
     # --- Build DataFrame ---
     if st.session_state.connection_error and not st.session_state.use_mock_data:
@@ -461,15 +508,10 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align:center;color:#666;'>"
-        "Shell Eco-marathon Telemetry Dashboard V5 | Near Real-Time (REST)"
+        "Shell Eco-marathon Telemetry Dashboard V5 | Real-Time via Ably REST"
         "</div>",
         unsafe_allow_html=True,
     )
-
-    # --- Auto-refresh every 2s ---
-    if not st.session_state.use_mock_data and not st.session_state.connection_error:
-        time.sleep(2)
-        st.experimental_rerun()
 
 
 if __name__ == "__main__":
