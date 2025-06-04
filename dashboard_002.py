@@ -10,7 +10,7 @@ import time
 import logging
 from collections import deque
 
-# Try to import Ably REST client, fall back if unavailable
+# Try to import Ably REST, fall back if not installed
 try:
     from ably import AblyRest, AblyException
     ABLY_AVAILABLE = True
@@ -21,18 +21,15 @@ except ImportError:
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 # --- Ably Configuration ---
-ABLY_API_KEY_FALLBACK = (
-    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
-)
+ABLY_API_KEY_FALLBACK = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
 ABLY_API_KEY = os.environ.get("ABLY_API_KEY", ABLY_API_KEY_FALLBACK)
 TELEMETRY_CHANNEL_NAME = "telemetry-dashboard-channel"
 
-# --- Dashboard Constants ---
+# --- Constants ---
 MAX_DATAPOINTS_IN_DASHBOARD = 500
 PLACEHOLDER_COLS = [
     "timestamp",
@@ -46,7 +43,7 @@ PLACEHOLDER_COLS = [
     "longitude",
 ]
 
-# --- Streamlit Page Config ---
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Shell Eco-marathon Telemetry Dashboard V5",
     page_icon="🛰️",
@@ -58,111 +55,106 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #4CAF50;
-        text-align: center;
-        margin-bottom: 2rem;
-        font-weight: bold;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 5px solid #4CAF50;
-    }
-    .error-card {
-        background-color: #ff6b35;
-        border: 2px solid #e55100;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        color: white;
-    }
-    .warning-card {
-        background-color: #d32f2f;
-        border: 2px solid #b71c1c;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        color: white;
-    }
-    .info-card {
-        background-color: #1976d2;
-        border: 2px solid #0d47a1;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        color: white;
-    }
-    .info-card h4, .info-card h5 {
-        color: #e3f2fd;
-    }
-    .info-card ul {
-        color: #f3e5f5;
-    }
-    .warning-card h3 {
-        color: #ffebee;
-    }
+.main-header {
+    font-size: 2.5rem;
+    color: #4CAF50;
+    text-align: center;
+    margin-bottom: 2rem;
+    font-weight: bold;
+}
+.metric-card {
+    background-color: #f0f2f6;
+    padding: 1rem;
+    border-radius: 10px;
+    border-left: 5px solid #4CAF50;
+}
+.error-card {
+    background-color: #ff6b35;
+    border: 2px solid #e55100;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    color: white;
+}
+.warning-card {
+    background-color: #d32f2f;
+    border: 2px solid #b71c1c;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    color: white;
+}
+.info-card {
+    background-color: #1976d2;
+    border: 2px solid #0d47a1;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    color: white;
+}
+.info-card h4, .info-card h5 {
+    color: #e3f2fd;
+}
+.info-card ul {
+    color: #f3e5f5;
+}
+.warning-card h3 {
+    color: #ffebee;
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# --- Initialize Session State Once ---
+# --- Initialize Session State (Run once) ---
 if "initialized" not in st.session_state:
-    st.session_state["connection_error"] = None
-    st.session_state["use_mock_data"] = False
-    st.session_state["telemetry_data_deque"] = deque(
-        maxlen=MAX_DATAPOINTS_IN_DASHBOARD
-    )
-    st.session_state["ably_rest"] = None
-    st.session_state["ably_channel"] = None
-    st.session_state["initialized"] = True
+    # core defaults
+    st.session_state.setdefault("connection_error", None)
+    st.session_state.setdefault("use_mock_data", False)
+    st.session_state.setdefault("ably_rest", None)
+    st.session_state.setdefault("ably_channel", None)
+    st.session_state.telemetry_data_deque = deque(maxlen=MAX_DATAPOINTS_IN_DASHBOARD)
+    st.session_state.initialized = True
 
-# --- Initialize Ably REST Client ---
+# --- Initialize Ably REST Client once ---
 if (
     ABLY_AVAILABLE
-    and st.session_state["ably_rest"] is None
-    and st.session_state["connection_error"] is None
+    and st.session_state.ably_rest is None
+    and st.session_state.connection_error is None
 ):
     try:
         rest = AblyRest(key=ABLY_API_KEY)
-        channel = rest.channels.get(TELEMETRY_CHANNEL_NAME)
-        st.session_state["ably_rest"] = rest
-        st.session_state["ably_channel"] = channel
+        ch = rest.channels.get(TELEMETRY_CHANNEL_NAME)
+        st.session_state.ably_rest = rest
+        st.session_state.ably_channel = ch
+        logging.info("Initialized AblyRest client and channel.")
     except AblyException as e:
-        st.session_state["connection_error"] = f"Ably REST init failed: {e}"
+        st.session_state.connection_error = f"Ably REST init failed: {e}"
+        logging.error(st.session_state.connection_error)
 
-# --- KPI & Chart Helpers ---
+# --- KPI & Chart Functions ---
 @st.cache_data
-def calculate_kpis(records):
-    df = pd.DataFrame(records)
-    cols = ["energy_j", "speed_ms", "distance_m", "power_w"]
-    if df.empty or not all(c in df.columns for c in cols):
-        return dict.fromkeys([
-            "total_energy_mj",
-            "max_speed_ms",
-            "avg_speed_ms",
-            "total_distance_km",
-            "avg_power_w",
-            "efficiency_km_per_mj",
-        ], 0)
-    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce")
-    df = df.dropna(subset=cols)
+def calculate_kpis(df_records):
+    df = pd.DataFrame(df_records)
+    keys = [
+        "total_energy_mj",
+        "max_speed_ms",
+        "avg_speed_ms",
+        "total_distance_km",
+        "avg_power_w",
+        "efficiency_km_per_mj",
+    ]
+    if df.empty or not all(col in df.columns for col in ["energy_j", "speed_ms", "distance_m", "power_w"]):
+        return {k: 0 for k in keys}
+    for col in ["energy_j", "speed_ms", "distance_m", "power_w"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["energy_j", "speed_ms", "distance_m", "power_w"])
     if df.empty:
-        return dict.fromkeys([
-            "total_energy_mj",
-            "max_speed_ms",
-            "avg_speed_ms",
-            "total_distance_km",
-            "avg_power_w",
-            "efficiency_km_per_mj",
-        ], 0)
-    total_energy = df["energy_j"].sum() / 1e6
+        return {k: 0 for k in keys}
+    total_energy = df["energy_j"].sum() / 1_000_000
     max_speed = df["speed_ms"].max()
     avg_speed = df["speed_ms"].mean()
-    total_distance = df["distance_m"].max() / 1e3
+    total_distance = df["distance_m"].max() / 1_000
     avg_power = df["power_w"].mean()
     efficiency = total_distance / total_energy if total_energy > 0 else 0
     return {
@@ -175,96 +167,74 @@ def calculate_kpis(records):
     }
 
 @st.cache_data
-def create_speed_chart(records):
-    df = pd.DataFrame(records)
-    if df.empty or "timestamp" not in df or "speed_ms" not in df:
-        return go.Figure().update_layout(
-            title="Vehicle Speed Over Time (No data)", height=400
-        )
+def create_speed_chart(df_records):
+    df = pd.DataFrame(df_records)
+    if df.empty or "timestamp" not in df.columns or "speed_ms" not in df.columns:
+        return go.Figure().update_layout(title="Vehicle Speed Over Time (No data)", height=400)
     df["speed_ms"] = pd.to_numeric(df["speed_ms"], errors="coerce")
     df = df.dropna(subset=["timestamp", "speed_ms"])
     if df.empty:
-        return go.Figure().update_layout(
-            title="Vehicle Speed Over Time (No valid data)", height=400
-        )
-    return px.line(
-        df,
-        x="timestamp",
-        y="speed_ms",
-        title="Vehicle Speed Over Time",
-        labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
-    ).update_layout(height=400)
+        return go.Figure().update_layout(title="Vehicle Speed Over Time (No valid data)", height=400)
+    return (
+        px.line(df, x="timestamp", y="speed_ms",
+                title="Vehicle Speed Over Time",
+                labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"})
+        .update_layout(height=400)
+    )
 
 @st.cache_data
-def create_power_chart(records):
-    df = pd.DataFrame(records)
-    if df.empty or not all(c in df for c in ["timestamp", "voltage_v", "current_a"]):
-        return go.Figure().update_layout(
-            title="Electrical Parameters (No data)", height=400
-        )
-    df[["voltage_v", "current_a"]] = df[["voltage_v", "current_a"]].apply(
-        pd.to_numeric, errors="coerce"
-    )
+def create_power_chart(df_records):
+    df = pd.DataFrame(df_records)
+    if df.empty or not all(col in df.columns for col in ["timestamp", "voltage_v", "current_a"]):
+        return go.Figure().update_layout(title="Electrical Parameters (No data)", height=400)
+    df["voltage_v"] = pd.to_numeric(df["voltage_v"], errors="coerce")
+    df["current_a"] = pd.to_numeric(df["current_a"], errors="coerce")
     df = df.dropna(subset=["timestamp", "voltage_v", "current_a"])
     if df.empty:
-        return go.Figure().update_layout(
-            title="Electrical Parameters (No valid data)", height=400
-        )
+        return go.Figure().update_layout(title="Electrical Parameters (No valid data)", height=400)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(
-        go.Scatter(x=df["timestamp"], y=df["voltage_v"], name="Voltage (V)"),
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(x=df["timestamp"], y=df["current_a"], name="Current (A)"),
-        secondary_y=True,
-    )
-    return fig.update_layout(
-        title_text="Electrical Parameters Over Time",
-        height=400,
-        xaxis_title="Time",
-        yaxis_title="Voltage (V)",
-        yaxis2_title="Current (A)",
+    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["voltage_v"], name="Voltage (V)"), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["current_a"], name="Current (A)"), secondary_y=True)
+    return (
+        fig.update_layout(
+            title_text="Electrical Parameters Over Time",
+            height=400,
+            xaxis_title="Time",
+            yaxis_title="Voltage (V)",
+            yaxis2_title="Current (A)",
+        )
     )
 
 @st.cache_data
-def create_efficiency_chart(records):
-    df = pd.DataFrame(records)
-    needed = ["distance_m", "energy_j", "speed_ms", "power_w", "voltage_v"]
-    if df.empty or not all(c in df for c in needed):
-        return go.Figure().update_layout(
-            title="Efficiency Analysis (No data)", height=400
-        )
-    df[needed] = df[needed].apply(pd.to_numeric, errors="coerce")
-    df = df.dropna(subset=needed)
+def create_efficiency_chart(df_records):
+    df = pd.DataFrame(df_records)
+    required = ["distance_m", "energy_j", "speed_ms", "power_w", "voltage_v"]
+    if df.empty or not all(col in df.columns for col in required):
+        return go.Figure().update_layout(title="Efficiency Analysis (No data)", height=400)
+    for col in required:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=required)
     if df.empty:
-        return go.Figure().update_layout(
-            title="Efficiency Analysis (Insufficient data)", height=400
-        )
-    df["efficiency"] = (
-        df["distance_m"] / (df["energy_j"] / 1e6)
-    ).replace([np.inf, -np.inf], 0)
-    return px.scatter(
-        df,
-        x="speed_ms",
-        y="efficiency",
-        color="power_w",
-        size="voltage_v",
-        title="Efficiency Analysis",
-        labels={"speed_ms": "Speed (m/s)", "efficiency": "Efficiency (m/MJ)"},
-    ).update_layout(height=400)
+        return go.Figure().update_layout(title="Efficiency Analysis (Insufficient data)", height=400)
+    df["efficiency"] = (df["distance_m"] / (df["energy_j"] / 1_000_000)).replace([np.inf, -np.inf], 0)
+    return (
+        px.scatter(df, x="speed_ms", y="efficiency", color="power_w", size="voltage_v",
+                   title="Efficiency Analysis",
+                   labels={"speed_ms": "Speed (m/s)", "efficiency": "Efficiency (m/MJ)"})
+        .update_layout(height=400)
+    )
 
 @st.cache_data
-def create_gps_map(records):
-    df = pd.DataFrame(records)
-    needed = ["latitude", "longitude", "speed_ms", "power_w"]
-    if df.empty or not all(c in df for c in needed):
+def create_gps_map(df_records):
+    df = pd.DataFrame(df_records)
+    if df.empty or not all(col in df.columns for col in ["latitude", "longitude", "speed_ms", "power_w"]):
         return go.Figure().update_layout(
             title="GPS Track (No data)",
             mapbox_style="open-street-map",
             height=400,
         )
-    df[needed] = df[needed].apply(pd.to_numeric, errors="coerce")
+    for col in ["latitude", "longitude", "speed_ms", "power_w"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["latitude", "longitude"])
     if df.empty:
         return go.Figure().update_layout(
@@ -272,25 +242,21 @@ def create_gps_map(records):
             mapbox_style="open-street-map",
             height=400,
         )
-    return px.scatter_mapbox(
-        df,
-        lat="latitude",
-        lon="longitude",
-        color="speed_ms",
-        size="power_w",
-        mapbox_style="open-street-map",
-        title="Vehicle Track",
-        height=400,
-        zoom=10,
-    ).update_layout(
-        mapbox_center={
-            "lat": df["latitude"].mean(),
-            "lon": df["longitude"].mean(),
-        },
-        mapbox_zoom=12,
+    return (
+        px.scatter_mapbox(df, lat="latitude", lon="longitude",
+                          color="speed_ms", size="power_w",
+                          mapbox_style="open-street-map",
+                          title="Vehicle Track",
+                          height=400, zoom=10)
+        .update_layout(
+            mapbox_center={
+                "lat": df["latitude"].mean(),
+                "lon": df["longitude"].mean(),
+            },
+            mapbox_zoom=12,
+        )
     )
 
-# --- Mock Data Generator ---
 @st.cache_data
 def generate_mock_data(num_points=100):
     import random
@@ -299,115 +265,123 @@ def generate_mock_data(num_points=100):
     base_speed, base_voltage, base_current = 15, 48, 10
     cum_dist = cum_energy = 0
     for i in range(num_points):
-        ts = now - timedelta(seconds=2 * (num_points - i))
-        speed = max(0, base_speed + random.gauss(0, 2) + np.sin(i*0.1)*3)
-        voltage = base_voltage + random.gauss(0,1.5)
-        current = max(0, base_current + random.gauss(0,1.5) + (speed-base_speed)*0.3)
+        ts = now - timedelta(seconds=2 * i)
+        speed = max(0, base_speed + random.gauss(0, 2) + np.sin(i * 0.1) * 3)
+        voltage = base_voltage + random.gauss(0, 1.5)
+        current = max(0, base_current + random.gauss(0, 1.5) + (speed - base_speed) * 0.3)
         power = voltage * current
         cum_energy += power * 2
         cum_dist += speed * 2
-        lat = 40.7128 + (i*0.0001) + random.gauss(0,0.0001)
-        lon = -74.0060 + (i*0.0001) + random.gauss(0,0.0001)
+        lat = 40.7128 + i * 0.0001 + random.gauss(0, 0.0001)
+        lon = -74.0060 + i * 0.0001 + random.gauss(0, 0.0001)
         data.append({
             "timestamp": ts,
-            "speed_ms": round(speed,2),
-            "voltage_v": round(voltage,2),
-            "current_a": round(current,2),
-            "power_w": round(power,2),
-            "energy_j": round(cum_energy,2),
-            "distance_m": round(cum_dist,2),
-            "latitude": round(lat,6),
-            "longitude": round(lon,6),
+            "speed_ms": round(speed, 2),
+            "voltage_v": round(voltage, 2),
+            "current_a": round(current, 2),
+            "power_w": round(power, 2),
+            "energy_j": round(cum_energy, 2),
+            "distance_m": round(cum_dist, 2),
+            "latitude": round(lat, 6),
+            "longitude": round(lon, 6),
         })
-    return pd.DataFrame(data)
+    return pd.DataFrame(data[::-1])
 
-# --- Sidebar UI ---
+# --- Sidebar ---
 def render_sidebar():
     with st.sidebar:
         st.header("🔧 Configuration")
         st.subheader("Connection Status")
-        if st.session_state["connection_error"]:
-            st.error(f"❌ {st.session_state['connection_error']}")
+        if st.session_state.connection_error:
+            st.error(f"❌ Connection Error: {st.session_state.connection_error}")
             st.subheader("📊 Data Source")
             use_mock = st.checkbox(
                 "Use Mock Data for Demo",
-                value=st.session_state["use_mock_data"],
+                value=st.session_state.use_mock_data,
+                help="Generate simulated telemetry data",
             )
-            if use_mock != st.session_state["use_mock_data"]:
-                st.session_state["use_mock_data"] = use_mock
-                st.experimental_rerun()
+            if use_mock != st.session_state.use_mock_data:
+                st.session_state.use_mock_data = use_mock
+                st.rerun()
             if use_mock:
-                st.info("🎭 Using simulated data")
+                st.info("🎭 Using simulated telemetry data")
             else:
                 st.warning("⏸️ No data source available")
         else:
             st.success("✅ Real-time connection available")
             st.info(f"Channel: {TELEMETRY_CHANNEL_NAME}")
 
-# --- Main Dashboard ---
+# --- Main ---
 def main():
     st.markdown(
-        '<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard V5</h1>',
+        '<h1 class="main-header">'
+        '🏎️ Shell Eco-marathon Telemetry Dashboard V5'
+        '</h1>',
         unsafe_allow_html=True,
     )
+
     render_sidebar()
 
-    # --- Fetch from Ably REST ---
+    # Fetch the most recent history from Ably REST
     if (
-        st.session_state["ably_channel"]
-        and not st.session_state["use_mock_data"]
-        and not st.session_state["connection_error"]
+        st.session_state.ably_channel
+        and not st.session_state.use_mock_data
+        and not st.session_state.connection_error
     ):
         try:
-            history = st.session_state["ably_channel"].history(
+            history = st.session_state.ably_channel.history(
                 direction="forwards",
                 limit=MAX_DATAPOINTS_IN_DASHBOARD,
             )
-            st.session_state["telemetry_data_deque"].clear()
+            st.session_state.telemetry_data_deque.clear()
             for msg in history.items:
-                st.session_state["telemetry_data_deque"].append(msg.data)
+                st.session_state.telemetry_data_deque.append(msg.data)
         except AblyException as e:
             st.error(f"Error fetching from Ably REST: {e}")
 
-    # --- Prepare DataFrame ---
-    if st.session_state["connection_error"] and not st.session_state["use_mock_data"]:
-        df = pd.DataFrame(columns=PLACEHOLDER_COLS)
-    elif st.session_state["use_mock_data"]:
-        df = generate_mock_data()
-        st.info("🎭 Displaying simulated data")
+    # Build DataFrame
+    if st.session_state.connection_error and not st.session_state.use_mock_data:
+        current_display_df = pd.DataFrame(columns=PLACEHOLDER_COLS)
+    elif st.session_state.use_mock_data:
+        current_display_df = generate_mock_data()
+        st.info("🎭 Displaying simulated telemetry data")
     else:
-        dq = st.session_state["telemetry_data_deque"]
-        if dq:
-            df = pd.DataFrame(list(dq))
-            df = df.reindex(columns=PLACEHOLDER_COLS)
-            if "timestamp" in df:
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
+        if st.session_state.telemetry_data_deque:
+            current_display_df = pd.DataFrame(list(st.session_state.telemetry_data_deque))
+            current_display_df = current_display_df.reindex(columns=PLACEHOLDER_COLS)
+            if "timestamp" in current_display_df.columns:
+                current_display_df["timestamp"] = pd.to_datetime(
+                    current_display_df["timestamp"]
+                )
         else:
-            df = pd.DataFrame(columns=PLACEHOLDER_COLS)
-            st.warning(f"⏳ Waiting for data on '{TELEMETRY_CHANNEL_NAME}'")
+            current_display_df = pd.DataFrame(columns=PLACEHOLDER_COLS)
+            st.warning(
+                f"⏳ Waiting for real-time data on '{TELEMETRY_CHANNEL_NAME}'"
+            )
 
-    records = df.to_dict("records") if not df.empty else []
+    records = current_display_df.to_dict("records") if not current_display_df.empty else []
 
-    # --- KPIs ---
+    # KPIs
     kpis = calculate_kpis(records)
     st.subheader("📊 Key Performance Indicators")
     cols = st.columns(6)
     metrics = [
         ("Total Distance", f"{kpis['total_distance_km']:.2f} km"),
-        ("Max Speed", f"{kpis['max_speed_ms']:.1f} m/s"),
-        ("Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s"),
-        ("Total Energy", f"{kpis['total_energy_mj']:.2f} MJ"),
-        ("Avg Power", f"{kpis['avg_power_w']:.1f} W"),
-        ("Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ"),
+        ("Max Speed",      f"{kpis['max_speed_ms']:.1f} m/s"),
+        ("Avg Speed",      f"{kpis['avg_speed_ms']:.1f} m/s"),
+        ("Total Energy",   f"{kpis['total_energy_mj']:.2f} MJ"),
+        ("Avg Power",      f"{kpis['avg_power_w']:.1f} W"),
+        ("Efficiency",     f"{kpis['efficiency_km_per_mj']:.2f} km/MJ"),
     ]
-    for i, (label, val) in enumerate(metrics):
-        cols[i].metric(label, val)
+    for i, (lbl, val) in enumerate(metrics):
+        with cols[i]:
+            st.metric(lbl, val)
 
-    # --- Charts and Raw Data ---
+    # Charts
     st.subheader("📈 Telemetry Analytics")
-    t1, t2, t3, t4, t5 = st.tabs([
-        "Speed", "Power", "Efficiency", "GPS", "Raw Data"
-    ])
+    t1, t2, t3, t4, t5 = st.tabs(
+        ["Speed Analysis", "Power System", "Efficiency", "GPS Track", "Raw Data"]
+    )
     with t1:
         st.plotly_chart(create_speed_chart(records), use_container_width=True)
     with t2:
@@ -417,28 +391,31 @@ def main():
     with t4:
         st.plotly_chart(create_gps_map(records), use_container_width=True)
     with t5:
-        st.subheader(f"Last {MAX_DATAPOINTS_IN_DASHBOARD} Records")
-        if not df.empty:
-            st.dataframe(df, use_container_width=True)
-            csv = df.to_csv(index=False)
+        st.subheader(f"Raw Telemetry Data (Last {MAX_DATAPOINTS_IN_DASHBOARD} points)")
+        if not current_display_df.empty:
+            st.dataframe(current_display_df, use_container_width=True)
+            csv = current_display_df.to_csv(index=False)
             st.download_button(
-                "📥 Download CSV",
+                label="📥 Download CSV",
                 data=csv,
-                file_name=f"telemetry_{datetime.now():%Y%m%d_%H%M%S}.csv",
+                file_name=(
+                    f"telemetry_{datetime.now():%Y%m%d_%H%M%S}.csv"
+                ),
                 mime="text/csv",
             )
         else:
-            st.info("No data to display")
+            st.info("No data available")
 
     st.markdown("---")
     st.markdown(
         "<div style='text-align:center;color:#666;'>"
-        "Shell Eco-marathon Telemetry Dashboard V5</div>",
+        "Shell Eco-marathon Telemetry Dashboard V5 | Near Real-Time via Ably REST"
+        "</div>",
         unsafe_allow_html=True,
     )
 
-    # --- Auto-refresh ---
-    if not st.session_state["use_mock_data"] and not st.session_state["connection_error"]:
+    # Auto-refresh every 2 s
+    if not st.session_state.use_mock_data and not st.session_state.connection_error:
         time.sleep(2)
         st.experimental_rerun()
 
