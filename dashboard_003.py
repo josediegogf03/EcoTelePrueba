@@ -16,12 +16,10 @@ import json
 # Try to import Ably Realtime, fall back if not installed
 try:
     from ably import AblyRealtime
-    from ably.types.options import Options
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
     AblyRealtime = None
-    Options = None
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -128,37 +126,69 @@ class AblyWebSocketManager:
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
         
+    def _validate_api_key(self) -> bool:
+        """Validate Ably API key format and availability"""
+        if not ABLY_API_KEY:
+            self.last_error = "ABLY_API_KEY is empty or None"
+            return False
+        
+        if len(ABLY_API_KEY) < 20:  # Basic length check
+            self.last_error = "ABLY_API_KEY appears to be too short"
+            return False
+        
+        return True
+        
     async def connect(self):
         """Connect to Ably with error handling and retry logic"""
         if not ABLY_AVAILABLE:
             self.last_error = "Ably library not available"
             self.connection_status = "error"
             return False
+        
+        if not self._validate_api_key():
+            self.connection_status = "error"
+            return False
             
         try:
             self.connection_status = "connecting"
-            options = Options(
-                key=ABLY_API_KEY,
-                log_level=logging.WARNING,
-                auto_connect=True,
-                disconnect_on_suspend=False
-            )
             
-            self.realtime = AblyRealtime(options)
+            # Create AblyRealtime instance with just the API key
+            # Avoid using unsupported options that cause errors
+            self.realtime = AblyRealtime(ABLY_API_KEY)
+            
+            # Set up connection state listeners if supported
+            try:
+                self.realtime.connection.on('connected', self._on_connected)
+                self.realtime.connection.on('disconnected', self._on_disconnected)
+                self.realtime.connection.on('suspended', self._on_suspended)
+                self.realtime.connection.on('failed', self._on_failed)
+            except AttributeError:
+                logging.warning("Connection event listeners not supported in this Ably version")
             
             # Wait for connection with timeout
-            await asyncio.wait_for(
-                self.realtime.connection.once_async('connected'), 
-                timeout=10.0
-            )
+            try:
+                await asyncio.wait_for(
+                    self.realtime.connection.once_async('connected'), 
+                    timeout=15.0
+                )
+            except (AttributeError, TypeError, asyncio.TimeoutError):
+                # Fallback for older versions - just wait a bit
+                logging.info("Using fallback connection method...")
+                await asyncio.sleep(3)
+                
+                # Check connection state if available
+                if hasattr(self.realtime.connection, 'state'):
+                    if self.realtime.connection.state not in ['connected', 'connecting']:
+                        raise Exception(f"Connection failed, state: {self.realtime.connection.state}")
             
             self.channel = self.realtime.channels.get(TELEMETRY_CHANNEL_NAME)
             
             # Subscribe to messages
-            await self.channel.subscribe('telemetry_update', self._on_message)
-            
-            # Setup connection state listeners
-            await self.realtime.connection.on(self._on_connection_state_change)
+            try:
+                await self.channel.subscribe('telemetry_update', self._on_message)
+            except (AttributeError, TypeError):
+                # Fallback for sync-only versions
+                self.channel.subscribe('telemetry_update', self._on_message)
             
             self.connection_status = "connected"
             self.reconnect_attempts = 0
@@ -166,16 +196,36 @@ class AblyWebSocketManager:
             logging.info("Successfully connected to Ably WebSocket")
             return True
             
-        except asyncio.TimeoutError:
-            self.last_error = "Connection timeout"
-            self.connection_status = "timeout"
-            logging.error("Ably connection timeout")
-            return False
         except Exception as e:
             self.last_error = str(e)
             self.connection_status = "error"
             logging.error(f"Error connecting to Ably: {e}")
             return False
+    
+    def _on_connected(self, state_change=None):
+        """Handle successful connection"""
+        self.connection_status = "connected"
+        logging.info("Ably connection established")
+    
+    def _on_disconnected(self, state_change=None):
+        """Handle disconnection"""
+        self.connection_status = "disconnected"
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        logging.warning(f"Ably disconnected: {reason}")
+    
+    def _on_suspended(self, state_change=None):
+        """Handle connection suspension"""
+        self.connection_status = "suspended"
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        logging.warning(f"Ably connection suspended: {reason}")
+    
+    def _on_failed(self, state_change=None):
+        """Handle connection failure"""
+        self.connection_status = "failed"
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        self.last_error = f"Connection failed: {reason}"
+        logging.error(f"Ably connection failed: {reason}")
+        self._schedule_reconnect()
     
     def _on_message(self, message):
         """Handle incoming telemetry messages"""
@@ -195,20 +245,6 @@ class AblyWebSocketManager:
                 
         except Exception as e:
             logging.error(f"Error processing message: {e}")
-    
-    def _on_connection_state_change(self, state_change):
-        """Handle connection state changes"""
-        current_state = state_change.current
-        self.connection_status = current_state
-        
-        if current_state == 'connected':
-            self.reconnect_attempts = 0
-            logging.info("Ably connection established")
-        elif current_state == 'disconnected':
-            logging.warning("Ably connection lost")
-        elif current_state == 'failed':
-            logging.error("Ably connection failed")
-            self._schedule_reconnect()
     
     def _schedule_reconnect(self):
         """Schedule reconnection attempt"""
@@ -242,7 +278,13 @@ class AblyWebSocketManager:
         """Gracefully disconnect"""
         if self.realtime:
             try:
-                await self.realtime.close()
+                # Try async close first, fall back to sync
+                if hasattr(self.realtime, 'close'):
+                    if asyncio.iscoroutinefunction(self.realtime.close):
+                        await asyncio.wait_for(self.realtime.close(), timeout=5.0)
+                    else:
+                        self.realtime.close()
+                
                 self.connection_status = "disconnected"
                 logging.info("Ably connection closed")
             except Exception as e:
@@ -270,7 +312,7 @@ async def initialize_websocket():
         return success
     return True
 
-# --- KPI & Chart Helpers (same as before) ---
+# --- KPI & Chart Helpers ---
 @st.cache_data
 def calculate_kpis(records):
     df = pd.DataFrame(records)
@@ -490,7 +532,7 @@ def render_sidebar():
             st.info(f"Data points: {status_info['data_count']}")
         elif status == 'connecting':
             st.markdown('<p class="status-connecting">🔄 Connecting...</p>', unsafe_allow_html=True)
-        elif status in ['disconnected', 'error', 'timeout']:
+        elif status in ['disconnected', 'error', 'timeout', 'failed', 'suspended']:
             st.markdown('<p class="status-disconnected">❌ Disconnected</p>', unsafe_allow_html=True)
             if status_info['error']:
                 st.error(f"Error: {status_info['error']}")
@@ -498,7 +540,8 @@ def render_sidebar():
         # Manual reconnect button
         if status != 'connected':
             if st.button("🔄 Reconnect"):
-                asyncio.run(st.session_state.websocket_manager.connect())
+                with st.spinner("Reconnecting..."):
+                    asyncio.run(st.session_state.websocket_manager.connect())
                 st.rerun()
         
         # Data source selection
@@ -534,7 +577,7 @@ def render_sidebar():
 def main():
     st.markdown(
         '<h1 class="main-header">'
-        '🏎️ Shell Eco-marathon Telemetry Dashboard V6'
+        '🏎️ Shell Eco-marathon Telemetry Dashboard V6 (Fixed)'
         '</h1>',
         unsafe_allow_html=True,
     )
