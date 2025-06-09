@@ -159,8 +159,6 @@ class AblyWebSocketManager:
             try:
                 self.realtime.connection.on('connected', self._on_connected)
                 self.realtime.connection.on('disconnected', self._on_disconnected)
-                self.realtime.connection.on('suspended', self._on_suspended)
-                self.realtime.connection.on('failed', self._on_failed)
             except AttributeError:
                 logging.warning("Connection event listeners not supported in this Ably version")
             
