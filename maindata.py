@@ -11,7 +11,6 @@ from typing import Dict, Any
 
 try:
     from ably import AblyRealtime
-    from ably.types.options import Options
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
@@ -103,27 +102,35 @@ class TelemetryPublisher:
         
         try:
             logging.info("Connecting to Ably...")
-            options = Options(
-                key=ABLY_API_KEY,
-                log_level=logging.WARNING,
-                auto_connect=True,
-                disconnect_on_suspend=False,
-                fallback_hosts_use_default=True
-            )
             
-            self.realtime = AblyRealtime(options)
+            # Create AblyRealtime instance with just the API key
+            # Some versions of ably-python don't support all options
+            self.realtime = AblyRealtime(ABLY_API_KEY)
             
-            # Set up connection state listeners
-            self.realtime.connection.on('connected', self._on_connected)
-            self.realtime.connection.on('disconnected', self._on_disconnected)
-            self.realtime.connection.on('suspended', self._on_suspended)
-            self.realtime.connection.on('failed', self._on_failed)
+            # Set up connection state listeners if supported
+            try:
+                self.realtime.connection.on('connected', self._on_connected)
+                self.realtime.connection.on('disconnected', self._on_disconnected)
+                self.realtime.connection.on('suspended', self._on_suspended)
+                self.realtime.connection.on('failed', self._on_failed)
+            except AttributeError:
+                logging.warning("Connection event listeners not supported in this Ably version")
             
             # Wait for connection with timeout
-            await asyncio.wait_for(
-                self.realtime.connection.once_async('connected'), 
-                timeout=15.0
-            )
+            try:
+                await asyncio.wait_for(
+                    self.realtime.connection.once_async('connected'), 
+                    timeout=15.0
+                )
+            except (AttributeError, TypeError):
+                # Fallback for older versions - just wait a bit
+                logging.info("Using fallback connection method...")
+                await asyncio.sleep(3)
+                
+                # Check connection state if available
+                if hasattr(self.realtime.connection, 'state'):
+                    if self.realtime.connection.state != 'connected':
+                        raise Exception(f"Connection failed, state: {self.realtime.connection.state}")
             
             # Get channel
             self.channel = self.realtime.channels.get(TELEMETRY_CHANNEL_NAME)
@@ -139,21 +146,24 @@ class TelemetryPublisher:
             logging.error(f"Failed to connect to Ably: {e}")
             return False
     
-    def _on_connected(self, state_change):
+    def _on_connected(self, state_change=None):
         """Handle successful connection"""
         logging.info("Ably connection established")
     
-    def _on_disconnected(self, state_change):
+    def _on_disconnected(self, state_change=None):
         """Handle disconnection"""
-        logging.warning(f"Ably disconnected: {state_change.reason}")
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        logging.warning(f"Ably disconnected: {reason}")
     
-    def _on_suspended(self, state_change):
+    def _on_suspended(self, state_change=None):
         """Handle connection suspension"""
-        logging.warning(f"Ably connection suspended: {state_change.reason}")
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        logging.warning(f"Ably connection suspended: {reason}")
     
-    def _on_failed(self, state_change):
+    def _on_failed(self, state_change=None):
         """Handle connection failure"""
-        logging.error(f"Ably connection failed: {state_change.reason}")
+        reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
+        logging.error(f"Ably connection failed: {reason}")
     
     def _calculate_reconnect_delay(self) -> float:
         """Calculate exponential backoff delay"""
@@ -195,7 +205,7 @@ class TelemetryPublisher:
         base_speed = speed_config['base']
         
         # Add some periodic variation (like hills, traffic, etc.)
-        periodic_factor = 2.0 * (1 + 0.3 * random.sin(self.simulation_time_offset * 0.1))
+        periodic_factor = 1.0 + 0.3 * (random.random() - 0.5) * 2  # -0.3 to +0.3
         speed_variation = random.gauss(base_speed, speed_config['variation'])
         speed = max(speed_config['min'], 
                    min(speed_config['max'], speed_variation * periodic_factor))
@@ -258,10 +268,15 @@ class TelemetryPublisher:
             return False
         
         try:
-            await asyncio.wait_for(
-                self.channel.publish('telemetry_update', data),
-                timeout=10.0
-            )
+            # Try async publish first, fall back to sync if not available
+            try:
+                await asyncio.wait_for(
+                    self.channel.publish('telemetry_update', data),
+                    timeout=10.0
+                )
+            except (AttributeError, TypeError):
+                # Fallback for sync-only versions
+                self.channel.publish('telemetry_update', data)
             
             self.total_messages_sent += 1
             self.last_publish_time = datetime.now()
@@ -279,6 +294,19 @@ class TelemetryPublisher:
         except Exception as e:
             logging.error(f"Error publishing data: {e}")
             return False
+    
+    def _check_connection_health(self) -> bool:
+        """Check if connection is healthy"""
+        if not self.realtime:
+            return False
+        
+        # Check connection state if available
+        if hasattr(self.realtime.connection, 'state'):
+            state = self.realtime.connection.state
+            return state in ['connected', 'connecting']
+        
+        # If we can't check state, assume it's ok if we have a channel
+        return self.channel is not None
     
     async def _health_check(self):
         """Periodic health check"""
@@ -316,8 +344,7 @@ class TelemetryPublisher:
         try:
             while self.is_running:
                 # Check connection state
-                if (not self.realtime or 
-                    self.realtime.connection.state not in ['connected']):
+                if not self._check_connection_health():
                     logging.warning("Connection lost, attempting to reconnect...")
                     
                     if not await self._reconnect_with_backoff():
@@ -353,7 +380,16 @@ class TelemetryPublisher:
         
         if self.realtime:
             try:
-                await asyncio.wait_for(self.realtime.close(), timeout=5.0)
+                # Try async close first, fall back to sync
+                try:
+                    if hasattr(self.realtime, 'close'):
+                        if asyncio.iscoroutinefunction(self.realtime.close):
+                            await asyncio.wait_for(self.realtime.close(), timeout=5.0)
+                        else:
+                            self.realtime.close()
+                except (AttributeError, TypeError):
+                    pass
+                
                 logging.info("Ably connection closed successfully")
             except Exception as e:
                 logging.error(f"Error closing Ably connection: {e}")
