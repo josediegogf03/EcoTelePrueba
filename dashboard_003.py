@@ -144,7 +144,7 @@ class AblyWebSocketManager:
             self.last_error = "Ably library not available"
             self.connection_status = "error"
             return False
-        
+            
         if not self._validate_api_key():
             self.connection_status = "error"
             return False
@@ -152,8 +152,7 @@ class AblyWebSocketManager:
         try:
             self.connection_status = "connecting"
             
-            # Create AblyRealtime instance with just the API key
-            # Avoid using unsupported options that cause errors
+            # Create AblyRealtime instance with just the API key (like in maindata.py)
             self.realtime = AblyRealtime(ABLY_API_KEY)
             
             # Set up connection state listeners if supported
@@ -171,24 +170,20 @@ class AblyWebSocketManager:
                     self.realtime.connection.once_async('connected'), 
                     timeout=15.0
                 )
-            except (AttributeError, TypeError, asyncio.TimeoutError):
+            except (AttributeError, TypeError):
                 # Fallback for older versions - just wait a bit
                 logging.info("Using fallback connection method...")
                 await asyncio.sleep(3)
                 
                 # Check connection state if available
                 if hasattr(self.realtime.connection, 'state'):
-                    if self.realtime.connection.state not in ['connected', 'connecting']:
+                    if self.realtime.connection.state != 'connected':
                         raise Exception(f"Connection failed, state: {self.realtime.connection.state}")
             
             self.channel = self.realtime.channels.get(TELEMETRY_CHANNEL_NAME)
             
             # Subscribe to messages
-            try:
-                await self.channel.subscribe('telemetry_update', self._on_message)
-            except (AttributeError, TypeError):
-                # Fallback for sync-only versions
-                self.channel.subscribe('telemetry_update', self._on_message)
+            await self.channel.subscribe('telemetry_update', self._on_message)
             
             self.connection_status = "connected"
             self.reconnect_attempts = 0
@@ -196,6 +191,11 @@ class AblyWebSocketManager:
             logging.info("Successfully connected to Ably WebSocket")
             return True
             
+        except asyncio.TimeoutError:
+            self.last_error = "Connection timeout"
+            self.connection_status = "timeout"
+            logging.error("Ably connection timeout")
+            return False
         except Exception as e:
             self.last_error = str(e)
             self.connection_status = "error"
@@ -205,6 +205,7 @@ class AblyWebSocketManager:
     def _on_connected(self, state_change=None):
         """Handle successful connection"""
         self.connection_status = "connected"
+        self.reconnect_attempts = 0
         logging.info("Ably connection established")
     
     def _on_disconnected(self, state_change=None):
@@ -223,7 +224,6 @@ class AblyWebSocketManager:
         """Handle connection failure"""
         self.connection_status = "failed"
         reason = getattr(state_change, 'reason', 'Unknown') if state_change else 'Unknown'
-        self.last_error = f"Connection failed: {reason}"
         logging.error(f"Ably connection failed: {reason}")
         self._schedule_reconnect()
     
@@ -540,8 +540,7 @@ def render_sidebar():
         # Manual reconnect button
         if status != 'connected':
             if st.button("🔄 Reconnect"):
-                with st.spinner("Reconnecting..."):
-                    asyncio.run(st.session_state.websocket_manager.connect())
+                asyncio.run(st.session_state.websocket_manager.connect())
                 st.rerun()
         
         # Data source selection
@@ -577,7 +576,7 @@ def render_sidebar():
 def main():
     st.markdown(
         '<h1 class="main-header">'
-        '🏎️ Shell Eco-marathon Telemetry Dashboard V6 (Fixed)'
+        '🏎️ Shell Eco-marathon Telemetry Dashboard V7'
         '</h1>',
         unsafe_allow_html=True,
     )
