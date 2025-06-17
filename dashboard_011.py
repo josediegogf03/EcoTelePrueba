@@ -14,10 +14,8 @@ import time
 import json
 import tracemalloc
 import psutil
-import asyncio
 from typing import Dict, Any, Optional
 import gc
-import signal
 
 # Enable memory tracking
 tracemalloc.start()
@@ -46,7 +44,6 @@ ABLY_API_KEY_FALLBACK = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8Wth
 ABLY_API_KEY = os.environ.get('ABLY_API_KEY', ABLY_API_KEY_FALLBACK)
 TELEMETRY_CHANNEL_NAME = "telemetry-dashboard-channel"
 MAX_DATAPOINTS = 1000
-UPDATE_INTERVAL = 1.0  # seconds
 
 # Page configuration
 st.set_page_config(
@@ -101,12 +98,10 @@ st.markdown("""
 def get_memory_info():
     """Get current memory usage and system memory limit"""
     try:
-        # Get current process memory
         process = psutil.Process(os.getpid())
         memory_info = process.memory_info()
         current_memory_mb = memory_info.rss / 1024 / 1024
         
-        # Get system memory
         system_memory = psutil.virtual_memory()
         total_memory_gb = system_memory.total / 1024 / 1024 / 1024
         
@@ -116,8 +111,8 @@ def get_memory_info():
         return 0, 0
 
 
-class ImprovedAblySubscriber:
-    """Improved Ably subscriber with better async handling"""
+class SimpleAblySubscriber:
+    """Simplified Ably subscriber following the documentation exactly"""
     
     def __init__(self, api_key: str, channel_name: str, data_queue: queue.Queue):
         self.api_key = api_key
@@ -128,7 +123,6 @@ class ImprovedAblySubscriber:
         self.is_connected = False
         self.is_running = False
         self.connection_thread = None
-        self.loop = None
         self.stats = {
             'messages_received': 0,
             'connection_attempts': 0,
@@ -137,90 +131,94 @@ class ImprovedAblySubscriber:
             'last_error': None
         }
         
-    def _create_event_loop(self):
-        """Create a new event loop for this thread"""
-        try:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-            logger.info("Created new event loop for Ably subscriber")
-        except Exception as e:
-            logger.error(f"Failed to create event loop: {e}")
-            self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
-    
     def _on_message(self, message):
-        """Handle incoming messages"""
+        """Handle incoming messages - simplified version"""
         try:
-            data = message.data
-            if isinstance(data, str):
-                data = json.loads(data)
-            elif hasattr(message, 'data') and hasattr(message.data, 'to_dict'):
-                data = message.data.to_dict()
+            # Extract data from message
+            data = None
+            if hasattr(message, 'data'):
+                data = message.data
+            else:
+                data = message
             
-            # Add timestamp if not present
+            # Handle different data formats
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse JSON: {data}")
+                    return
+            elif isinstance(data, dict):
+                pass  # Already a dict
+            else:
+                logger.warning(f"Unexpected data type: {type(data)}")
+                return
+            
+            # Ensure timestamp
             if 'timestamp' not in data:
                 data['timestamp'] = datetime.now().isoformat()
             
-            # Put data in queue (non-blocking)
+            # Add to queue
             try:
                 self.data_queue.put_nowait(data)
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
-                logger.info(f"✅ Received message #{self.stats['messages_received']} - ID: {data.get('message_id', 'unknown')}")
+                logger.info(f"✅ Message received #{self.stats['messages_received']}: {data.get('message_id', 'unknown')}")
             except queue.Full:
-                # Remove oldest item and add new one
+                # Remove oldest and add new
                 try:
                     self.data_queue.get_nowait()
                     self.data_queue.put_nowait(data)
-                    logger.warning("Queue full, dropped oldest message")
                 except queue.Empty:
                     pass
                     
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            logger.error(f"❌ Error processing message: {e}")
             self.stats['errors'] += 1
             self.stats['last_error'] = str(e)
     
     def _on_connection_state_change(self, state_change):
         """Handle connection state changes"""
         try:
-            if hasattr(state_change, 'current'):
-                current_state = state_change.current
-                previous_state = getattr(state_change, 'previous', 'unknown')
-                reason = getattr(state_change, 'reason', 'No reason provided')
-            else:
-                # Handle different Ably versions
-                current_state = str(state_change)
-                previous_state = 'unknown'
-                reason = 'State change'
+            current_state = getattr(state_change, 'current', 'unknown')
+            previous_state = getattr(state_change, 'previous', 'unknown')
             
-            logger.info(f"🔄 Connection state: {previous_state} -> {current_state}")
+            logger.info(f"🔄 Connection state: {previous_state} → {current_state}")
             
-            if str(current_state).lower() in ['connected']:
+            if str(current_state).lower() == 'connected':
                 self.is_connected = True
-                logger.info("✅ Successfully connected to Ably")
-            elif str(current_state).lower() in ['disconnected', 'suspended', 'failed', 'closed']:
+                logger.info("✅ Ably connected successfully")
+            else:
                 self.is_connected = False
-                logger.warning(f"❌ Connection lost: {current_state} - {reason}")
+                if str(current_state).lower() in ['disconnected', 'suspended', 'failed']:
+                    logger.warning(f"❌ Connection lost: {current_state}")
                 
         except Exception as e:
-            logger.error(f"Error handling connection state change: {e}")
-            self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
+            logger.error(f"Error in connection state handler: {e}")
     
-    def _connect_sync(self):
-        """Synchronous connection method"""
+    def _connect_to_ably(self):
+        """Connect to Ably using the simplest method from documentation"""
         try:
-            logger.info(f"🔗 Attempting sync connection to Ably...")
+            self.stats['connection_attempts'] += 1
+            logger.info(f"🔗 Connecting to Ably (attempt {self.stats['connection_attempts']})...")
             
-            # Create Ably client
+            # Use the simple string constructor as per documentation
             self.realtime = AblyRealtime(self.api_key)
             
-            # Wait for connection
+            # Set up connection event handler
+            try:
+                if hasattr(self.realtime, 'connection') and hasattr(self.realtime.connection, 'on'):
+                    self.realtime.connection.on(self._on_connection_state_change)
+            except Exception as e:
+                logger.warning(f"Could not set connection handler: {e}")
+            
+            # Wait for connection (simple polling)
+            max_wait = 15  # seconds
             start_time = time.time()
-            while time.time() - start_time < 15:  # 15 second timeout
+            
+            while time.time() - start_time < max_wait:
                 try:
-                    if hasattr(self.realtime.connection, 'state'):
+                    if hasattr(self.realtime, 'connection') and hasattr(self.realtime.connection, 'state'):
                         state = str(self.realtime.connection.state).lower()
                         logger.info(f"Connection state: {state}")
                         
@@ -230,75 +228,34 @@ class ImprovedAblySubscriber:
                         elif state in ['failed', 'closed']:
                             logger.error(f"Connection failed with state: {state}")
                             return False
-                    else:
-                        # For versions without state, wait and assume connected
-                        time.sleep(3)
-                        self.is_connected = True
-                        break
                 except Exception as e:
                     logger.warning(f"Error checking connection state: {e}")
                 
-                time.sleep(0.5)
+                time.sleep(1)
             
             if not self.is_connected:
-                logger.error("Connection timeout")
+                logger.error("❌ Connection timeout")
                 return False
             
-            # Get channel and subscribe
+            # Get channel using the documented method
+            logger.info(f"📡 Getting channel: {self.channel_name}")
             self.channel = self.realtime.channels.get(self.channel_name)
             
-            # Subscribe to messages with error handling
-            try:
-                self.channel.subscribe('telemetry_update', self._on_message)
-                logger.info(f"✅ Subscribed to channel: {self.channel_name}")
-            except Exception as e:
-                logger.error(f"Failed to subscribe to channel: {e}")
-                return False
+            # Subscribe to messages using the documented method
+            logger.info("📨 Subscribing to telemetry_update events...")
+            self.channel.subscribe('telemetry_update', self._on_message)
             
-            # Set up connection event handlers if available
-            try:
-                if hasattr(self.realtime.connection, 'on'):
-                    self.realtime.connection.on(self._on_connection_state_change)
-                    logger.info("✅ Connection event handlers set up")
-            except Exception as e:
-                logger.warning(f"Could not set up connection handlers: {e}")
-            
+            logger.info("🎉 Successfully connected and subscribed!")
             return True
             
         except Exception as e:
-            logger.error(f"Sync connection failed: {e}")
+            logger.error(f"❌ Connection failed: {e}")
             self.stats['errors'] += 1
             self.stats['last_error'] = str(e)
             return False
     
-    def _connect_with_retries(self, max_retries: int = 5):
-        """Connect to Ably with retry logic"""
-        for attempt in range(max_retries):
-            try:
-                self.stats['connection_attempts'] += 1
-                logger.info(f"🔄 Connection attempt {attempt + 1}/{max_retries}")
-                
-                if self._connect_sync():
-                    logger.info("🎉 Connected successfully!")
-                    return True
-                
-                logger.warning(f"❌ Connection attempt {attempt + 1} failed")
-                
-            except Exception as e:
-                logger.error(f"Connection attempt {attempt + 1} exception: {e}")
-                self.stats['errors'] += 1
-                self.stats['last_error'] = str(e)
-            
-            if attempt < max_retries - 1:
-                wait_time = min(2 ** attempt, 30)  # Exponential backoff, max 30s
-                logger.info(f"⏳ Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-        
-        logger.error("❌ All connection attempts failed")
-        return False
-    
     def start(self):
-        """Start the subscriber in a separate thread"""
+        """Start the subscriber"""
         if self.is_running:
             logger.warning("Subscriber already running")
             return
@@ -310,24 +267,20 @@ class ImprovedAblySubscriber:
     
     def _run(self):
         """Main subscriber loop"""
-        # Create event loop for this thread
-        self._create_event_loop()
-        
         while self.is_running:
             try:
                 if not self.is_connected:
-                    logger.info("🔄 Attempting to connect...")
-                    if self._connect_with_retries():
-                        logger.info("✅ Connected successfully")
+                    if self._connect_to_ably():
+                        logger.info("✅ Connected and ready to receive messages")
                     else:
-                        logger.error("❌ Failed to connect, retrying in 30 seconds...")
-                        time.sleep(30)
+                        logger.error("❌ Failed to connect, retrying in 10 seconds...")
+                        time.sleep(10)
                         continue
                 
-                # Keep connection alive and check health
+                # Keep alive and monitor connection
                 time.sleep(5)
                 
-                # Connection health check
+                # Check connection health
                 if self.realtime and hasattr(self.realtime, 'connection'):
                     try:
                         if hasattr(self.realtime.connection, 'state'):
@@ -336,16 +289,14 @@ class ImprovedAblySubscriber:
                                 logger.warning(f"⚠️ Connection unhealthy: {state}")
                                 self.is_connected = False
                     except Exception as e:
-                        logger.warning(f"Error checking connection health: {e}")
+                        logger.warning(f"Error checking connection: {e}")
                 
             except Exception as e:
-                logger.error(f"Error in subscriber loop: {e}")
+                logger.error(f"❌ Error in subscriber loop: {e}")
                 self.is_connected = False
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
-                time.sleep(10)
-        
-        logger.info("🛑 Subscriber loop ended")
+                time.sleep(5)
     
     def stop(self):
         """Stop the subscriber"""
@@ -355,20 +306,13 @@ class ImprovedAblySubscriber:
         
         if self.realtime:
             try:
-                if hasattr(self.realtime, 'close'):
-                    self.realtime.close()
-                logger.info("✅ Ably connection closed")
+                self.realtime.close()
+                logger.info("✅ Connection closed")
             except Exception as e:
-                logger.error(f"Error closing Ably connection: {e}")
+                logger.error(f"Error closing connection: {e}")
         
         if self.connection_thread and self.connection_thread.is_alive():
-            self.connection_thread.join(timeout=10)
-        
-        if self.loop:
-            try:
-                self.loop.close()
-            except Exception as e:
-                logger.error(f"Error closing event loop: {e}")
+            self.connection_thread.join(timeout=5)
         
         logger.info("✅ Subscriber stopped")
     
@@ -379,16 +323,15 @@ class ImprovedAblySubscriber:
         
         if self.realtime:
             try:
-                if hasattr(self.realtime, 'close'):
-                    self.realtime.close()
+                self.realtime.close()
             except Exception as e:
-                logger.error(f"Error during reconnection cleanup: {e}")
+                logger.error(f"Error during reconnection: {e}")
         
         self.realtime = None
         self.channel = None
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get connection statistics"""
+    def get_stats(self):
+        """Get subscriber statistics"""
         return {
             'is_connected': self.is_connected,
             'is_running': self.is_running,
@@ -575,7 +518,7 @@ def update_telemetry_data():
             st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
         
         st.session_state.last_update = datetime.now()
-        logger.info(f"📊 Updated telemetry data: {len(new_data)} new points, {len(st.session_state.telemetry_data)} total")
+        logger.info(f"📊 Updated: {len(new_data)} new, {len(st.session_state.telemetry_data)} total")
         return len(new_data)
     
     return 0
@@ -599,7 +542,7 @@ def main():
     
     # Initialize subscriber if not exists
     if st.session_state.subscriber is None:
-        st.session_state.subscriber = ImprovedAblySubscriber(
+        st.session_state.subscriber = SimpleAblySubscriber(
             api_key=ABLY_API_KEY,
             channel_name=TELEMETRY_CHANNEL_NAME,
             data_queue=st.session_state.data_queue
@@ -699,7 +642,8 @@ def main():
                 "Errors": stats['errors'],
                 "Last Error": stats['last_error'],
                 "Channel": TELEMETRY_CHANNEL_NAME,
-                "API Key": f"{ABLY_API_KEY[:10]}..." if ABLY_API_KEY else "Not set"
+                "API Key": f"{ABLY_API_KEY[:10]}..." if ABLY_API_KEY else "Not set",
+                "Subscriber Running": stats['is_running']
             })
     else:
         # KPIs
