@@ -83,18 +83,22 @@ class TelemetrySubscriber:
             'last_error': None
         }
         self._lock = threading.Lock()
+        self._connection_thread = None
     
     def connect(self) -> bool:
-        """Connect to Ably"""
+        """Connect to Ably synchronously"""
         try:
             self.stats['connection_attempts'] += 1
             
-            # Create Ably client
+            # Create Ably client with simple configuration
             self.ably = AblyRealtime(ABLY_API_KEY)
             
             # Get channel and subscribe
             self.channel = self.ably.channels.get(CHANNEL_NAME)
             self.channel.subscribe('telemetry_update', self._on_message)
+            
+            # Wait a moment for connection to establish
+            time.sleep(2)
             
             self.is_connected = True
             return True
@@ -112,16 +116,23 @@ class TelemetrySubscriber:
             data = message.data
             if isinstance(data, str):
                 data = json.loads(data)
+            elif hasattr(data, 'to_dict'):
+                data = data.to_dict()
             
-            # Add to queue
+            # Add timestamp if missing
+            if 'timestamp' not in data:
+                data['timestamp'] = datetime.now().isoformat()
+            
+            # Add to queue (thread-safe)
             with self._lock:
                 self.message_queue.put(data)
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
             
         except Exception as e:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
+            with self._lock:
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
     
     def get_messages(self) -> List[Dict[str, Any]]:
         """Get all queued messages"""
@@ -137,19 +148,26 @@ class TelemetrySubscriber:
     def disconnect(self):
         """Disconnect from Ably"""
         try:
-            if self.ably:
-                self.ably.close()
-        except Exception as e:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
-        finally:
             self.is_connected = False
+            if self.ably:
+                # Use synchronous close for Streamlit compatibility
+                try:
+                    if hasattr(self.ably, 'close'):
+                        self.ably.close()
+                except Exception:
+                    pass
+        except Exception as e:
+            with self._lock:
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
+        finally:
             self.ably = None
             self.channel = None
     
     def get_stats(self) -> Dict[str, Any]:
         """Get connection statistics"""
-        return self.stats.copy()
+        with self._lock:
+            return self.stats.copy()
 
 def initialize_session_state():
     """Initialize Streamlit session state"""
@@ -164,6 +182,9 @@ def initialize_session_state():
     
     if 'auto_refresh' not in st.session_state:
         st.session_state.auto_refresh = True
+    
+    if 'connection_status' not in st.session_state:
+        st.session_state.connection_status = "Disconnected"
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate key performance indicators"""
@@ -322,17 +343,26 @@ def main():
     
     with col1:
         if st.button("🔄 Connect"):
+            # Disconnect existing connection
             if st.session_state.subscriber:
                 st.session_state.subscriber.disconnect()
             
+            # Create new subscriber
             st.session_state.subscriber = TelemetrySubscriber()
             
-            with st.spinner("Connecting to Ably..."):
-                if st.session_state.subscriber.connect():
-                    st.sidebar.success("✅ Connected!")
-                else:
-                    st.sidebar.error("❌ Connection failed!")
+            # Show connecting status
+            with st.sidebar:
+                with st.spinner("Connecting to Ably..."):
+                    success = st.session_state.subscriber.connect()
+                    
+                    if success:
+                        st.session_state.connection_status = "Connected"
+                        st.success("✅ Connected!")
+                    else:
+                        st.session_state.connection_status = "Failed"
+                        st.error("❌ Connection failed!")
             
+            time.sleep(1)  # Brief pause to show status
             st.rerun()
     
     with col2:
@@ -340,6 +370,7 @@ def main():
             if st.session_state.subscriber:
                 st.session_state.subscriber.disconnect()
                 st.session_state.subscriber = None
+            st.session_state.connection_status = "Disconnected"
             st.sidebar.info("🛑 Disconnected")
             st.rerun()
     
