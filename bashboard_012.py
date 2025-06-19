@@ -11,6 +11,7 @@ import time
 from typing import Dict, Any, List, Optional
 import threading
 import queue
+import asyncio
 
 # Ably import with error handling
 try:
@@ -75,6 +76,7 @@ class TelemetrySubscriber:
         self.channel = None
         self.is_connected = False
         self.message_queue = queue.Queue()
+        self.connection_thread = None
         self.stats = {
             'messages_received': 0,
             'last_message_time': None,
@@ -83,31 +85,104 @@ class TelemetrySubscriber:
             'last_error': None
         }
         self._lock = threading.Lock()
-        self._connection_thread = None
+        self._stop_event = threading.Event()
     
     def connect(self) -> bool:
-        """Connect to Ably synchronously"""
+        """Connect to Ably in a separate thread"""
         try:
             self.stats['connection_attempts'] += 1
+            self._stop_event.clear()
             
-            # Create Ably client with simple configuration
-            self.ably = AblyRealtime(ABLY_API_KEY)
+            # Start connection in separate thread
+            self.connection_thread = threading.Thread(target=self._connection_worker)
+            self.connection_thread.daemon = True
+            self.connection_thread.start()
             
-            # Get channel and subscribe
-            self.channel = self.ably.channels.get(CHANNEL_NAME)
-            self.channel.subscribe('telemetry_update', self._on_message)
-            
-            # Wait a moment for connection to establish
+            # Wait a bit for connection to establish
             time.sleep(2)
             
-            self.is_connected = True
-            return True
+            return self.is_connected
             
         except Exception as e:
             self.stats['errors'] += 1
             self.stats['last_error'] = str(e)
             self.is_connected = False
             return False
+    
+    def _connection_worker(self):
+        """Worker thread to handle Ably connection"""
+        try:
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Run the async connection
+            loop.run_until_complete(self._async_connect())
+            
+        except Exception as e:
+            with self._lock:
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
+                self.is_connected = False
+        finally:
+            try:
+                loop.close()
+            except:
+                pass
+    
+    async def _async_connect(self):
+        """Async connection method"""
+        try:
+            # Create Ably client
+            self.ably = AblyRealtime(ABLY_API_KEY)
+            
+            # Wait for connection
+            connection_future = asyncio.Future()
+            
+            def on_connected(state_change):
+                if not connection_future.done():
+                    connection_future.set_result(True)
+            
+            def on_failed(state_change):
+                if not connection_future.done():
+                    connection_future.set_exception(Exception(f"Connection failed: {state_change}"))
+            
+            # Set up connection event handlers
+            self.ably.connection.on('connected', on_connected)
+            self.ably.connection.on('failed', on_failed)
+            
+            # Wait for connection (with timeout)
+            try:
+                await asyncio.wait_for(connection_future, timeout=10.0)
+            except asyncio.TimeoutError:
+                # Check if we're actually connected despite timeout
+                if hasattr(self.ably.connection, 'state') and self.ably.connection.state == 'connected':
+                    pass  # We're connected, continue
+                else:
+                    raise Exception("Connection timeout")
+            
+            # Get channel and subscribe
+            self.channel = self.ably.channels.get(CHANNEL_NAME)
+            self.channel.subscribe('telemetry_update', self._on_message)
+            
+            self.is_connected = True
+            
+            # Keep the connection alive
+            while not self._stop_event.is_set():
+                await asyncio.sleep(1)
+                
+                # Check connection health
+                if hasattr(self.ably.connection, 'state'):
+                    if self.ably.connection.state not in ['connected', 'connecting']:
+                        self.is_connected = False
+                        break
+            
+        except Exception as e:
+            with self._lock:
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
+                self.is_connected = False
+            raise
     
     def _on_message(self, message):
         """Handle incoming messages"""
@@ -116,14 +191,8 @@ class TelemetrySubscriber:
             data = message.data
             if isinstance(data, str):
                 data = json.loads(data)
-            elif hasattr(data, 'to_dict'):
-                data = data.to_dict()
             
-            # Add timestamp if missing
-            if 'timestamp' not in data:
-                data['timestamp'] = datetime.now().isoformat()
-            
-            # Add to queue (thread-safe)
+            # Add to queue
             with self._lock:
                 self.message_queue.put(data)
                 self.stats['messages_received'] += 1
@@ -148,18 +217,31 @@ class TelemetrySubscriber:
     def disconnect(self):
         """Disconnect from Ably"""
         try:
+            self._stop_event.set()
             self.is_connected = False
+            
             if self.ably:
-                # Use synchronous close for Streamlit compatibility
-                try:
-                    if hasattr(self.ably, 'close'):
-                        self.ably.close()
-                except Exception:
-                    pass
+                # Close in a separate thread to avoid blocking
+                def close_ably():
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(self.ably.close())
+                        loop.close()
+                    except:
+                        pass
+                
+                close_thread = threading.Thread(target=close_ably)
+                close_thread.daemon = True
+                close_thread.start()
+                close_thread.join(timeout=2)  # Wait max 2 seconds
+            
+            if self.connection_thread and self.connection_thread.is_alive():
+                self.connection_thread.join(timeout=2)
+                
         except Exception as e:
-            with self._lock:
-                self.stats['errors'] += 1
-                self.stats['last_error'] = str(e)
+            self.stats['errors'] += 1
+            self.stats['last_error'] = str(e)
         finally:
             self.ably = None
             self.channel = None
@@ -182,9 +264,6 @@ def initialize_session_state():
     
     if 'auto_refresh' not in st.session_state:
         st.session_state.auto_refresh = True
-    
-    if 'connection_status' not in st.session_state:
-        st.session_state.connection_status = "Disconnected"
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate key performance indicators"""
@@ -343,26 +422,18 @@ def main():
     
     with col1:
         if st.button("🔄 Connect"):
-            # Disconnect existing connection
             if st.session_state.subscriber:
                 st.session_state.subscriber.disconnect()
+                time.sleep(1)  # Give time for cleanup
             
-            # Create new subscriber
             st.session_state.subscriber = TelemetrySubscriber()
             
-            # Show connecting status
-            with st.sidebar:
-                with st.spinner("Connecting to Ably..."):
-                    success = st.session_state.subscriber.connect()
-                    
-                    if success:
-                        st.session_state.connection_status = "Connected"
-                        st.success("✅ Connected!")
-                    else:
-                        st.session_state.connection_status = "Failed"
-                        st.error("❌ Connection failed!")
+            with st.spinner("Connecting to Ably..."):
+                if st.session_state.subscriber.connect():
+                    st.sidebar.success("✅ Connected!")
+                else:
+                    st.sidebar.error("❌ Connection failed!")
             
-            time.sleep(1)  # Brief pause to show status
             st.rerun()
     
     with col2:
@@ -370,7 +441,6 @@ def main():
             if st.session_state.subscriber:
                 st.session_state.subscriber.disconnect()
                 st.session_state.subscriber = None
-            st.session_state.connection_status = "Disconnected"
             st.sidebar.info("🛑 Disconnected")
             st.rerun()
     
