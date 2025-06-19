@@ -44,7 +44,7 @@ ABLY_API_KEY_FALLBACK = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8Wth
 ABLY_API_KEY = os.environ.get('ABLY_API_KEY', ABLY_API_KEY_FALLBACK)
 TELEMETRY_CHANNEL_NAME = "telemetry-dashboard-channel"
 MAX_DATAPOINTS = 1000
-UPDATE_INTERVAL = 1.0  # seconds
+UPDATE_INTERVAL = 1.0
 
 # Page configuration
 st.set_page_config(
@@ -99,12 +99,10 @@ st.markdown("""
 def get_memory_info():
     """Get current memory usage and system memory limit"""
     try:
-        # Get current process memory
         process = psutil.Process(os.getpid())
         memory_info = process.memory_info()
         current_memory_mb = memory_info.rss / 1024 / 1024
         
-        # Get system memory
         system_memory = psutil.virtual_memory()
         total_memory_gb = system_memory.total / 1024 / 1024 / 1024
         
@@ -114,8 +112,8 @@ def get_memory_info():
         return 0, 0
 
 
-class SimpleAblySubscriber:
-    """Simplified Ably subscriber without async complications"""
+class AblySubscriber:
+    """Simplified Ably subscriber using proper API"""
     
     def __init__(self, api_key: str, channel_name: str, data_queue: queue.Queue):
         self.api_key = api_key
@@ -139,34 +137,31 @@ class SimpleAblySubscriber:
         try:
             # Extract data from message
             data = message.data
-            if isinstance(data, str):
-                data = json.loads(data)
-            elif hasattr(message, 'data'):
-                if hasattr(message.data, '__dict__'):
-                    data = message.data.__dict__
-                else:
-                    data = dict(message.data) if hasattr(dict, '__call__') else message.data
             
-            # Ensure we have a dictionary
-            if not isinstance(data, dict):
-                logger.warning(f"Received non-dict data: {type(data)}")
-                return
+            # Handle different data formats
+            if hasattr(data, 'to_dict'):
+                data = data.to_dict()
+            elif isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse message data: {data}")
+                    return
             
-            # Add timestamp if not present
+            # Ensure timestamp
             if 'timestamp' not in data:
                 data['timestamp'] = datetime.now().isoformat()
             
-            # Put data in queue (non-blocking)
+            # Add to queue
             try:
                 self.data_queue.put_nowait(data)
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
-                logger.info(f"✅ Received message #{self.stats['messages_received']} - ID: {data.get('message_id', 'unknown')}")
+                logger.info(f"✅ Message #{self.stats['messages_received']}: {data.get('message_id', 'unknown')}")
             except queue.Full:
-                # Remove oldest item and add new one
                 try:
-                    self.data_queue.get_nowait()
-                    self.data_queue.put_nowait(data)
+                    self.data_queue.get_nowait()  # Remove oldest
+                    self.data_queue.put_nowait(data)  # Add new
                     logger.warning("Queue full, dropped oldest message")
                 except queue.Empty:
                     pass
@@ -176,79 +171,96 @@ class SimpleAblySubscriber:
             self.stats['errors'] += 1
             self.stats['last_error'] = str(e)
     
-    def _connect_sync(self):
-        """Synchronous connection method"""
+    def _on_connection_state_change(self, state_change):
+        """Handle connection state changes"""
         try:
-            logger.info(f"🔗 Attempting connection to Ably...")
+            current_state = getattr(state_change, 'current', str(state_change))
+            logger.info(f"🔄 Connection state changed to: {current_state}")
             
-            # Create Ably client with minimal options
-            self.realtime = AblyRealtime(self.api_key)
+            if str(current_state).lower() == 'connected':
+                self.is_connected = True
+                logger.info("✅ Connected to Ably")
+            elif str(current_state).lower() in ['disconnected', 'suspended', 'failed', 'closed']:
+                self.is_connected = False
+                logger.warning(f"❌ Connection lost: {current_state}")
+                
+        except Exception as e:
+            logger.error(f"Error in connection state handler: {e}")
+            self.stats['errors'] += 1
+            self.stats['last_error'] = str(e)
+    
+    def _connect(self):
+        """Connect to Ably"""
+        try:
+            logger.info("🔗 Connecting to Ably...")
+            self.stats['connection_attempts'] += 1
             
-            # Get channel
+            # Create Ably Realtime client with options
+            client_options = {
+                'key': self.api_key,
+                'autoConnect': True,
+                'echoMessages': False,
+                'queueMessages': True
+            }
+            
+            # Try with options first, fallback to simple key
+            try:
+                self.realtime = AblyRealtime(client_options)
+            except TypeError:
+                # Fallback for older versions
+                self.realtime = AblyRealtime(self.api_key)
+            
+            # Set up connection state listener
+            try:
+                self.realtime.connection.on(self._on_connection_state_change)
+            except AttributeError:
+                logger.warning("Connection state listeners not available")
+            
+            # Wait for connection
+            max_wait = 15  # seconds
+            start_time = time.time()
+            
+            while time.time() - start_time < max_wait:
+                try:
+                    state = getattr(self.realtime.connection, 'state', 'unknown')
+                    logger.info(f"Connection state: {state}")
+                    
+                    if str(state).lower() == 'connected':
+                        self.is_connected = True
+                        break
+                    elif str(state).lower() in ['failed', 'closed']:
+                        logger.error(f"Connection failed: {state}")
+                        return False
+                        
+                except AttributeError:
+                    # Some versions don't have state attribute
+                    time.sleep(2)
+                    self.is_connected = True  # Assume connected
+                    break
+                
+                time.sleep(0.5)
+            
+            if not self.is_connected:
+                logger.error("Connection timeout")
+                return False
+            
+            # Get channel and subscribe
             self.channel = self.realtime.channels.get(self.channel_name)
             
             # Subscribe to messages
             self.channel.subscribe('telemetry_update', self._on_message)
             logger.info(f"✅ Subscribed to channel: {self.channel_name}")
             
-            # Wait for connection to establish
-            time.sleep(3)
-            
-            # Check if we have a connection object and if it's connected
-            try:
-                if hasattr(self.realtime, 'connection') and hasattr(self.realtime.connection, 'state'):
-                    state = str(self.realtime.connection.state).lower()
-                    logger.info(f"Connection state: {state}")
-                    if state in ['connected']:
-                        self.is_connected = True
-                        return True
-                    elif state in ['failed', 'closed']:
-                        logger.error(f"Connection failed with state: {state}")
-                        return False
-                else:
-                    # Assume connected if we can't check state
-                    self.is_connected = True
-                    return True
-            except Exception as e:
-                logger.warning(f"Could not check connection state: {e}")
-                # Assume connected if subscription worked
-                self.is_connected = True
-                return True
+            return True
             
         except Exception as e:
-            logger.error(f"Sync connection failed: {e}")
+            logger.error(f"Connection failed: {e}")
             self.stats['errors'] += 1
             self.stats['last_error'] = str(e)
             return False
     
-    def _connect_with_retries(self, max_retries: int = 5):
-        """Connect to Ably with retry logic"""
-        for attempt in range(max_retries):
-            try:
-                self.stats['connection_attempts'] += 1
-                logger.info(f"🔄 Connection attempt {attempt + 1}/{max_retries}")
-                
-                if self._connect_sync():
-                    logger.info("🎉 Connected successfully!")
-                    return True
-                
-                logger.warning(f"❌ Connection attempt {attempt + 1} failed")
-                
-            except Exception as e:
-                logger.error(f"Connection attempt {attempt + 1} exception: {e}")
-                self.stats['errors'] += 1
-                self.stats['last_error'] = str(e)
-            
-            if attempt < max_retries - 1:
-                wait_time = min(2 ** attempt, 30)  # Exponential backoff, max 30s
-                logger.info(f"⏳ Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-        
-        logger.error("❌ All connection attempts failed")
-        return False
-    
     def start(self):
-        """Start the subscriber in a separate thread"""
+        """Start the subscriber"""
         if self.is_running:
             logger.warning("Subscriber already running")
             return
@@ -263,27 +275,25 @@ class SimpleAblySubscriber:
         while self.is_running:
             try:
                 if not self.is_connected:
-                    logger.info("🔄 Attempting to connect...")
-                    if self._connect_with_retries():
-                        logger.info("✅ Connected successfully")
+                    if self._connect():
+                        logger.info("✅ Successfully connected")
                     else:
-                        logger.error("❌ Failed to connect, retrying in 30 seconds...")
+                        logger.error("❌ Connection failed, retrying in 30s...")
                         time.sleep(30)
                         continue
                 
-                # Keep connection alive and check health
+                # Keep alive and monitor connection
                 time.sleep(5)
                 
-                # Simple connection health check
-                if self.realtime and hasattr(self.realtime, 'connection'):
-                    try:
-                        if hasattr(self.realtime.connection, 'state'):
-                            state = str(self.realtime.connection.state).lower()
-                            if state not in ['connected', 'connecting']:
-                                logger.warning(f"⚠️ Connection unhealthy: {state}")
-                                self.is_connected = False
-                    except Exception as e:
-                        logger.warning(f"Error checking connection health: {e}")
+                # Check connection health
+                try:
+                    if hasattr(self.realtime, 'connection') and hasattr(self.realtime.connection, 'state'):
+                        state = str(self.realtime.connection.state).lower()
+                        if state not in ['connected', 'connecting']:
+                            logger.warning(f"⚠️ Unhealthy connection: {state}")
+                            self.is_connected = False
+                except Exception as e:
+                    logger.warning(f"Error checking connection: {e}")
                 
             except Exception as e:
                 logger.error(f"Error in subscriber loop: {e}")
@@ -291,8 +301,6 @@ class SimpleAblySubscriber:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
                 time.sleep(10)
-        
-        logger.info("🛑 Subscriber loop ended")
     
     def stop(self):
         """Stop the subscriber"""
@@ -302,11 +310,10 @@ class SimpleAblySubscriber:
         
         if self.realtime:
             try:
-                if hasattr(self.realtime, 'close'):
-                    self.realtime.close()
+                self.realtime.close()
                 logger.info("✅ Ably connection closed")
             except Exception as e:
-                logger.error(f"Error closing Ably connection: {e}")
+                logger.error(f"Error closing connection: {e}")
         
         if self.connection_thread and self.connection_thread.is_alive():
             self.connection_thread.join(timeout=10)
@@ -320,15 +327,14 @@ class SimpleAblySubscriber:
         
         if self.realtime:
             try:
-                if hasattr(self.realtime, 'close'):
-                    self.realtime.close()
+                self.realtime.close()
             except Exception as e:
-                logger.error(f"Error during reconnection cleanup: {e}")
+                logger.error(f"Error during reconnection: {e}")
         
         self.realtime = None
         self.channel = None
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self):
         """Get connection statistics"""
         return {
             'is_connected': self.is_connected,
@@ -347,13 +353,11 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         return {k: 0.0 for k in ['total_energy_mj', 'max_speed_ms', 'avg_speed_ms', 
                                  'total_distance_km', 'avg_power_w', 'efficiency_km_per_mj']}
     
-    # Ensure numeric columns
     numeric_cols = ['energy_j', 'speed_ms', 'distance_m', 'power_w']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Calculate KPIs
     total_energy = df['energy_j'].sum() / 1_000_000 if 'energy_j' in df.columns else 0
     max_speed = df['speed_ms'].max() if 'speed_ms' in df.columns else 0
     avg_speed = df['speed_ms'].mean() if 'speed_ms' in df.columns else 0
@@ -381,7 +385,7 @@ def create_speed_chart(df: pd.DataFrame):
     fig = px.line(df, x='timestamp', y='speed_ms',
                   title='Vehicle Speed Over Time',
                   labels={'speed_ms': 'Speed (m/s)', 'timestamp': 'Time'})
-    fig.update_layout(height=400, showlegend=True)
+    fig.update_layout(height=400)
     return fig
 
 
@@ -398,13 +402,10 @@ def create_power_chart(df: pd.DataFrame):
         specs=[[{"secondary_y": True}], [{"secondary_y": False}]]
     )
     
-    # Voltage and Current
     fig.add_trace(go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
                             name='Voltage (V)', line=dict(color='blue')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['timestamp'], y=df['current_a'], 
                             name='Current (A)', line=dict(color='red')), row=1, col=1)
-    
-    # Power
     fig.add_trace(go.Scatter(x=df['timestamp'], y=df['power_w'], 
                             name='Power (W)', line=dict(color='green')), row=2, col=1)
     
@@ -419,7 +420,6 @@ def create_efficiency_chart(df: pd.DataFrame):
                                          xref="paper", yref="paper",
                                          x=0.5, y=0.5, showarrow=False)
     
-    # Calculate efficiency
     df_copy = df.copy()
     df_copy['efficiency'] = df_copy['distance_m'] / (df_copy['energy_j'] / 1_000_000)
     df_copy['efficiency'] = df_copy['efficiency'].replace([np.inf, -np.inf], 0)
@@ -439,7 +439,6 @@ def create_gps_map(df: pd.DataFrame):
                                          xref="paper", yref="paper",
                                          x=0.5, y=0.5, showarrow=False)
     
-    # Filter valid GPS coordinates
     df_valid = df.dropna(subset=['latitude', 'longitude'])
     if df_valid.empty:
         return go.Figure().add_annotation(text="No valid GPS coordinates",
@@ -455,7 +454,6 @@ def create_gps_map(df: pd.DataFrame):
                            height=400,
                            zoom=12)
     
-    # Center map on data
     fig.update_layout(
         mapbox=dict(
             center=dict(
@@ -489,7 +487,6 @@ def update_telemetry_data():
     """Update telemetry data from queue"""
     new_data = []
     
-    # Get all available data from queue
     while True:
         try:
             data = st.session_state.data_queue.get_nowait()
@@ -498,25 +495,21 @@ def update_telemetry_data():
             break
     
     if new_data:
-        # Convert to DataFrame
         new_df = pd.DataFrame(new_data)
         
-        # Ensure timestamp is datetime
         if 'timestamp' in new_df.columns:
             new_df['timestamp'] = pd.to_datetime(new_df['timestamp'])
         
-        # Append to existing data
         if st.session_state.telemetry_data.empty:
             st.session_state.telemetry_data = new_df
         else:
             st.session_state.telemetry_data = pd.concat([st.session_state.telemetry_data, new_df], ignore_index=True)
         
-        # Keep only recent data
         if len(st.session_state.telemetry_data) > MAX_DATAPOINTS:
             st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
         
         st.session_state.last_update = datetime.now()
-        logger.info(f"📊 Updated telemetry data: {len(new_data)} new points, {len(st.session_state.telemetry_data)} total")
+        logger.info(f"📊 Updated: +{len(new_data)} points, total: {len(st.session_state.telemetry_data)}")
         return len(new_data)
     
     return 0
@@ -527,27 +520,24 @@ def main():
     st.markdown('<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</h1>', 
                 unsafe_allow_html=True)
     
-    # Initialize session state
     initialize_session_state()
     
-    # Check Ably availability
     if not ABLY_AVAILABLE:
-        st.error("❌ Ably library not available. Please install it using: pip install ably")
+        st.error("❌ Ably library not available. Please install: pip install ably")
         st.stop()
     
     # Sidebar - Connection Management
     st.sidebar.header("🔗 Connection Management")
     
-    # Initialize subscriber if not exists
+    # Initialize subscriber
     if st.session_state.subscriber is None:
-        st.session_state.subscriber = SimpleAblySubscriber(
+        st.session_state.subscriber = AblySubscriber(
             api_key=ABLY_API_KEY,
             channel_name=TELEMETRY_CHANNEL_NAME,
             data_queue=st.session_state.data_queue
         )
         st.session_state.subscriber.start()
     
-    # Get connection stats
     stats = st.session_state.subscriber.get_stats()
     
     # Connection status
@@ -567,7 +557,7 @@ def main():
             unsafe_allow_html=True
         )
     
-    # Connection metrics
+    # Stats
     col1, col2 = st.sidebar.columns(2)
     with col1:
         st.metric("Messages", stats['messages_received'])
@@ -575,70 +565,60 @@ def main():
     with col2:
         st.metric("Errors", stats['errors'])
         if stats['last_message_time']:
-            time_since_last = datetime.now() - stats['last_message_time']
-            st.metric("Last Msg", f"{time_since_last.total_seconds():.0f}s ago")
+            time_since = (datetime.now() - stats['last_message_time']).total_seconds()
+            st.metric("Last Msg", f"{time_since:.0f}s ago")
         else:
             st.metric("Last Msg", "Never")
     
-    # Show last error if any
     if stats['last_error']:
         st.sidebar.error(f"Last Error: {stats['last_error'][:50]}...")
     
-    # Connection controls
+    # Controls
     col1, col2 = st.sidebar.columns(2)
-    
     with col1:
         if st.button("🔄 Reconnect"):
             st.session_state.subscriber.reconnect()
             st.rerun()
-    
     with col2:
         if st.button("🛑 Disconnect"):
             st.session_state.subscriber.stop()
             st.session_state.subscriber = None
             st.rerun()
     
-    # Auto-refresh settings
+    # Settings
     st.sidebar.subheader("⚙️ Settings")
     st.session_state.auto_refresh = st.sidebar.checkbox(
         "Auto Refresh", 
-        value=st.session_state.auto_refresh,
-        help="Automatically refresh dashboard with new data"
+        value=st.session_state.auto_refresh
     )
     
     if st.session_state.auto_refresh:
-        refresh_interval = st.sidebar.slider(
-            "Refresh Interval (seconds)", 
-            min_value=1, max_value=10, value=2
-        )
+        refresh_interval = st.sidebar.slider("Refresh Interval (seconds)", 1, 10, 2)
     
-    # Channel info
     st.sidebar.info(f"📡 Channel: {TELEMETRY_CHANNEL_NAME}")
     
-    # Memory usage with limit
+    # Memory usage
     current_mb, total_gb = get_memory_info()
     st.sidebar.text(f"Memory: {current_mb:.1f} MB / {total_gb:.1f} GB")
     
-    # Update telemetry data
+    # Update data
     new_messages = update_telemetry_data()
     if new_messages > 0:
         st.sidebar.success(f"📨 +{new_messages} new messages")
     
-    # Main dashboard content
+    # Main content
     df = st.session_state.telemetry_data.copy()
     
     if df.empty:
-        st.warning("⏳ Waiting for telemetry data from the data provider...")
-        st.info("Make sure maindata.py is running and publishing data to the Ably channel.")
+        st.warning("⏳ Waiting for telemetry data...")
+        st.info("Make sure maindata.py is running and publishing to the Ably channel.")
         
-        # Show debug info
-        with st.expander("🔍 Debug Information"):
+        with st.expander("🔍 Debug Info"):
             st.json({
-                "Connection Status": "Connected" if stats['is_connected'] else "Disconnected",
-                "Messages Received": stats['messages_received'],
-                "Connection Attempts": stats['connection_attempts'],
+                "Connected": stats['is_connected'],
+                "Running": stats['is_running'],
+                "Messages": stats['messages_received'],
                 "Errors": stats['errors'],
-                "Last Error": stats['last_error'],
                 "Channel": TELEMETRY_CHANNEL_NAME,
                 "API Key": f"{ABLY_API_KEY[:10]}..." if ABLY_API_KEY else "Not set"
             })
@@ -662,8 +642,7 @@ def main():
         with col6:
             st.metric("Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
         
-        # Data info
-        st.info(f"📊 Displaying {len(df)} data points | Last update: {st.session_state.last_update.strftime('%H:%M:%S')}")
+        st.info(f"📊 {len(df)} data points | Last update: {st.session_state.last_update.strftime('%H:%M:%S')}")
         
         # Charts
         st.subheader("📈 Real-time Analytics")
@@ -688,7 +667,6 @@ def main():
             st.subheader("Raw Telemetry Data")
             st.dataframe(df.tail(100), use_container_width=True)
             
-            # Download button
             if not df.empty:
                 csv = df.to_csv(index=False)
                 st.download_button(
@@ -716,15 +694,10 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt:
-        logger.info("Dashboard stopped by user")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        st.error(f"Fatal error: {e}")
+        logger.error(f"💥 Fatal error: {e}")
+        st.error(f"💥 Fatal error: {e}")
     finally:
-        # Cleanup
         if 'subscriber' in st.session_state and st.session_state.subscriber:
             st.session_state.subscriber.stop()
-        
-        # Force garbage collection
         gc.collect()
