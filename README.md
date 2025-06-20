@@ -49,7 +49,7 @@ Publish mock (or real) sensor data with a lightweight Python publisher and visua
 
 ```bash
 git clone https://github.com/ChosF/ecotele.git
-cd eco-telemetry-dashboard
+cd EcoTele
 pip install -r requirements.txt
 ```
 
