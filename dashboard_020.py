@@ -29,7 +29,7 @@ except ImportError:
 # Configuration
 ABLY_API_KEY = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
 CHANNEL_NAME = "telemetry-dashboard-channel"
-MAX_DATAPOINTS = 500
+MAX_DATAPOINTS = 50000
 
 # Page configuration
 st.set_page_config(
