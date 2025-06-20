@@ -84,7 +84,7 @@ streamlit run dashboard_#.py
 ├── dashboard_#.py        # Streamlit subscriber dashboard  
 ├── requirements.txt      # Python dependencies  
 ├── README.md             # Project overview & instructions
-├── demo1.py              # Dashboard demo verson. (Fully mockup data, lacks connection)
+├── demo1.py              # Dashboard demo verson. (Fully mock data, lacks connection)
 └── LICENSE               # MIT License  
 ```
 
