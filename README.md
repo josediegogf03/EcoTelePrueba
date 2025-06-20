@@ -48,7 +48,7 @@ Publish mock (or real) sensor data with a lightweight Python publisher and visua
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-username/eco-telemetry-dashboard.git
+git clone https://github.com/your-username/ecotele.git
 cd eco-telemetry-dashboard
 pip install -r requirements.txt
 ```
