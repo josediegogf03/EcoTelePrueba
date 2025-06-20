@@ -27,25 +27,30 @@ except ImportError:
     st.error("❌ Ably library not available. Please install: pip install ably")
     st.stop()
 
-# --- Function to set up terminal logging ---
+# --- UPDATED: Function to set up terminal logging ---
 def setup_terminal_logging():
     """Configures the 'TelemetrySubscriber' logger to print to the terminal."""
     logger = logging.getLogger('TelemetrySubscriber')
     
     # Prevent adding handlers multiple times on Streamlit reruns
     if not logger.handlers:
-        logger.setLevel(logging.INFO)
+        # Set the logger to the lowest level (DEBUG) to capture all messages.
+        logger.setLevel(logging.DEBUG)
         
-        # Create a handler that writes to standard output (the terminal)
+        # Create a handler that writes to standard output (the terminal).
         handler = logging.StreamHandler(sys.stdout)
         
-        # Create a formatter and set it for the handler
+        # Set the handler's level to INFO. It will only process INFO,
+        # WARNING, ERROR, and CRITICAL messages, ignoring DEBUG.
+        handler.setLevel(logging.INFO)
+        
+        # Create a formatter and set it for the handler.
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         handler.setFormatter(formatter)
         
-        # Add the handler to the logger
+        # Add the handler to the logger.
         logger.addHandler(handler)
 
 # --- Call the logging setup function once at the start ---
@@ -243,7 +248,8 @@ class TelemetrySubscriber:
     def _on_message_received(self, message):
         """Handle incoming messages from Ably"""
         try:
-            self.logger.info(f"📨 Message received: {message.name}")
+            # Changed to DEBUG level
+            self.logger.debug(f"📨 Message received: {message.name}")
             
             # Extract message data
             data = message.data
@@ -267,7 +273,8 @@ class TelemetrySubscriber:
                     self.stats['last_error'] = f"Invalid data type: {type(data)}"
                 return
             
-            self.logger.info(f"📊 Data keys: {list(data.keys())}")
+            # Changed to DEBUG level
+            self.logger.debug(f"📊 Data keys: {list(data.keys())}")
             
             # Add to message queue
             with self._lock:
@@ -285,7 +292,8 @@ class TelemetrySubscriber:
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
                 
-                self.logger.info(f"✅ Message queued. Total: {self.stats['messages_received']}")
+                # Changed to DEBUG level
+                self.logger.debug(f"✅ Message queued. Total: {self.stats['messages_received']}")
             
         except Exception as e:
             self.logger.error(f"❌ Message handling error: {e}")
@@ -305,7 +313,8 @@ class TelemetrySubscriber:
                     break
         
         if messages:
-            self.logger.info(f"📤 Returning {len(messages)} messages")
+            # Changed to DEBUG level
+            self.logger.debug(f"📤 Returning {len(messages)} messages")
         
         return messages
     
@@ -465,7 +474,6 @@ def create_efficiency_chart(df: pd.DataFrame):
     fig.update_layout(height=400)
     return fig
 
-# --- FIXED FUNCTION ---
 def create_gps_map(df: pd.DataFrame):
     """Create GPS tracking map"""
     if df.empty or not all(col in df.columns for col in ['latitude', 'longitude']):
