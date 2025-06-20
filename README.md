@@ -83,7 +83,8 @@ streamlit run dashboard_#.py
 ├── maindata.py           # Telemetry publisher  
 ├── dashboard_#.py        # Streamlit subscriber dashboard  
 ├── requirements.txt      # Python dependencies  
-├── README.md             # Project overview & instructions  
+├── README.md             # Project overview & instructions
+├── demo1.py              # Dashboard demo verson. (Fully mockup data, lacks connection)
 └── LICENSE               # MIT License  
 ```
 
