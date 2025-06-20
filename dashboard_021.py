@@ -27,7 +27,7 @@ except ImportError:
     st.error("❌ Ably library not available. Please install: pip install ably")
     st.stop()
 
-# --- NEW: Function to set up terminal logging ---
+# --- Function to set up terminal logging ---
 def setup_terminal_logging():
     """Configures the 'TelemetrySubscriber' logger to print to the terminal."""
     logger = logging.getLogger('TelemetrySubscriber')
@@ -465,6 +465,7 @@ def create_efficiency_chart(df: pd.DataFrame):
     fig.update_layout(height=400)
     return fig
 
+# --- FIXED FUNCTION ---
 def create_gps_map(df: pd.DataFrame):
     """Create GPS tracking map"""
     if df.empty or not all(col in df.columns for col in ['latitude', 'longitude']):
@@ -482,25 +483,27 @@ def create_gps_map(df: pd.DataFrame):
             x=0.5, y=0.5, showarrow=False
         )
     
-    fig = px.scatter_mapbox(
-        df_valid, lat='latitude', lon='longitude',
+    # Calculate the center point for the map view
+    center_point = dict(
+        lat=df_valid['latitude'].mean(),
+        lon=df_valid['longitude'].mean()
+    )
+    
+    # Use the new px.scatter_map function
+    fig = px.scatter_map(
+        df_valid, 
+        lat='latitude', 
+        lon='longitude',
         color='speed_ms' if 'speed_ms' in df_valid.columns else None,
         size='power_w' if 'power_w' in df_valid.columns else None,
         hover_data=['speed_ms', 'power_w', 'voltage_v'] if all(col in df_valid.columns for col in ['speed_ms', 'power_w', 'voltage_v']) else None,
-        mapbox_style='open-street-map',
+        map_style='open-street-map',  # Changed from mapbox_style
         title='Vehicle Track and Performance',
         height=400,
-        zoom=12
+        zoom=12,
+        center=center_point # Pass center directly
     )
     
-    fig.update_layout(
-        mapbox=dict(
-            center=dict(
-                lat=df_valid['latitude'].mean(),
-                lon=df_valid['longitude'].mean()
-            )
-        )
-    )
     return fig
 
 def main():
