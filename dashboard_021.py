@@ -272,7 +272,7 @@ class TelemetrySubscriber:
             # Add to message queue
             with self._lock:
                 # Prevent queue from growing too large
-                if self.message_queue.qsize() > 100:
+                if self.message_queue.qsize() > 1000:
                     try:
                         # Remove old messages
                         while self.message_queue.qsize() > 50:
