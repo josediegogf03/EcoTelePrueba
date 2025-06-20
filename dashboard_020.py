@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import logging
 import json
 import time
+import sys
 from typing import Dict, Any, List, Optional
 import threading
 import queue
@@ -25,6 +26,35 @@ except ImportError:
     ABLY_AVAILABLE = False
     st.error("❌ Ably library not available. Please install: pip install ably")
     st.stop()
+
+# --- UPDATED: Function to set up terminal logging ---
+def setup_terminal_logging():
+    """Configures the 'TelemetrySubscriber' logger to print to the terminal."""
+    logger = logging.getLogger('TelemetrySubscriber')
+    
+    # Prevent adding handlers multiple times on Streamlit reruns
+    if not logger.handlers:
+        # Set the logger to the lowest level (DEBUG) to capture all messages.
+        logger.setLevel(logging.DEBUG)
+        
+        # Create a handler that writes to standard output (the terminal).
+        handler = logging.StreamHandler(sys.stdout)
+        
+        # Set the handler's level to INFO. It will only process INFO,
+        # WARNING, ERROR, and CRITICAL messages, ignoring DEBUG.
+        handler.setLevel(logging.INFO)
+        
+        # Create a formatter and set it for the handler.
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        
+        # Add the handler to the logger.
+        logger.addHandler(handler)
+
+# --- Call the logging setup function once at the start ---
+setup_terminal_logging()
 
 # Configuration
 ABLY_API_KEY = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
@@ -92,8 +122,7 @@ class TelemetrySubscriber:
         self._stop_event = threading.Event()
         self._should_run = False
         
-        # Setup logging
-        logging.basicConfig(level=logging.INFO)
+        # Setup logging - gets the logger configured by our new function
         self.logger = logging.getLogger('TelemetrySubscriber')
     
     def connect(self) -> bool:
@@ -219,7 +248,8 @@ class TelemetrySubscriber:
     def _on_message_received(self, message):
         """Handle incoming messages from Ably"""
         try:
-            self.logger.info(f"📨 Message received: {message.name}")
+            # Changed to DEBUG level
+            self.logger.debug(f"📨 Message received: {message.name}")
             
             # Extract message data
             data = message.data
@@ -243,7 +273,8 @@ class TelemetrySubscriber:
                     self.stats['last_error'] = f"Invalid data type: {type(data)}"
                 return
             
-            self.logger.info(f"📊 Data keys: {list(data.keys())}")
+            # Changed to DEBUG level
+            self.logger.debug(f"📊 Data keys: {list(data.keys())}")
             
             # Add to message queue
             with self._lock:
@@ -261,7 +292,8 @@ class TelemetrySubscriber:
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
                 
-                self.logger.info(f"✅ Message queued. Total: {self.stats['messages_received']}")
+                # Changed to DEBUG level
+                self.logger.debug(f"✅ Message queued. Total: {self.stats['messages_received']}")
             
         except Exception as e:
             self.logger.error(f"❌ Message handling error: {e}")
@@ -281,7 +313,8 @@ class TelemetrySubscriber:
                     break
         
         if messages:
-            self.logger.info(f"📤 Returning {len(messages)} messages")
+            # Changed to DEBUG level
+            self.logger.debug(f"📤 Returning {len(messages)} messages")
         
         return messages
     
@@ -458,25 +491,27 @@ def create_gps_map(df: pd.DataFrame):
             x=0.5, y=0.5, showarrow=False
         )
     
-    fig = px.scatter_mapbox(
-        df_valid, lat='latitude', lon='longitude',
+    # Calculate the center point for the map view
+    center_point = dict(
+        lat=df_valid['latitude'].mean(),
+        lon=df_valid['longitude'].mean()
+    )
+    
+    # Use the new px.scatter_map function
+    fig = px.scatter_map(
+        df_valid, 
+        lat='latitude', 
+        lon='longitude',
         color='speed_ms' if 'speed_ms' in df_valid.columns else None,
         size='power_w' if 'power_w' in df_valid.columns else None,
         hover_data=['speed_ms', 'power_w', 'voltage_v'] if all(col in df_valid.columns for col in ['speed_ms', 'power_w', 'voltage_v']) else None,
-        mapbox_style='open-street-map',
+        map_style='open-street-map',  # Changed from mapbox_style
         title='Vehicle Track and Performance',
         height=400,
-        zoom=12
+        zoom=12,
+        center=center_point # Pass center directly
     )
     
-    fig.update_layout(
-        mapbox=dict(
-            center=dict(
-                lat=df_valid['latitude'].mean(),
-                lon=df_valid['longitude'].mean()
-            )
-        )
-    )
     return fig
 
 def main():
