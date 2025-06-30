@@ -454,17 +454,17 @@ def create_mpu_chart(df: pd.DataFrame):
     )
     fig.add_trace(
         go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
-                  name='Gyro (X)', line=dict(color='blue')), 
+                  name='Gyro (X)', line=dict(color='#FFC000')), 
         row=2, col=1
     )
     fig.add_trace(
         go.Scatter(x=df['timestamp'], y=df['current_a'], 
-                  name='Gyro (Y)', line=dict(color='red')), 
+                  name='Gyro (Y)', line=dict(color='#B749A7')), 
         row=2, col=2
     )
     fig.add_trace(
         go.Scatter(x=df['timestamp'], y=df['power_w'], 
-                  name='Gyro (Z)', line=dict(color='green')), 
+                  name='Gyro (Z)', line=dict(color='#37B4C9')), 
         row=2, col=3
     )
     
