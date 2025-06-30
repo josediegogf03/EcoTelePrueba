@@ -452,6 +452,21 @@ def create_mpu_chart(df: pd.DataFrame):
                   name='Acc (Z)', line=dict(color='green')), 
         row=1, col=3
     )
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
+                  name='Gyro (X)', line=dict(color='blue')), 
+        row=2, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['current_a'], 
+                  name='Gyro (Y)', line=dict(color='red')), 
+        row=2, col=2
+    )
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['power_w'], 
+                  name='Gyro (Z)', line=dict(color='green')), 
+        row=2, col=3
+    )
     
     fig.update_layout(height=500, title_text="Electrical System Performance")
     return fig
