@@ -423,6 +423,39 @@ def create_speed_chart(df: pd.DataFrame):
     fig.update_layout(height=400)
     return fig
 
+def create_mpu_chart(df: pd.DataFrame):
+    """Create power system chart"""
+    if df.empty or not all(col in df.columns for col in ['voltage_v', 'current_a', 'power_w']):
+        return go.Figure().add_annotation(
+            text="No power data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False
+        )
+    
+    fig = make_subplots(
+        rows=2, cols=3, 
+        subplot_titles=('Acc X', 'Acc Y', 'Acc Z', 'Gyro X', 'Gyro Y', 'Gyro Z')
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
+                  name='Acc (X)', line=dict(color='blue')), 
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['current_a'], 
+                  name='Acc (Y)', line=dict(color='red')), 
+        row=1, col=2
+    )
+    fig.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['power_w'], 
+                  name='Acc (Z)', line=dict(color='green')), 
+        row=1, col=3
+    )
+    
+    fig.update_layout(height=500, title_text="Electrical System Performance")
+    return fig
+
 def create_power_chart(df: pd.DataFrame):
     """Create power system chart"""
     if df.empty or not all(col in df.columns for col in ['voltage_v', 'current_a', 'power_w']):
@@ -670,8 +703,8 @@ def main():
         # Charts
         st.subheader("📈 Real-time Analytics")
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "Speed Analysis", "Power System", "Efficiency", "GPS Track", "Raw Data"
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "Speed Analysis", "Power System", "Efficiency", "GPS Track", "MPU Data", "Raw Data"
         ])
         
         with tab1:
@@ -685,8 +718,11 @@ def main():
         
         with tab4:
             st.plotly_chart(create_gps_map(df), use_container_width=True)
-        
+
         with tab5:
+            st.plotly_chart(create_mpu_chart(df), use_container_width=True)
+        
+        with tab6:
             st.subheader("Raw Telemetry Data")
             st.dataframe(df.tail(100), use_container_width=True)
             
