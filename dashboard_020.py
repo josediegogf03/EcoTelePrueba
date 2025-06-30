@@ -425,7 +425,7 @@ def create_speed_chart(df: pd.DataFrame):
 
 def create_mpu_chart(df: pd.DataFrame):
     """Create power system chart"""
-    if df.empty or not all(col in df.columns for col in ['voltage_v', 'current_a', 'power_w']):
+    if df.empty or not all(col in df.columns for col in ['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z']):
         return go.Figure().add_annotation(
             text="No power data available",
             xref="paper", yref="paper",
@@ -438,32 +438,32 @@ def create_mpu_chart(df: pd.DataFrame):
     )
     
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
+        go.Scatter(x=df['timestamp'], y=df['acc_x'], 
                   name='Acc (X)', line=dict(color='blue')), 
         row=1, col=1
     )
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['current_a'], 
+        go.Scatter(x=df['timestamp'], y=df['acc_y'], 
                   name='Acc (Y)', line=dict(color='red')), 
         row=1, col=2
     )
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['power_w'], 
+        go.Scatter(x=df['timestamp'], y=df['acc_z'], 
                   name='Acc (Z)', line=dict(color='green')), 
         row=1, col=3
     )
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['voltage_v'], 
+        go.Scatter(x=df['timestamp'], y=df['gyro_x'], 
                   name='Gyro (X)', line=dict(color='#FFC000')), 
         row=2, col=1
     )
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['current_a'], 
+        go.Scatter(x=df['timestamp'], y=df['gyro_y'], 
                   name='Gyro (Y)', line=dict(color='#B749A7')), 
         row=2, col=2
     )
     fig.add_trace(
-        go.Scatter(x=df['timestamp'], y=df['power_w'], 
+        go.Scatter(x=df['timestamp'], y=df['gyro_z'], 
                   name='Gyro (Z)', line=dict(color='#37B4C9')), 
         row=2, col=3
     )
