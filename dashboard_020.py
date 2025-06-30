@@ -468,7 +468,7 @@ def create_mpu_chart(df: pd.DataFrame):
         row=2, col=3
     )
     
-    fig.update_layout(height=500, title_text="Electrical System Performance")
+    fig.update_layout(height=500, title_text="Accelerometer/Gyroscope Data")
     return fig
 
 def create_power_chart(df: pd.DataFrame):
