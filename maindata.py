@@ -104,6 +104,14 @@ class TelemetryPublisher:
         
         self.cumulative_energy += energy_delta
         self.cumulative_distance += distance_delta
+
+        # Generate MPU data (simulated)
+        acc_x = random.gauss(0, 1.5)
+        acc_y = 9.5 + random.gauss(0, 1)
+        acc_z = random.gauss(0, 1.5)
+        gyro_x = random.gauss(0, 10)
+        gyro_y = random.gauss(0, 10)
+        gyro_z = random.gauss(0, 10)
         
         # Generate GPS coordinates (simulated route)
         base_lat, base_lon = 40.7128, -74.0060
@@ -125,6 +133,12 @@ class TelemetryPublisher:
             'distance_m': round(self.cumulative_distance, 2),
             'latitude': round(latitude, 6),
             'longitude': round(longitude, 6),
+            'acc_x': round(acc_x, 2),
+            'acc_y': round(acc_y, 2),
+            'acc_z': round(acc_z, 2),
+            'gyro_x': round(gyro_x, 2),
+            'gyro_y': round(gyro_y, 2),
+            'gyro_z': round(gyro_z, 2),
             'message_id': self.message_count + 1,
             'uptime_seconds': self.simulation_time * PUBLISH_INTERVAL
         }
@@ -221,4 +235,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"💥 Fatal error: {e}")
         sys.exit(1)
-
