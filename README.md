@@ -1,43 +1,37 @@
-
-# 🏎️ Shell Eco-marathon Telemetry Dashboard
+# Shell Eco-marathon Telemetry Dashboard
 
 [![Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A **real-time telemetry system** for Shell Eco-marathon vehicles.  
-Publish mock—or real—sensor data (including IMU: gyroscope & accelerometer), then visualize live KPIs, charts, maps & custom graphs in a Streamlit dashboard.
+Publish mock (or real) sensor data with a lightweight Python publisher and visualize live KPIs, interactive charts & maps in a Streamlit dashboard—deployable on Streamlit Community Cloud.
+
+---
+
+## ✨ v0.5 Beta Highlights
+
+- **Custom Chart Builder**  
+  Add, configure and remove your own charts on-the-fly: line, scatter, bar, histogram or heatmap—no code edits required.  
+- **Extended Sensor Suite**  
+  Ingest gyroscope & accelerometer streams alongside speed, voltage, power and GPS for deeper vehicle insights.  
+- **Visual & UX Overhaul**  
+  Theme-aware (light/dark) CSS, sticky header, modern buttons, info cards, tooltips and responsive layouts.  
 
 ---
 
 ## ✨ Features
 
-- **Publisher** (`maindata.py`)  
-  - Simulates:
-    - Vehicle kinematics: `speed_ms`, `distance_m`  
-    - Electrical: `voltage_v`, `current_a`, `power_w`, `energy_j`  
-    - GPS: `latitude`, `longitude`  
-    - IMU: `gyro_x/y/z`, `accel_x/y/z`, derived `total_acceleration`, `vehicle_heading`  
-    - Message metadata: `message_id`, `uptime_seconds`  
-  - Publishes JSON under `telemetry_update` every _n_ seconds  
-  - Automatic reconnect, SIGINT/SIGTERM handlers, graceful cleanup  
-  - Detailed logging (every 10th message summary)
-
-- **Dashboard** (`dashboard_050.py`)  
-  - Connects to Ably Realtime, buffers data thread-safely  
-  - **Nine tabs**:
-    1. **Overview** – high-level KPIs  
-    2. **Speed** – time-series speed chart  
-    3. **Power** – voltage/current & power  
-    4. **IMU** – combined gyro & accel trends  
-    5. **IMU Detail** – six-panel X/Y/Z subplots  
-    6. **Efficiency** – speed vs power scatter  
-    7. **GPS** – map-based track & performance  
-    8. **Custom** – on-the-fly chart builder (line, scatter, bar, histogram, heatmap)  
-    9. **Data** – raw table + CSV download  
-  - **Dynamic Charts**: add, rename, delete custom graphs; correlation heatmap  
-  - **Visual Enhancements**: theme-aware CSS, sticky header & tabs, modern buttons & cards  
-  - **KPIs Extended**: max acceleration, avg gyro magnitude  
-  - Terminal logging of subscriber events  
+- Publisher (`maindata.py`):  
+  - Simulates & publishes JSON events (`telemetry_update`) over Ably Realtime  
+  - Sensors: speed, voltage, current, power, cumulative energy/distance, GPS, IMU (gyro & accel)  
+  - Auto-reconnect, graceful shutdown, detailed logging  
+- Dashboard (`dashboard_050.py`):  
+  - Subscribes to Ably channel, thread-safe message queue  
+  - Live KPIs: distance, max/avg speed, energy, power, efficiency, max accel, avg gyro  
+  - Tabs: Overview, Speed, Power, IMU, IMU Detail, Efficiency, GPS, **Custom**, Data  
+  - Custom chart builder with drag-and-drop controls  
+  - Raw data preview & CSV download  
+  - Auto-refresh, connection stats & error reporting
 
 ---
 
@@ -45,50 +39,57 @@ Publish mock—or real—sensor data (including IMU: gyroscope & accelerometer),
 
 ```text
 ┌───────────────┐      WebSocket     ┌────────────────────┐      WebSocket     ┌─────────────────────┐
-│  Publisher    │  ─────────────────>│   Ably Realtime    │  ─────────────────>│ Streamlit Dashboard │
-│  maindata.py  │                    │     (Pub/Sub)      │                    │  dashboard_050.py   │
+│  Publisher    │ ──────────────────>│   Ably Realtime    │ ──────────────────>│ Streamlit Dashboard │
+│   maindata.py │                    │     (Pub/Sub)      │                    │  dashboard_050.py   │
 └───────────────┘                    └────────────────────┘                    └─────────────────────┘
 ```
+
+1. **maindata.py**  
+   Generates & publishes telemetry events.  
+2. **Ably Realtime**  
+   Manages WebSocket connections & message routing.  
+3. **dashboard_050.py**  
+   Subscribes, buffers and renders data via Streamlit.
 
 ---
 
 ## 🚀 Quickstart
 
-
-# 1. Clone the repo & checkout Beta
 ```bash
+# Clone the repo
 git clone https://github.com/ChosF/EcoTele.git
 cd EcoTele
+
+# Checkout the v0.5 Beta tag
 git fetch --tags
 git checkout Dashboard_Beta
-```
-# 2. Install dependencies
-```bash
+
+# Install dependencies
 pip install -r requirements.txt
 ```
-# 3. Run the telemetry publisher
-```bash
-python maindata.py
-```
-# 4. In a new terminal, launch the dashboard
-```bash
-streamlit run dashboard_050.py
-```
-```
 
-> **Tip:** To deploy on Streamlit Community Cloud, point your app to `dashboard_050.py` in this repo.
+1. **Run the Publisher**  
+   ```bash
+   python maindata.py
+   ```
+2. **Launch the Dashboard (local)**  
+   ```bash
+   streamlit run dashboard_050.py
+   ```
+3. **Deploy on Streamlit Cloud**  
+   - Push this repo to GitHub  
+   - In Streamlit Community Cloud, “New app” → select `dashboard_050.py`
 
 ---
 
 ## 🗂️ Repository Structure
 
 ```
-EcoTele/
-├── maindata.py            # Enhanced telemetry publisher w/ IMU support
-├── dashboard_050.py       # Streamlit subscriber dashboard (v0.5 Beta)
-├── requirements.txt       # Python dependencies
-├── LICENSE                # MIT License
-└── README.md              # Project overview & instructions
+├── maindata.py           # Telemetry publisher
+├── dashboard_050.py      # Streamlit subscriber dashboard
+├── requirements.txt      # Python dependencies
+├── README.md             # Project overview & instructions
+└── LICENSE               # MIT License
 ```
 
 ---
@@ -98,5 +99,6 @@ EcoTele/
 This project is released under the **MIT License**.  
 See [LICENSE](LICENSE) for details.
 
-> _This project is now in **Beta**. We welcome your feedback, issues and contributions!_  
-```
+---
+
+> _This project is in **Beta** stage. Feedback, issues and contributions are very welcome!_
