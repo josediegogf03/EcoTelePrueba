@@ -648,7 +648,19 @@ def create_imu_chart(df: pd.DataFrame):
                   name='Accel Z', line=dict(color='brown')), 
         row=2, col=1
     )
+      
+    fig.update_layout(height=600, title_text="IMU Sensor Data")
+    return fig
 
+def create_imu_chart_2(df: pd.DataFrame):
+    """Create IMU (gyroscope and accelerometer) analysis chart"""
+    if df.empty or not all(col in df.columns for col in ['gyro_x', 'gyro_y', 'gyro_z', 'accel_x', 'accel_y', 'accel_z']):
+        return go.Figure().add_annotation(
+            text="No IMU data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False
+        )
+    
     fig2 = make_subplots(
         rows=2, cols=3,
         subplot_titles=('Gyroscope (deg/s)', 'Accelerometer (m/s²)'),
@@ -688,10 +700,9 @@ def create_imu_chart(df: pd.DataFrame):
                   name='Accel Z', line=dict(color='brown')), 
         row=2, col=3
     )
-    
-    fig.update_layout(height=600, title_text="IMU Sensor Data")
-    fig2.update_layout(height=600, title_text="IMU Sensor Data (2)")
-    return fig
+
+    fig2.update_layout(height=600, title_text="IMU Sensor Data")
+    return fig2
 
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency analysis chart"""
@@ -1102,7 +1113,7 @@ def main():
         st.subheader("📈 Real-time Analytics")
         
         # Use session state to remember active tab and prevent scroll jumping
-        tab_names = ["Speed Analysis", "Power System", "IMU Sensors", "Efficiency", "GPS Track", "Dynamic Charts", "Raw Data"]
+        tab_names = ["Speed Analysis", "Power System", "IMU Sensors", "IMU Sensors (2)", "Efficiency", "GPS Track", "Dynamic Charts", "Raw Data"]
         
         tabs = st.tabs(tab_names)
         
@@ -1114,18 +1125,21 @@ def main():
         
         with tabs[2]:
             st.plotly_chart(create_imu_chart(df), use_container_width=True)
-        
+
         with tabs[3]:
-            st.plotly_chart(create_efficiency_chart(df), use_container_width=True)
+            st.plotly_chart(create_imu_chart_2(df), use_container_width=True)
         
         with tabs[4]:
-            st.plotly_chart(create_gps_map(df), use_container_width=True)
+            st.plotly_chart(create_efficiency_chart(df), use_container_width=True)
         
         with tabs[5]:
+            st.plotly_chart(create_gps_map(df), use_container_width=True)
+        
+        with tabs[6]:
             # Use the improved dynamic charts section
             render_dynamic_charts_section(df)
         
-        with tabs[6]:
+        with tabs[7]:
             st.subheader("Raw Telemetry Data")
             st.dataframe(df.tail(100), use_container_width=True)
             
