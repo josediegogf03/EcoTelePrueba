@@ -1041,7 +1041,7 @@ def create_gps_map(df: pd.DataFrame):
         map_style="open-street-map",
         title="🛰️ Vehicle Track and Performance",
         height=400,
-        zoom=14,  # Changed zoom from 12 to 14 for a more detailed view
+        zoom=15,  # Changed zoom from 14 to 15 for a more detailed view
         center=center_point,
         color_continuous_scale="plasma",
     )
