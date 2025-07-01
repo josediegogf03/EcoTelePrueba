@@ -1176,7 +1176,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         </div>
         <div class="instructions-content">
             <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
-            <p> <strong>"Currently"</strong> graphs visibility is reduced when auto-refresh is on.</p>
+            <p><strong>Currently</strong> graphs visibility is reduced when auto-refresh is on.</p>
         </div>
     </div>
     """,
