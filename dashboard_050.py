@@ -158,43 +158,125 @@ st.markdown("""
         border: 1px solid var(--border-color);
     }
     
-    .dynamic-chart-instructions {
-        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-        border-radius: 12px;
-        padding: 1.5rem;
+    .overview-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
         margin: 1rem 0;
-        border-left: 4px solid var(--primary-color);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    .overview-kpi-card {
+        background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        border: 2px solid var(--border-color);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .overview-kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+        border-color: var(--primary-color);
+    }
+    
+    .overview-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+    }
+    
+    .kpi-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .kpi-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 0.5rem 0;
+        line-height: 1;
+    }
+    
+    .kpi-label {
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .kpi-description {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+        font-style: italic;
+    }
+    
+    .instructions-container {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        border-left: 6px solid var(--primary-color);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
     
     .instructions-title {
         color: var(--primary-color);
-        font-size: 1.3rem;
-        font-weight: 600;
+        font-size: 1.4rem;
+        font-weight: 700;
         margin-bottom: 1rem;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
     }
     
     .instructions-content {
         color: var(--text-primary);
-        line-height: 1.6;
+        line-height: 1.7;
+        font-size: 1rem;
     }
     
-    .chart-type-list {
-        margin: 1rem 0;
-        padding-left: 1rem;
+    .chart-type-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1.5rem 0;
     }
     
-    .chart-type-item {
-        margin: 0.5rem 0;
-        color: var(--text-secondary);
+    .chart-type-card {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 1rem;
+        border: 2px solid var(--border-color);
+        transition: all 0.2s ease;
+    }
+    
+    .chart-type-card:hover {
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
     }
     
     .chart-type-name {
-        font-weight: 600;
+        font-weight: 700;
         color: var(--primary-color);
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .chart-type-desc {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.4;
     }
     
     /* Sticky header for better navigation */
@@ -256,6 +338,14 @@ st.markdown("""
         .metric-container {
             margin: 0.25rem 0;
             padding: 0.75rem;
+        }
+        
+        .overview-kpi-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .chart-type-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -593,6 +683,93 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
+def render_overview_tab(kpis: Dict[str, float]):
+    """Render the Overview tab with enhanced KPI display"""
+    st.markdown("### 📊 Performance Overview")
+    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
+    
+    # Create the KPI cards using HTML for better styling
+    kpi_cards_html = f"""
+    <div class="overview-kpi-grid">
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">🛣️</span>
+            <div class="kpi-value">{kpis['total_distance_km']:.2f} km</div>
+            <div class="kpi-label">Total Distance</div>
+            <div class="kpi-description">Distance traveled during the session</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">⚡</span>
+            <div class="kpi-value">{kpis['max_speed_ms']:.1f} m/s</div>
+            <div class="kpi-label">Maximum Speed</div>
+            <div class="kpi-description">Highest speed achieved</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">🏃</span>
+            <div class="kpi-value">{kpis['avg_speed_ms']:.1f} m/s</div>
+            <div class="kpi-label">Average Speed</div>
+            <div class="kpi-description">Mean speed throughout the session</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">🔋</span>
+            <div class="kpi-value">{kpis['total_energy_mj']:.2f} MJ</div>
+            <div class="kpi-label">Energy Consumed</div>
+            <div class="kpi-description">Total energy consumption</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">💡</span>
+            <div class="kpi-value">{kpis['avg_power_w']:.1f} W</div>
+            <div class="kpi-label">Average Power</div>
+            <div class="kpi-description">Mean power consumption</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">♻️</span>
+            <div class="kpi-value">{kpis['efficiency_km_per_mj']:.2f}</div>
+            <div class="kpi-label">Efficiency (km/MJ)</div>
+            <div class="kpi-description">Energy efficiency ratio</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">📈</span>
+            <div class="kpi-value">{kpis['max_acceleration']:.2f} m/s²</div>
+            <div class="kpi-label">Max Acceleration</div>
+            <div class="kpi-description">Peak acceleration recorded</div>
+        </div>
+        
+        <div class="overview-kpi-card">
+            <span class="kpi-icon">🎯</span>
+            <div class="kpi-value">{kpis['avg_gyro_magnitude']:.2f} °/s</div>
+            <div class="kpi-label">Avg Gyro Magnitude</div>
+            <div class="kpi-description">Average rotational movement</div>
+        </div>
+    </div>
+    """
+    
+    st.markdown(kpi_cards_html, unsafe_allow_html=True)
+    
+    # Additional summary information
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info("🏆 **Performance Summary**\nMonitor your vehicle's key metrics in real-time")
+    
+    with col2:
+        if kpis['efficiency_km_per_mj'] > 0:
+            st.success(f"✅ **Efficiency Status**\nCurrently achieving {kpis['efficiency_km_per_mj']:.2f} km/MJ")
+        else:
+            st.warning("⏳ **Efficiency Status**\nWaiting for sufficient data")
+    
+    with col3:
+        if kpis['total_distance_km'] > 0:
+            st.metric("🎯 **Session Progress**", f"{kpis['total_distance_km']:.2f} km completed")
+        else:
+            st.info("🚀 **Session Status**\nReady to start monitoring")
+
 def render_connection_status(subscriber, stats):
     """Render connection status in sidebar"""
     if subscriber and subscriber.is_connected:
@@ -891,159 +1068,163 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5, y=0.5, showarrow=False
         )
 
-@st.fragment(run_every="3s")
 def render_dynamic_charts_section(df: pd.DataFrame):
-    """Render the dynamic charts section with improved instructions"""
+    """Render the dynamic charts section with proper styling"""
     
     st.session_state.is_auto_refresh = True
     
-    with st.container():
-        # Enhanced instructions section
-        st.markdown("""
-        <div class="dynamic-chart-instructions">
-            <div class="instructions-title">
-                🎯 Create Custom Charts
-            </div>
-            <div class="instructions-content">
-                <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
-                
-                <div class="chart-type-list">
-                    <div class="chart-type-item">
-                        <span class="chart-type-name">📈 Line:</span> Great for time series data and trends
-                    </div>
-                    <div class="chart-type-item">
-                        <span class="chart-type-name">🔍 Scatter:</span> Perfect for correlation analysis between variables
-                    </div>
-                    <div class="chart-type-item">
-                        <span class="chart-type-name">📊 Bar:</span> Good for comparing recent values and discrete data
-                    </div>
-                    <div class="chart-type-item">
-                        <span class="chart-type-name">📋 Histogram:</span> Shows data distribution and frequency patterns
-                    </div>
-                    <div class="chart-type-item">
-                        <span class="chart-type-name">🔥 Heatmap:</span> Visualizes correlations between all numeric variables
-                    </div>
-                </div>
-                
-                <p><strong>💡 Pro Tip:</strong> Use different chart types to gain various insights from your telemetry data!</p>
-            </div>
+    # Enhanced instructions section with proper HTML rendering
+    st.markdown("""
+    <div class="instructions-container">
+        <div class="instructions-title">
+            🎯 Create Custom Charts
         </div>
-        """, unsafe_allow_html=True)
-        
-        try:
-            available_columns = get_available_columns(df)
-        except Exception as e:
-            st.error(f"Error getting available columns: {e}")
-            available_columns = []
-        
-        if not available_columns:
-            st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
-            return
-        
-        # Controls
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
-                try:
-                    new_chart = {
-                        'id': str(uuid.uuid4()),
-                        'title': 'New Chart',
-                        'chart_type': 'line',
-                        'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
-                        'y_axis': available_columns[0] if available_columns else None
-                    }
-                    st.session_state.dynamic_charts.append(new_chart)
-                    st.session_state.is_auto_refresh = False
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error adding chart: {e}")
-        
-        with col2:
-            if st.session_state.dynamic_charts:
-                st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
-        
-        # Display charts
+        <div class="instructions-content">
+            <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Chart type information in a grid
+    st.markdown("""
+    <div class="chart-type-grid">
+        <div class="chart-type-card">
+            <div class="chart-type-name">📈 Line Chart</div>
+            <div class="chart-type-desc">Great for time series data and trends</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">🔍 Scatter Plot</div>
+            <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">📊 Bar Chart</div>
+            <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">📋 Histogram</div>
+            <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">🔥 Heatmap</div>
+            <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        available_columns = get_available_columns(df)
+    except Exception as e:
+        st.error(f"Error getting available columns: {e}")
+        available_columns = []
+    
+    if not available_columns:
+        st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
+        return
+    
+    # Controls
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
+            try:
+                new_chart = {
+                    'id': str(uuid.uuid4()),
+                    'title': 'New Chart',
+                    'chart_type': 'line',
+                    'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
+                    'y_axis': available_columns[0] if available_columns else None
+                }
+                st.session_state.dynamic_charts.append(new_chart)
+                st.session_state.is_auto_refresh = False
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error adding chart: {e}")
+    
+    with col2:
         if st.session_state.dynamic_charts:
-            for i, chart_config in enumerate(st.session_state.dynamic_charts):
-                try:
-                    with st.container(border=True):
-                        # Chart controls in a more compact layout
-                        col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
-                        
-                        with col1:
-                            new_title = st.text_input(
-                                "Title", 
-                                value=chart_config.get('title', 'New Chart'),
-                                key=f"title_{chart_config['id']}"
-                            )
-                            if new_title != chart_config.get('title'):
-                                st.session_state.dynamic_charts[i]['title'] = new_title
-                        
-                        with col2:
-                            new_type = st.selectbox(
-                                "Type",
-                                options=['line', 'scatter', 'bar', 'histogram', 'heatmap'],
-                                index=['line', 'scatter', 'bar', 'histogram', 'heatmap'].index(chart_config.get('chart_type', 'line')),
-                                key=f"type_{chart_config['id']}"
-                            )
-                            if new_type != chart_config.get('chart_type'):
-                                st.session_state.dynamic_charts[i]['chart_type'] = new_type
-                        
-                        with col3:
-                            if chart_config.get('chart_type', 'line') not in ['histogram', 'heatmap']:
-                                x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
-                                current_x = chart_config.get('x_axis', x_options[0])
-                                if current_x not in x_options and x_options:
-                                    current_x = x_options[0]
+            st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
+    
+    # Display charts
+    if st.session_state.dynamic_charts:
+        for i, chart_config in enumerate(st.session_state.dynamic_charts):
+            try:
+                with st.container(border=True):
+                    # Chart controls in a more compact layout
+                    col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
+                    
+                    with col1:
+                        new_title = st.text_input(
+                            "Title", 
+                            value=chart_config.get('title', 'New Chart'),
+                            key=f"title_{chart_config['id']}"
+                        )
+                        if new_title != chart_config.get('title'):
+                            st.session_state.dynamic_charts[i]['title'] = new_title
+                    
+                    with col2:
+                        new_type = st.selectbox(
+                            "Type",
+                            options=['line', 'scatter', 'bar', 'histogram', 'heatmap'],
+                            index=['line', 'scatter', 'bar', 'histogram', 'heatmap'].index(chart_config.get('chart_type', 'line')),
+                            key=f"type_{chart_config['id']}"
+                        )
+                        if new_type != chart_config.get('chart_type'):
+                            st.session_state.dynamic_charts[i]['chart_type'] = new_type
+                    
+                    with col3:
+                        if chart_config.get('chart_type', 'line') not in ['histogram', 'heatmap']:
+                            x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
+                            current_x = chart_config.get('x_axis', x_options[0])
+                            if current_x not in x_options and x_options:
+                                current_x = x_options[0]
+                            
+                            if x_options:
+                                new_x = st.selectbox(
+                                    "X-Axis",
+                                    options=x_options,
+                                    index=x_options.index(current_x) if current_x in x_options else 0,
+                                    key=f"x_{chart_config['id']}"
+                                )
+                                if new_x != chart_config.get('x_axis'):
+                                    st.session_state.dynamic_charts[i]['x_axis'] = new_x
+                    
+                    with col4:
+                        if chart_config.get('chart_type', 'line') != 'heatmap':
+                            if available_columns:
+                                current_y = chart_config.get('y_axis', available_columns[0])
+                                if current_y not in available_columns:
+                                    current_y = available_columns[0]
                                 
-                                if x_options:
-                                    new_x = st.selectbox(
-                                        "X-Axis",
-                                        options=x_options,
-                                        index=x_options.index(current_x) if current_x in x_options else 0,
-                                        key=f"x_{chart_config['id']}"
-                                    )
-                                    if new_x != chart_config.get('x_axis'):
-                                        st.session_state.dynamic_charts[i]['x_axis'] = new_x
-                        
-                        with col4:
-                            if chart_config.get('chart_type', 'line') != 'heatmap':
-                                if available_columns:
-                                    current_y = chart_config.get('y_axis', available_columns[0])
-                                    if current_y not in available_columns:
-                                        current_y = available_columns[0]
-                                    
-                                    new_y = st.selectbox(
-                                        "Y-Axis",
-                                        options=available_columns,
-                                        index=available_columns.index(current_y) if current_y in available_columns else 0,
-                                        key=f"y_{chart_config['id']}"
-                                    )
-                                    if new_y != chart_config.get('y_axis'):
-                                        st.session_state.dynamic_charts[i]['y_axis'] = new_y
-                        
-                        with col5:
-                            if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
-                                try:
-                                    st.session_state.dynamic_charts.pop(i)
-                                    st.session_state.is_auto_refresh = False
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error deleting chart: {e}")
-                        
-                        # Display chart
-                        try:
-                            if chart_config.get('chart_type') == 'heatmap' or chart_config.get('y_axis'):
-                                fig = create_dynamic_chart(df, chart_config)
-                                if fig:
-                                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_config['id']}")
-                            else:
-                                st.warning("Please select a Y-axis variable for this chart.")
-                        except Exception as e:
-                            st.error(f"Error creating chart: {e}")
-                
-                except Exception as e:
-                    st.error(f"Error rendering chart {i}: {e}")
+                                new_y = st.selectbox(
+                                    "Y-Axis",
+                                    options=available_columns,
+                                    index=available_columns.index(current_y) if current_y in available_columns else 0,
+                                    key=f"y_{chart_config['id']}"
+                                )
+                                if new_y != chart_config.get('y_axis'):
+                                    st.session_state.dynamic_charts[i]['y_axis'] = new_y
+                    
+                    with col5:
+                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
+                            try:
+                                st.session_state.dynamic_charts.pop(i)
+                                st.session_state.is_auto_refresh = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error deleting chart: {e}")
+                    
+                    # Display chart
+                    try:
+                        if chart_config.get('chart_type') == 'heatmap' or chart_config.get('y_axis'):
+                            fig = create_dynamic_chart(df, chart_config)
+                            if fig:
+                                st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_config['id']}")
+                        else:
+                            st.warning("Please select a Y-axis variable for this chart.")
+                    except Exception as e:
+                        st.error(f"Error creating chart: {e}")
+            
+            except Exception as e:
+                st.error(f"Error rendering chart {i}: {e}")
 
 def main():
     """Optimized main dashboard function"""
@@ -1157,8 +1338,6 @@ def main():
                     "Channel": CHANNEL_NAME
                 })
     else:
-        # Main content layout - Charts first, then KPIs
-        
         # Status bar
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
@@ -1169,46 +1348,56 @@ def main():
             if new_messages_count > 0:
                 st.success(f"📨 +{new_messages_count}")
         
-        # Charts section (moved to top for better visibility)
-        st.subheader("📈 Real-time Analytics")
+        # Main tabs with Overview first
+        st.subheader("📈 Dashboard")
         
-        tab_names = ["🚗 Speed", "⚡ Power", "🎯 IMU", "🎯 IMU Detail", "⚡ Efficiency", "🗺️ GPS", "📊 Custom", "📋 Data"]
+        tab_names = ["📊 Overview", "🚗 Speed", "⚡ Power", "🎯 IMU", "🎯 IMU Detail", "⚡ Efficiency", "🗺️ GPS", "📊 Custom", "📋 Data"]
         tabs = st.tabs(tab_names)
         
-        with tabs[0]:
+        # Calculate KPIs once for reuse
+        try:
+            kpis = calculate_kpis(df)
+        except Exception as e:
+            st.error(f"Error calculating KPIs: {e}")
+            kpis = calculate_kpis(pd.DataFrame())  # Use empty DataFrame for defaults
+        
+        with tabs[0]:  # Overview tab
+            render_overview_tab(kpis)
+        
+        with tabs[1]:  # Speed tab
             fig = create_optimized_chart(df, create_speed_chart, "Speed Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[1]:
+        with tabs[2]:  # Power tab
             fig = create_optimized_chart(df, create_power_chart, "Power Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[2]:
+        with tabs[3]:  # IMU tab
             fig = create_optimized_chart(df, create_imu_chart, "IMU Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
 
-        with tabs[3]:
+        with tabs[4]:  # IMU Detail tab
             fig = create_optimized_chart(df, create_imu_chart_2, "IMU Detail Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[4]:
+        with tabs[5]:  # Efficiency tab
             fig = create_optimized_chart(df, create_efficiency_chart, "Efficiency Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[5]:
+        with tabs[6]:  # GPS tab
             fig = create_optimized_chart(df, create_gps_map, "GPS Map")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[6]:
+        with tabs[7]:  # Custom charts tab
             render_dynamic_charts_section(df)
         
-        with tabs[7]:
+        with tabs[8]:  # Data tab
             st.subheader("📋 Raw Telemetry Data")
             st.dataframe(df.tail(100), use_container_width=True, height=400)
             
@@ -1221,43 +1410,6 @@ def main():
                     mime="text/csv",
                     use_container_width=True
                 )
-        
-        # KPIs section (moved below charts)
-        st.divider()
-        st.subheader("📊 Performance Dashboard")
-        
-        try:
-            kpis = calculate_kpis(df)
-            
-            # Organized KPI layout
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("🛣️ Distance", f"{kpis['total_distance_km']:.2f} km", 
-                         help="Total distance traveled")
-                st.metric("🔋 Energy", f"{kpis['total_energy_mj']:.2f} MJ", 
-                         help="Total energy consumed")
-            
-            with col2:
-                st.metric("⚡ Max Speed", f"{kpis['max_speed_ms']:.1f} m/s", 
-                         help="Maximum speed achieved")
-                st.metric("🏃 Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s", 
-                         help="Average speed")
-            
-            with col3:
-                st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W", 
-                         help="Average power consumption")
-                st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ", 
-                         help="Energy efficiency")
-            
-            with col4:
-                st.metric("📈 Max Accel", f"{kpis['max_acceleration']:.2f} m/s²", 
-                         help="Maximum acceleration")
-                st.metric("🎯 Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s", 
-                         help="Average gyroscope magnitude")
-                
-        except Exception as e:
-            st.error(f"Error calculating KPIs: {e}")
     
     # Auto-refresh logic
     if st.session_state.auto_refresh and st.session_state.subscriber and st.session_state.subscriber.is_connected:
