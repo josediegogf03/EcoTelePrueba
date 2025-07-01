@@ -429,6 +429,13 @@ def initialize_session_state():
     # FIXED: Add session state for active tab to prevent scroll jumps
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = 0
+    
+    # FIXED: Add session state for tracking refresh timing
+    if 'last_refresh_time' not in st.session_state:
+        st.session_state.last_refresh_time = datetime.now()
+    
+    if 'refresh_interval' not in st.session_state:
+        st.session_state.refresh_interval = 3
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate key performance indicators"""
@@ -733,10 +740,10 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5, y=0.5, showarrow=False
         )
 
-# FIXED: Updated dynamic charts section using fragments for scroll stability
-@st.fragment(run_every=3)
-def update_data_fragment():
-    """Fragment to handle data updates without causing scroll jumps"""
+# FIXED: Updated data update function to handle dynamic refresh intervals
+def update_telemetry_data():
+    """Update telemetry data and return number of new messages"""
+    new_messages_count = 0
     if st.session_state.subscriber and st.session_state.subscriber.is_connected:
         new_messages = st.session_state.subscriber.get_messages()
         
@@ -761,8 +768,18 @@ def update_data_fragment():
                 st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
             
             st.session_state.last_update = datetime.now()
-            return new_messages_count
-    return 0
+    
+    return new_messages_count
+
+def should_refresh() -> bool:
+    """Check if it's time to refresh based on user-selected interval"""
+    if not st.session_state.auto_refresh:
+        return False
+    
+    current_time = datetime.now()
+    time_since_last_refresh = (current_time - st.session_state.last_refresh_time).total_seconds()
+    
+    return time_since_last_refresh >= st.session_state.refresh_interval
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render the dynamic charts section without fragments to prevent scroll issues"""
@@ -981,17 +998,30 @@ def main():
     )
     
     if st.session_state.auto_refresh:
-        refresh_interval = st.sidebar.slider("Refresh Interval (seconds)", 1, 10, 3)
+        # FIXED: Store refresh interval in session state and use it for timing
+        new_refresh_interval = st.sidebar.slider("Refresh Interval (seconds)", 1, 10, st.session_state.refresh_interval)
+        if new_refresh_interval != st.session_state.refresh_interval:
+            st.session_state.refresh_interval = new_refresh_interval
+            # Reset the last refresh time to apply new interval immediately
+            st.session_state.last_refresh_time = datetime.now() - timedelta(seconds=new_refresh_interval)
     
     st.sidebar.info(f"📡 Channel: {CHANNEL_NAME}")
     
-    # FIXED: Use fragment for data updates to prevent scroll issues
+    # FIXED: Handle data updates with proper timing
     new_messages_count = 0
-    if st.session_state.auto_refresh and st.session_state.subscriber and st.session_state.subscriber.is_connected:
-        new_messages_count = update_data_fragment()
+    if should_refresh():
+        new_messages_count = update_telemetry_data()
+        st.session_state.last_refresh_time = datetime.now()
     
     if new_messages_count > 0:
         st.sidebar.success(f"📨 +{new_messages_count} new messages")
+    
+    # Display refresh status
+    if st.session_state.auto_refresh:
+        current_time = datetime.now()
+        time_since_last_refresh = (current_time - st.session_state.last_refresh_time).total_seconds()
+        time_until_next_refresh = max(0, st.session_state.refresh_interval - time_since_last_refresh)
+        st.sidebar.info(f"🔄 Next refresh in: {time_until_next_refresh:.1f}s")
     
     # Main content
     df = st.session_state.telemetry_data.copy()
@@ -1063,8 +1093,10 @@ def main():
                         mime="text/csv"
                     )
     
-    # FIXED: Removed the auto-refresh sleep that was causing scroll issues
-    # The fragment handles the auto-refresh now
+    # FIXED: Auto-refresh with proper timing that doesn't cause scroll issues
+    if st.session_state.auto_refresh and should_refresh():
+        time.sleep(0.1)  # Small delay to prevent excessive CPU usage
+        st.rerun()
     
     # Footer
     st.markdown("---")
