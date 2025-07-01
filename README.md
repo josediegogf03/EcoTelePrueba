@@ -85,8 +85,10 @@ pip install -r requirements.txt
 ## 🗂️ Repository Structure
 
 ```
-├── maindata.py           # Telemetry publisher
-├── dashboard_050.py      # Streamlit subscriber dashboard
+├── maindata.py           # Telemetry publisher (v0.5 – IMU & sensor support)
+├── dashboard_050.py      # Current Streamlit dashboard (v0.5 Beta)
+├── dashboard_020.py      # Legacy dashboard build (v0.2 Alpha)
+├── demo_1.py             # First prototype (fully mock data, no Ably)
 ├── requirements.txt      # Python dependencies
 ├── README.md             # Project overview & instructions
 └── LICENSE               # MIT License
