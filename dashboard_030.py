@@ -104,6 +104,36 @@ st.markdown("""
         padding: 10px 20px;
         margin: 10px;
     }
+    .kpi-card {
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #4CAF50;
+    }
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 0;
+    }
+    .kpi-label {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        margin-top: 5px;
+    }
+    .kpi-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    @media (max-width: 768px) {
+        .kpi-container {
+            flex-direction: column;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -422,6 +452,47 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         'avg_gyro_magnitude': avg_gyro_magnitude
     }
 
+def create_kpi_card(label: str, value: str, icon: str = "📊") -> str:
+    """Create a KPI card HTML"""
+    return f"""
+    <div class="kpi-card">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 1.2rem; margin-right: 8px;">{icon}</span>
+            <span class="kpi-label">{label}</span>
+        </div>
+        <div class="kpi-value">{value}</div>
+    </div>
+    """
+
+def render_kpi_dashboard(kpis: Dict[str, float]):
+    """Render improved KPI dashboard with responsive layout"""
+    st.subheader("📊 Performance Dashboard")
+    
+    # Create responsive KPI grid
+    kpi_data = [
+        ("Distance", f"{kpis['total_distance_km']:.2f} km", "🛣️"),
+        ("Max Speed", f"{kpis['max_speed_ms']:.1f} m/s", "⚡"),
+        ("Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s", "🏃"),
+        ("Energy", f"{kpis['total_energy_mj']:.2f} MJ", "🔋"),
+        ("Avg Power", f"{kpis['avg_power_w']:.1f} W", "💡"),
+        ("Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ", "♻️"),
+        ("Max Accel", f"{kpis['max_acceleration']:.2f} m/s²", "📈"),
+        ("Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s", "🎯")
+    ]
+    
+    # Create columns for responsive layout
+    num_cols = min(4, len(kpi_data))  # Maximum 4 columns
+    cols = st.columns(num_cols)
+    
+    for i, (label, value, icon) in enumerate(kpi_data):
+        with cols[i % num_cols]:
+            st.metric(
+                label=label,
+                value=value,
+                border=True,  # New Streamlit feature for bordered metrics
+                help=f"Current {label.lower()} measurement"
+            )
+
 def create_speed_chart(df: pd.DataFrame):
     """Create speed over time chart"""
     if df.empty or 'speed_ms' not in df.columns:
@@ -636,8 +707,9 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5, y=0.5, showarrow=False
         )
 
+@st.fragment(run_every="3s")
 def render_dynamic_charts_section(df: pd.DataFrame):
-    """Render the dynamic charts section"""
+    """Render the dynamic charts section as a fragment to prevent page jumping"""
     st.subheader("📊 Dynamic Charts")
     
     # Get available columns
@@ -647,101 +719,113 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         st.warning("No numeric data available for creating charts.")
         return
     
-    # Add chart button
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
-            # Create new chart configuration
-            new_chart = {
-                'id': str(uuid.uuid4()),
-                'title': 'New Chart',
-                'chart_type': 'line',
-                'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
-                'y_axis': available_columns[0] if available_columns else None
-            }
-            st.session_state.dynamic_charts.append(new_chart)
-            st.rerun()
+    # Create a container for the charts that won't jump
+    charts_container = st.container()
     
-    with col2:
+    with charts_container:
+        # Add chart button
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
+                # Create new chart configuration
+                new_chart = {
+                    'id': str(uuid.uuid4()),
+                    'title': 'New Chart',
+                    'chart_type': 'line',
+                    'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
+                    'y_axis': available_columns[0] if available_columns else None
+                }
+                st.session_state.dynamic_charts.append(new_chart)
+                st.rerun(scope="fragment")  # Only rerun this fragment
+        
+        with col2:
+            if st.session_state.dynamic_charts:
+                st.info(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) created")
+        
+        # Display existing charts
         if st.session_state.dynamic_charts:
-            st.info(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) created")
-    
-    # Display existing charts
-    if st.session_state.dynamic_charts:
-        for i, chart_config in enumerate(st.session_state.dynamic_charts):
-            with st.container():
-                st.markdown(f"---")
-                
-                # Chart configuration controls
-                col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
-                
-                with col1:
-                    chart_config['title'] = st.text_input(
-                        "Chart Title", 
-                        value=chart_config.get('title', 'New Chart'),
-                        key=f"title_{chart_config['id']}"
-                    )
-                
-                with col2:
-                    chart_config['chart_type'] = st.selectbox(
-                        "Chart Type",
-                        options=['line', 'scatter', 'bar', 'histogram'],
-                        index=['line', 'scatter', 'bar', 'histogram'].index(chart_config.get('chart_type', 'line')),
-                        key=f"type_{chart_config['id']}"
-                    )
-                
-                with col3:
-                    if chart_config['chart_type'] != 'histogram':
-                        x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
-                        current_x = chart_config.get('x_axis', x_options[0])
-                        if current_x not in x_options:
-                            current_x = x_options[0]
-                        
-                        chart_config['x_axis'] = st.selectbox(
-                            "X-Axis",
-                            options=x_options,
-                            index=x_options.index(current_x),
-                            key=f"x_{chart_config['id']}"
-                        )
-                
-                with col4:
-                    current_y = chart_config.get('y_axis', available_columns[0] if available_columns else None)
-                    if current_y not in available_columns:
-                        current_y = available_columns[0] if available_columns else None
+            for i, chart_config in enumerate(st.session_state.dynamic_charts):
+                with st.container(border=True):
+                    st.markdown("---")
                     
-                    chart_config['y_axis'] = st.selectbox(
-                        "Y-Axis",
-                        options=available_columns,
-                        index=available_columns.index(current_y) if current_y in available_columns else 0,
-                        key=f"y_{chart_config['id']}"
-                    )
-                
-                with col5:
-                    if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete this chart"):
-                        st.session_state.dynamic_charts.pop(i)
-                        st.rerun()
-                
-                # Display the chart
-                if chart_config.get('y_axis'):
-                    fig = create_dynamic_chart(df, chart_config)
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Please select a Y-axis variable for this chart.")
-    
-    else:
-        st.markdown("""
-        <div class="dynamic-chart-container">
-            <h4>🎯 Create Custom Charts</h4>
-            <p>Click "Add Chart" to create custom visualizations with your preferred variables and chart types.</p>
-            <p><strong>Available chart types:</strong></p>
-            <ul>
-                <li><strong>Line:</strong> Great for time series data</li>
-                <li><strong>Scatter:</strong> Perfect for correlation analysis</li>
-                <li><strong>Bar:</strong> Good for comparing recent values</li>
-                <li><strong>Histogram:</strong> Shows data distribution</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+                    # Chart configuration controls
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
+                    
+                    with col1:
+                        new_title = st.text_input(
+                            "Chart Title", 
+                            value=chart_config.get('title', 'New Chart'),
+                            key=f"title_{chart_config['id']}"
+                        )
+                        if new_title != chart_config.get('title'):
+                            st.session_state.dynamic_charts[i]['title'] = new_title
+                    
+                    with col2:
+                        new_type = st.selectbox(
+                            "Chart Type",
+                            options=['line', 'scatter', 'bar', 'histogram'],
+                            index=['line', 'scatter', 'bar', 'histogram'].index(chart_config.get('chart_type', 'line')),
+                            key=f"type_{chart_config['id']}"
+                        )
+                        if new_type != chart_config.get('chart_type'):
+                            st.session_state.dynamic_charts[i]['chart_type'] = new_type
+                    
+                    with col3:
+                        if chart_config['chart_type'] != 'histogram':
+                            x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
+                            current_x = chart_config.get('x_axis', x_options[0])
+                            if current_x not in x_options:
+                                current_x = x_options[0]
+                            
+                            new_x = st.selectbox(
+                                "X-Axis",
+                                options=x_options,
+                                index=x_options.index(current_x),
+                                key=f"x_{chart_config['id']}"
+                            )
+                            if new_x != chart_config.get('x_axis'):
+                                st.session_state.dynamic_charts[i]['x_axis'] = new_x
+                    
+                    with col4:
+                        current_y = chart_config.get('y_axis', available_columns[0] if available_columns else None)
+                        if current_y not in available_columns:
+                            current_y = available_columns[0] if available_columns else None
+                        
+                        new_y = st.selectbox(
+                            "Y-Axis",
+                            options=available_columns,
+                            index=available_columns.index(current_y) if current_y in available_columns else 0,
+                            key=f"y_{chart_config['id']}"
+                        )
+                        if new_y != chart_config.get('y_axis'):
+                            st.session_state.dynamic_charts[i]['y_axis'] = new_y
+                    
+                    with col5:
+                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete this chart"):
+                            st.session_state.dynamic_charts.pop(i)
+                            st.rerun(scope="fragment")  # Only rerun this fragment
+                    
+                    # Display the chart
+                    if chart_config.get('y_axis'):
+                        fig = create_dynamic_chart(df, chart_config)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Please select a Y-axis variable for this chart.")
+        
+        else:
+            st.markdown("""
+            <div class="dynamic-chart-container">
+                <h4>🎯 Create Custom Charts</h4>
+                <p>Click "Add Chart" to create custom visualizations with your preferred variables and chart types.</p>
+                <p><strong>Available chart types:</strong></p>
+                <ul>
+                    <li><strong>Line:</strong> Great for time series data</li>
+                    <li><strong>Scatter:</strong> Perfect for correlation analysis</li>
+                    <li><strong>Bar:</strong> Good for comparing recent values</li>
+                    <li><strong>Histogram:</strong> Shows data distribution</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
 
 def main():
     """Main dashboard function"""
@@ -875,28 +959,9 @@ def main():
                 "API Key": f"{ABLY_API_KEY[:10]}..." if ABLY_API_KEY else "Not set"
             })
     else:
-        # KPIs
+        # KPIs - Using improved layout
         kpis = calculate_kpis(df)
-        
-        st.subheader("📊 Key Performance Indicators")
-        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
-        
-        with col1:
-            st.metric("Distance", f"{kpis['total_distance_km']:.2f} km")
-        with col2:
-            st.metric("Max Speed", f"{kpis['max_speed_ms']:.1f} m/s")
-        with col3:
-            st.metric("Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s")
-        with col4:
-            st.metric("Energy", f"{kpis['total_energy_mj']:.2f} MJ")
-        with col5:
-            st.metric("Avg Power", f"{kpis['avg_power_w']:.1f} W")
-        with col6:
-            st.metric("Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
-        with col7:
-            st.metric("Max Accel", f"{kpis['max_acceleration']:.2f} m/s²")
-        with col8:
-            st.metric("Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s")
+        render_kpi_dashboard(kpis)
         
         st.info(f"📊 {len(df)} data points | Last update: {st.session_state.last_update.strftime('%H:%M:%S')}")
         
