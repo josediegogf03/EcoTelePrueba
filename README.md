@@ -54,21 +54,26 @@ Publish mock—or real—sensor data (including IMU: gyroscope & accelerometer),
 
 ## 🚀 Quickstart
 
-```bash
+
 # 1. Clone the repo & checkout Beta
+```bash
 git clone https://github.com/ChosF/EcoTele.git
 cd EcoTele
 git fetch --tags
 git checkout Dashboard_Beta
-
+```
 # 2. Install dependencies
+```bash
 pip install -r requirements.txt
-
+```
 # 3. Run the telemetry publisher
+```bash
 python maindata.py
-
+```
 # 4. In a new terminal, launch the dashboard
+```bash
 streamlit run dashboard_050.py
+```
 ```
 
 > **Tip:** To deploy on Streamlit Community Cloud, point your app to `dashboard_050.py` in this repo.
