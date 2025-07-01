@@ -25,7 +25,7 @@ try:
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
-    st.error("❌ Ably library not available. Please install: pip install ably")
+    st.error("â Œ Ably library not available. Please install: pip install ably")
     st.stop()
 
 # --- UPDATED: Function to set up terminal logging ---
@@ -55,7 +55,7 @@ MAX_DATAPOINTS = 50000
 # Page configuration - Optimized for better performance
 st.set_page_config(
     page_title="Shell Eco-marathon Telemetry Dashboard",
-    page_icon="🏎️",
+    page_icon="ðŸ Žï¸ ",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -284,7 +284,7 @@ class TelemetrySubscriber:
             with self._lock:
                 self.stats['connection_attempts'] += 1
             
-            self.logger.info("🔄 Starting connection to Ably...")
+            self.logger.info("ðŸ”„ Starting connection to Ably...")
             
             # Stop any existing connection
             if self._should_run:
@@ -304,7 +304,7 @@ class TelemetrySubscriber:
             return self.is_connected
             
         except Exception as e:
-            self.logger.error(f"❌ Connection failed: {e}")
+            self.logger.error(f"â Œ Connection failed: {e}")
             with self._lock:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
@@ -314,7 +314,7 @@ class TelemetrySubscriber:
     def _connection_worker(self):
         """Worker thread to handle Ably connection"""
         try:
-            self.logger.info("🔄 Connection worker starting...")
+            self.logger.info("ðŸ”„ Connection worker starting...")
             
             # Create new event loop for this thread
             loop = asyncio.new_event_loop()
@@ -324,33 +324,33 @@ class TelemetrySubscriber:
             loop.run_until_complete(self._async_connection_handler())
             
         except Exception as e:
-            self.logger.error(f"💥 Connection worker error: {e}")
+            self.logger.error(f"ðŸ’¥ Connection worker error: {e}")
             with self._lock:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
             self.is_connected = False
         finally:
-            self.logger.info("🛑 Connection worker ended")
+            self.logger.info("ðŸ›‘ Connection worker ended")
     
     async def _async_connection_handler(self):
         """Handle Ably connection asynchronously"""
         try:
-            self.logger.info("🔗 Creating Ably client...")
+            self.logger.info("ðŸ”— Creating Ably client...")
             
             # Create Ably client
             self.ably_client = AblyRealtime(ABLY_API_KEY)
             
             # Setup connection event handlers
             def on_connected(state_change):
-                self.logger.info(f"✅ Connected to Ably: {state_change}")
+                self.logger.info(f"âœ… Connected to Ably: {state_change}")
                 self.is_connected = True
             
             def on_disconnected(state_change):
-                self.logger.warning(f"❌ Disconnected from Ably: {state_change}")
+                self.logger.warning(f"â Œ Disconnected from Ably: {state_change}")
                 self.is_connected = False
             
             def on_failed(state_change):
-                self.logger.error(f"💥 Connection failed: {state_change}")
+                self.logger.error(f"ðŸ’¥ Connection failed: {state_change}")
                 self.is_connected = False
                 with self._lock:
                     self.stats['errors'] += 1
@@ -363,18 +363,18 @@ class TelemetrySubscriber:
             self.ably_client.connection.on('suspended', on_disconnected)
             
             # Wait for connection to establish
-            self.logger.info("⏳ Waiting for connection...")
+            self.logger.info("â ³ Waiting for connection...")
             await self.ably_client.connection.once_async('connected')
             
             # Get channel and subscribe
-            self.logger.info(f"📡 Getting channel: {CHANNEL_NAME}")
+            self.logger.info(f"ðŸ“¡ Getting channel: {CHANNEL_NAME}")
             self.channel = self.ably_client.channels.get(CHANNEL_NAME)
             
             # Subscribe to messages
-            self.logger.info("📨 Subscribing to messages...")
+            self.logger.info("ðŸ“¨ Subscribing to messages...")
             await self.channel.subscribe('telemetry_update', self._on_message_received)
             
-            self.logger.info("✅ Successfully subscribed to messages!")
+            self.logger.info("âœ… Successfully subscribed to messages!")
             
             # Keep connection alive
             while self._should_run and not self._stop_event.is_set():
@@ -384,15 +384,15 @@ class TelemetrySubscriber:
                 if hasattr(self.ably_client.connection, 'state'):
                     state = self.ably_client.connection.state
                     if state not in ['connected']:
-                        self.logger.warning(f"⚠️ Connection state: {state}")
+                        self.logger.warning(f"âš ï¸  Connection state: {state}")
                         if state in ['failed', 'suspended', 'disconnected']:
                             self.is_connected = False
                             break
             
-            self.logger.info("🔚 Connection loop ended")
+            self.logger.info("ðŸ”š Connection loop ended")
             
         except Exception as e:
-            self.logger.error(f"💥 Async connection error: {e}")
+            self.logger.error(f"ðŸ’¥ Async connection error: {e}")
             with self._lock:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
@@ -401,7 +401,7 @@ class TelemetrySubscriber:
     def _on_message_received(self, message):
         """Handle incoming messages from Ably"""
         try:
-            self.logger.debug(f"📨 Message received: {message.name}")
+            self.logger.debug(f"ðŸ“¨ Message received: {message.name}")
             
             # Extract message data
             data = message.data
@@ -411,7 +411,7 @@ class TelemetrySubscriber:
                 try:
                     data = json.loads(data)
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"❌ JSON decode error: {e}")
+                    self.logger.error(f"â Œ JSON decode error: {e}")
                     with self._lock:
                         self.stats['errors'] += 1
                         self.stats['last_error'] = f"JSON decode error: {e}"
@@ -419,13 +419,13 @@ class TelemetrySubscriber:
             
             # Validate data
             if not isinstance(data, dict):
-                self.logger.warning(f"⚠️ Invalid data type: {type(data)}")
+                self.logger.warning(f"âš ï¸  Invalid data type: {type(data)}")
                 with self._lock:
                     self.stats['errors'] += 1
                     self.stats['last_error'] = f"Invalid data type: {type(data)}"
                 return
             
-            self.logger.debug(f"📊 Data keys: {list(data.keys())}")
+            self.logger.debug(f"ðŸ“Š Data keys: {list(data.keys())}")
             
             # Add to message queue
             with self._lock:
@@ -443,10 +443,10 @@ class TelemetrySubscriber:
                 self.stats['messages_received'] += 1
                 self.stats['last_message_time'] = datetime.now()
                 
-                self.logger.debug(f"✅ Message queued. Total: {self.stats['messages_received']}")
+                self.logger.debug(f"âœ… Message queued. Total: {self.stats['messages_received']}")
             
         except Exception as e:
-            self.logger.error(f"❌ Message handling error: {e}")
+            self.logger.error(f"â Œ Message handling error: {e}")
             with self._lock:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = f"Message error: {e}"
@@ -463,14 +463,14 @@ class TelemetrySubscriber:
                     break
         
         if messages:
-            self.logger.debug(f"📤 Returning {len(messages)} messages")
+            self.logger.debug(f"ðŸ“¤ Returning {len(messages)} messages")
         
         return messages
     
     def disconnect(self):
         """Disconnect from Ably"""
         try:
-            self.logger.info("🛑 Disconnecting...")
+            self.logger.info("ðŸ›‘ Disconnecting...")
             
             # Stop the connection loop
             self._should_run = False
@@ -481,20 +481,20 @@ class TelemetrySubscriber:
             if self.ably_client:
                 try:
                     self.ably_client.close()
-                    self.logger.info("✅ Ably connection closed")
+                    self.logger.info("âœ… Ably connection closed")
                 except Exception as e:
-                    self.logger.warning(f"⚠️ Error closing Ably: {e}")
+                    self.logger.warning(f"âš ï¸  Error closing Ably: {e}")
             
             # Wait for thread to finish
             if self.connection_thread and self.connection_thread.is_alive():
                 self.connection_thread.join(timeout=5)
                 if self.connection_thread.is_alive():
-                    self.logger.warning("⚠️ Connection thread did not stop gracefully")
+                    self.logger.warning("âš ï¸  Connection thread did not stop gracefully")
             
-            self.logger.info("🔚 Disconnection complete")
+            self.logger.info("ðŸ”š Disconnection complete")
             
         except Exception as e:
-            self.logger.error(f"❌ Disconnect error: {e}")
+            self.logger.error(f"â Œ Disconnect error: {e}")
             with self._lock:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = f"Disconnect error: {e}"
@@ -589,164 +589,89 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def render_overview_tab(kpis: Dict[str, float]):
-    """Render the Overview tab with enhanced KPI display using Streamlit native components"""
-    st.markdown("### 📊 Performance Overview")
-    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
+def render_kpi_dashboard(kpis: Dict[str, float]):
+    """Render the KPI dashboard with enhanced display using Streamlit native components"""
+    st.markdown("### ðŸ“Š Performance Overview")
     
-    # Create KPI layout using Streamlit columns instead of custom HTML
+    # Create KPI layout using Streamlit columns
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
-            label="🛣️ Total Distance",
+            label="ðŸ›£ï¸  Total Distance",
             value=f"{kpis['total_distance_km']:.2f} km",
             help="Distance traveled during the session"
         )
         st.metric(
-            label="🔋 Energy Consumed", 
+            label="ðŸ”‹ Energy Consumed", 
             value=f"{kpis['total_energy_mj']:.2f} MJ",
             help="Total energy consumption"
         )
     
     with col2:
         st.metric(
-            label="⚡ Maximum Speed",
+            label="âš¡ Maximum Speed",
             value=f"{kpis['max_speed_ms']:.1f} m/s",
             help="Highest speed achieved"
         )
         st.metric(
-            label="💡 Average Power",
+            label="ðŸ’¡ Average Power",
             value=f"{kpis['avg_power_w']:.1f} W",
             help="Mean power consumption"
         )
     
     with col3:
         st.metric(
-            label="🏃 Average Speed",
+            label="ðŸ ƒ Average Speed",
             value=f"{kpis['avg_speed_ms']:.1f} m/s", 
             help="Mean speed throughout the session"
         )
         st.metric(
-            label="♻️ Efficiency",
+            label="â™»ï¸  Efficiency",
             value=f"{kpis['efficiency_km_per_mj']:.2f} km/MJ",
             help="Energy efficiency ratio"
         )
     
     with col4:
         st.metric(
-            label="📈 Max Acceleration",
-            value=f"{kpis['max_acceleration']:.2f} m/s²",
+            label="ðŸ“ˆ Max Acceleration",
+            value=f"{kpis['max_acceleration']:.2f} m/sÂ²",
             help="Peak acceleration recorded"
         )
         st.metric(
-            label="🎯 Avg Gyro Magnitude", 
-            value=f"{kpis['avg_gyro_magnitude']:.2f} °/s",
+            label="ðŸŽ¯ Avg Gyro Magnitude", 
+            value=f"{kpis['avg_gyro_magnitude']:.2f} Â°/s",
             help="Average rotational movement"
         )
     
     # Add some spacing
     st.markdown("---")
-    
-    # Performance summary cards using Streamlit containers
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        with st.container(border=True):
-            st.markdown("### 🏆 Performance Summary")
-            st.markdown("Monitor your vehicle's key metrics in real-time")
-            
-            # Add performance indicators
-            if kpis['max_speed_ms'] > 0:
-                st.success(f"✅ Max Speed: {kpis['max_speed_ms']:.1f} m/s")
-            else:
-                st.info("⏳ Waiting for speed data")
-    
-    with col2:
-        with st.container(border=True):
-            st.markdown("### ⚡ Efficiency Status")
-            if kpis['efficiency_km_per_mj'] > 0:
-                st.success(f"✅ Current Efficiency")
-                st.metric("", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
-            else:
-                st.warning("⏳ Calculating efficiency...")
-                st.info("Waiting for sufficient data")
-    
-    with col3:
-        with st.container(border=True):
-            st.markdown("### 🚀 Session Progress")
-            if kpis['total_distance_km'] > 0:
-                st.success(f"✅ Distance Completed")
-                st.metric("", f"{kpis['total_distance_km']:.2f} km")
-                
-                # Calculate estimated range if we have energy data
-                if kpis['total_energy_mj'] > 0:
-                    remaining_efficiency = kpis['efficiency_km_per_mj']
-                    st.info(f"📊 Current rate: {remaining_efficiency:.2f} km/MJ")
-            else:
-                st.info("🎯 Ready to start monitoring")
-    
-    # Additional insights section
-    st.markdown("---")
-    st.markdown("### 📈 Performance Insights")
-    
-    # Create insights based on the data
-    insights_col1, insights_col2 = st.columns(2)
-    
-    with insights_col1:
-        st.markdown("#### 🔋 Energy Analysis")
-        if kpis['avg_power_w'] > 0:
-            st.write(f"• Average power consumption: **{kpis['avg_power_w']:.1f} W**")
-            st.write(f"• Total energy used: **{kpis['total_energy_mj']:.2f} MJ**")
-            
-            # Power efficiency insight
-            if kpis['avg_speed_ms'] > 0:
-                power_per_speed = kpis['avg_power_w'] / kpis['avg_speed_ms']
-                st.write(f"• Power per unit speed: **{power_per_speed:.1f} W/(m/s)**")
-        else:
-            st.info("Connect to view energy analysis")
-    
-    with insights_col2:
-        st.markdown("#### 🏃 Motion Analysis") 
-        if kpis['max_speed_ms'] > 0:
-            st.write(f"• Speed range: **0 - {kpis['max_speed_ms']:.1f} m/s**")
-            st.write(f"• Average speed: **{kpis['avg_speed_ms']:.1f} m/s**")
-            
-            # Speed consistency
-            speed_ratio = kpis['avg_speed_ms'] / kpis['max_speed_ms'] if kpis['max_speed_ms'] > 0 else 0
-            consistency = "High" if speed_ratio > 0.7 else "Medium" if speed_ratio > 0.4 else "Low"
-            st.write(f"• Speed consistency: **{consistency}** ({speed_ratio:.1%})")
-            
-            if kpis['max_acceleration'] > 0:
-                st.write(f"• Peak acceleration: **{kpis['max_acceleration']:.2f} m/s²**")
-        else:
-            st.info("Connect to view motion analysis")
 
 def render_connection_status(subscriber, stats):
     """Render connection status in sidebar"""
     if subscriber and subscriber.is_connected:
         st.sidebar.markdown(
-            '<div class="status-indicator status-connected">✅ Connected & Receiving Data</div>',
+            '<div class="status-indicator status-connected">âœ… Connected & Receiving Data</div>',
             unsafe_allow_html=True
         )
     else:
         st.sidebar.markdown(
-            '<div class="status-indicator status-disconnected">❌ Disconnected</div>',
+            '<div class="status-indicator status-disconnected">â Œ Disconnected</div>',
             unsafe_allow_html=True
         )
     
     # Connection stats in compact format
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        st.metric("📨 Messages", stats['messages_received'], delta=None)
-        st.metric("🔄 Attempts", stats['connection_attempts'], delta=None)
+        st.metric("ðŸ“¨ Messages", stats['messages_received'], delta=None)
+        st.metric("ðŸ”„ Attempts", stats['connection_attempts'], delta=None)
     with col2:
-        st.metric("❌ Errors", stats['errors'], delta=None)
+        st.metric("â Œ Errors", stats['errors'], delta=None)
         if stats['last_message_time']:
             time_since = (datetime.now() - stats['last_message_time']).total_seconds()
-            st.metric("⏱️ Last Msg", f"{time_since:.0f}s ago", delta=None)
+            st.metric("â ±ï¸  Last Msg", f"{time_since:.0f}s ago", delta=None)
         else:
-            st.metric("⏱️ Last Msg", "Never", delta=None)
+            st.metric("â ±ï¸  Last Msg", "Never", delta=None)
 
 def create_optimized_chart(df: pd.DataFrame, chart_func, title: str):
     """Create optimized chart with consistent styling"""
@@ -778,7 +703,7 @@ def create_speed_chart(df: pd.DataFrame):
     
     fig = px.line(
         df, x='timestamp', y='speed_ms',
-        title='🚗 Vehicle Speed Over Time',
+        title='ðŸš— Vehicle Speed Over Time',
         labels={'speed_ms': 'Speed (m/s)', 'timestamp': 'Time'},
         color_discrete_sequence=['#1f77b4']
     )
@@ -795,7 +720,7 @@ def create_power_chart(df: pd.DataFrame):
     
     fig = make_subplots(
         rows=2, cols=1, 
-        subplot_titles=('⚡ Voltage & Current', '🔋 Power Output'),
+        subplot_titles=('âš¡ Voltage & Current', 'ðŸ”‹ Power Output'),
         vertical_spacing=0.15
     )
     
@@ -815,7 +740,7 @@ def create_power_chart(df: pd.DataFrame):
         row=2, col=1
     )
     
-    fig.update_layout(height=500, title_text="⚡ Electrical System Performance")
+    fig.update_layout(height=500, title_text="âš¡ Electrical System Performance")
     return fig
 
 def create_imu_chart(df: pd.DataFrame):
@@ -829,7 +754,7 @@ def create_imu_chart(df: pd.DataFrame):
     
     fig = make_subplots(
         rows=2, cols=1,
-        subplot_titles=('🎯 Gyroscope Data (deg/s)', '📈 Accelerometer Data (m/s²)'),
+        subplot_titles=('ðŸŽ¯ Gyroscope Data (deg/s)', 'ðŸ“ˆ Accelerometer Data (m/sÂ²)'),
         vertical_spacing=0.25
     )
     
@@ -851,7 +776,7 @@ def create_imu_chart(df: pd.DataFrame):
             row=2, col=1
         )
       
-    fig.update_layout(height=600, title_text="🎯 IMU Sensor Data Analysis")
+    fig.update_layout(height=600, title_text="ðŸŽ¯ IMU Sensor Data Analysis")
     return fig
 
 def create_imu_chart_2(df: pd.DataFrame):
@@ -865,7 +790,7 @@ def create_imu_chart_2(df: pd.DataFrame):
     
     fig = make_subplots(
         rows=2, cols=3,
-        subplot_titles=('🔄 Gyro X', '🔄 Gyro Y', '🔄 Gyro Z', '📊 Accel X', '📊 Accel Y', '📊 Accel Z'),
+        subplot_titles=('ðŸ”„ Gyro X', 'ðŸ”„ Gyro Y', 'ðŸ”„ Gyro Z', 'ðŸ“Š Accel X', 'ðŸ“Š Accel Y', 'ðŸ“Š Accel Z'),
         vertical_spacing=0.3,
         horizontal_spacing=0.1
     )
@@ -892,7 +817,7 @@ def create_imu_chart_2(df: pd.DataFrame):
             row=2, col=i+1
         )
 
-    fig.update_layout(height=600, title_text="🎯 Detailed IMU Sensor Analysis")
+    fig.update_layout(height=600, title_text="ðŸŽ¯ Detailed IMU Sensor Analysis")
     return fig
 
 def create_efficiency_chart(df: pd.DataFrame):
@@ -907,7 +832,7 @@ def create_efficiency_chart(df: pd.DataFrame):
     fig = px.scatter(
         df, x='speed_ms', y='power_w',
         color='voltage_v' if 'voltage_v' in df.columns else None,
-        title='⚡ Efficiency Analysis: Speed vs Power Consumption',
+        title='âš¡ Efficiency Analysis: Speed vs Power Consumption',
         labels={'speed_ms': 'Speed (m/s)', 'power_w': 'Power (W)'},
         color_continuous_scale='viridis'
     )
@@ -943,7 +868,7 @@ def create_gps_map(df: pd.DataFrame):
         size='power_w' if 'power_w' in df_valid.columns else None,
         hover_data=['speed_ms', 'power_w', 'voltage_v'] if all(col in df_valid.columns for col in ['speed_ms', 'power_w', 'voltage_v']) else None,
         map_style='open-street-map',
-        title='🗺️ Vehicle Track and Performance',
+        title='ðŸ—ºï¸  Vehicle Track and Performance',
         height=400,
         zoom=12,
         center=center_point,
@@ -998,7 +923,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             if len(numeric_cols) >= 2:
                 corr_matrix = df[numeric_cols].corr()
                 fig = px.imshow(corr_matrix, 
-                               title=f'🔥 Correlation Heatmap',
+                               title=f'ðŸ”¥ Correlation Heatmap',
                                color_continuous_scale='RdBu_r',
                                aspect='auto')
             else:
@@ -1029,7 +954,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
     st.markdown("""
     <div class="instructions-container">
         <div class="instructions-title">
-            🎯 Create Custom Charts
+            ðŸŽ¯ Create Custom Charts
         </div>
         <div class="instructions-content">
             <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
@@ -1041,23 +966,23 @@ def render_dynamic_charts_section(df: pd.DataFrame):
     st.markdown("""
     <div class="chart-type-grid">
         <div class="chart-type-card">
-            <div class="chart-type-name">📈 Line Chart</div>
+            <div class="chart-type-name">ðŸ“ˆ Line Chart</div>
             <div class="chart-type-desc">Great for time series data and trends</div>
         </div>
         <div class="chart-type-card">
-            <div class="chart-type-name">🔍 Scatter Plot</div>
+            <div class="chart-type-name">ðŸ”  Scatter Plot</div>
             <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
         </div>
         <div class="chart-type-card">
-            <div class="chart-type-name">📊 Bar Chart</div>
+            <div class="chart-type-name">ðŸ“Š Bar Chart</div>
             <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
         </div>
         <div class="chart-type-card">
-            <div class="chart-type-name">📋 Histogram</div>
+            <div class="chart-type-name">ðŸ“‹ Histogram</div>
             <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
         </div>
         <div class="chart-type-card">
-            <div class="chart-type-name">🔥 Heatmap</div>
+            <div class="chart-type-name">ðŸ”¥ Heatmap</div>
             <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
         </div>
     </div>
@@ -1070,13 +995,13 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         available_columns = []
     
     if not available_columns:
-        st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
+        st.warning("â ³ No numeric data available for creating charts. Connect and wait for data.")
         return
     
     # Controls
     col1, col2 = st.columns([1, 3])
     with col1:
-        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
+        if st.button("âž• Add Chart", key="add_chart_btn", help="Create a new custom chart"):
             try:
                 new_chart = {
                     'id': str(uuid.uuid4()),
@@ -1093,7 +1018,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
     
     with col2:
         if st.session_state.dynamic_charts:
-            st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
+            st.success(f"ðŸ“ˆ {len(st.session_state.dynamic_charts)} custom chart(s) active")
     
     # Display charts
     if st.session_state.dynamic_charts:
@@ -1156,7 +1081,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                     st.session_state.dynamic_charts[i]['y_axis'] = new_y
                     
                     with col5:
-                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
+                        if st.button("ðŸ—‘ï¸ ", key=f"delete_{chart_config['id']}", help="Delete chart"):
                             try:
                                 st.session_state.dynamic_charts.pop(i)
                                 st.session_state.is_auto_refresh = False
@@ -1183,7 +1108,7 @@ def main():
     # Sticky header
     st.markdown('<div class="sticky-header">', unsafe_allow_html=True)
     st.markdown(
-        '<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</h1>', 
+        '<h1 class="main-header">ðŸ Žï¸  Shell Eco-marathon Telemetry Dashboard</h1>', 
         unsafe_allow_html=True
     )
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1192,12 +1117,12 @@ def main():
     
     # Optimized sidebar layout
     with st.sidebar:
-        st.header("🔗 Connection Control")
+        st.header("ðŸ”— Connection Control")
         
         # Connection buttons in a single row
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Connect", use_container_width=True):
+            if st.button("ðŸ”„ Connect", use_container_width=True):
                 if st.session_state.subscriber:
                     st.session_state.subscriber.disconnect()
                     time.sleep(2)
@@ -1205,19 +1130,19 @@ def main():
                 with st.spinner("Connecting..."):
                     st.session_state.subscriber = TelemetrySubscriber()
                     if st.session_state.subscriber.connect():
-                        st.success("✅ Connected!")
+                        st.success("âœ… Connected!")
                     else:
-                        st.error("❌ Failed!")
+                        st.error("â Œ Failed!")
                 
                 st.session_state.is_auto_refresh = False
                 st.rerun()
         
         with col2:
-            if st.button("🛑 Disconnect", use_container_width=True):
+            if st.button("ðŸ›‘ Disconnect", use_container_width=True):
                 if st.session_state.subscriber:
                     st.session_state.subscriber.disconnect()
                     st.session_state.subscriber = None
-                st.info("🛑 Disconnected")
+                st.info("ðŸ›‘ Disconnected")
                 st.session_state.is_auto_refresh = False
                 st.rerun()
         
@@ -1230,13 +1155,13 @@ def main():
         render_connection_status(st.session_state.subscriber, stats)
         
         if stats['last_error']:
-            st.error(f"⚠️ {stats['last_error'][:40]}...")
+            st.error(f"âš ï¸  {stats['last_error'][:40]}...")
         
         st.divider()
         
         # Settings
-        st.subheader("⚙️ Settings")
-        new_auto_refresh = st.checkbox("🔄 Auto Refresh", value=st.session_state.auto_refresh)
+        st.subheader("âš™ï¸  Settings")
+        new_auto_refresh = st.checkbox("ðŸ”„ Auto Refresh", value=st.session_state.auto_refresh)
         
         if new_auto_refresh != st.session_state.auto_refresh:
             st.session_state.auto_refresh = new_auto_refresh
@@ -1245,7 +1170,7 @@ def main():
         if st.session_state.auto_refresh:
             refresh_interval = st.slider("Refresh Rate (s)", 1, 10, 3)
         
-        st.info(f"📡 Channel: {CHANNEL_NAME}")
+        st.info(f"ðŸ“¡ Channel: {CHANNEL_NAME}")
     
     # Data processing
     new_messages_count = 0
@@ -1275,14 +1200,14 @@ def main():
     
     if df.empty:
         # Improved empty state
-        st.warning("⏳ Waiting for telemetry data...")
+        st.warning("â ³ Waiting for telemetry data...")
         
         col1, col2 = st.columns(2)
         with col1:
             st.info("**Getting Started:**\n1. Ensure maindata.py is running\n2. Click 'Connect' to start receiving data")
         
         with col2:
-            with st.expander("🔍 Debug Information"):
+            with st.expander("ðŸ”  Debug Information"):
                 st.json({
                     "Connected": st.session_state.subscriber.is_connected if st.session_state.subscriber else False,
                     "Messages": stats['messages_received'],
@@ -1293,70 +1218,72 @@ def main():
         # Status bar
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
-            st.info(f"📊 **{len(df):,}** data points collected")
+            st.info(f"ðŸ“Š **{len(df):,}** data points collected")
         with col2:
-            st.info(f"🕒 Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
+            st.info(f"ðŸ•’ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
         with col3:
             if new_messages_count > 0:
-                st.success(f"📨 +{new_messages_count}")
+                st.success(f"ðŸ“¨ +{new_messages_count}")
         
-        # Main tabs with Overview first
-        st.subheader("📈 Dashboard")
+        # --- MODIFIED: KPI Dashboard and Tabs ---
         
-        tab_names = ["📊 Overview", "🚗 Speed", "⚡ Power", "🎯 IMU", "🎯 IMU Detail", "⚡ Efficiency", "🗺️ GPS", "📊 Custom", "📋 Data"]
-        tabs = st.tabs(tab_names)
-        
-        # Calculate KPIs once for reuse
+        # Calculate and render KPIs *before* the tabs
         try:
             kpis = calculate_kpis(df)
+            render_kpi_dashboard(kpis)
         except Exception as e:
-            st.error(f"Error calculating KPIs: {e}")
+            st.error(f"Error calculating or rendering KPIs: {e}")
             kpis = calculate_kpis(pd.DataFrame())  # Use empty DataFrame for defaults
         
-        with tabs[0]:  # Overview tab
-            render_overview_tab(kpis)
+        # Main tabs without the Overview tab
+        st.subheader("ðŸ“ˆ Detailed Analysis")
         
-        with tabs[1]:  # Speed tab
+        tab_names = ["ðŸš— Speed", "âš¡ Power", "ðŸŽ¯ IMU", "ðŸŽ¯ IMU Detail", "âš¡ Efficiency", "ðŸ—ºï¸  GPS", "ðŸ“Š Custom", "ðŸ“‹ Data"]
+        tabs = st.tabs(tab_names)
+        
+        with tabs[0]:  # Speed tab
             fig = create_optimized_chart(df, create_speed_chart, "Speed Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[2]:  # Power tab
+        with tabs[1]:  # Power tab
             fig = create_optimized_chart(df, create_power_chart, "Power Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[3]:  # IMU tab
+        with tabs[2]:  # IMU tab
             fig = create_optimized_chart(df, create_imu_chart, "IMU Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
 
-        with tabs[4]:  # IMU Detail tab
+        with tabs[3]:  # IMU Detail tab
             fig = create_optimized_chart(df, create_imu_chart_2, "IMU Detail Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[5]:  # Efficiency tab
+        with tabs[4]:  # Efficiency tab
             fig = create_optimized_chart(df, create_efficiency_chart, "Efficiency Chart")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[6]:  # GPS tab
+        with tabs[5]:  # GPS tab
             fig = create_optimized_chart(df, create_gps_map, "GPS Map")
             if fig:
                 st.plotly_chart(fig, use_container_width=True)
         
-        with tabs[7]:  # Custom charts tab
+        with tabs[6]:  # Custom charts tab
             render_dynamic_charts_section(df)
         
-        with tabs[8]:  # Data tab
-            st.subheader("📋 Raw Telemetry Data")
+        with tabs[7]:  # Data tab
+            st.subheader("ðŸ“‹ Raw Telemetry Data")
+            # --- MODIFIED: Added user alert ---
+            st.info("Displaying the last 100 data points. For the complete dataset, please use the download button below.")
             st.dataframe(df.tail(100), use_container_width=True, height=400)
             
             if not df.empty:
                 csv = df.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="ðŸ“¥ Download CSV",
                     data=csv,
                     file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
@@ -1377,7 +1304,7 @@ def main():
     st.markdown(
         "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
         "<p><strong>Shell Eco-marathon Telemetry Dashboard</strong> | Real-time Data Visualization & Analysis</p>"
-        "<p>🚗 Optimized for performance monitoring and energy efficiency analysis</p>"
+        "<p>ðŸš— Optimized for performance monitoring and energy efficiency analysis</p>"
         "</div>",
         unsafe_allow_html=True
     )
