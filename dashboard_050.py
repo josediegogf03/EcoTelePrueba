@@ -66,6 +66,7 @@ st.set_page_config(
 )
 
 # Optimized CSS - Theme-aware colors and improved layout
+# Updated CSS - Remove problematic overview classes
 st.markdown("""
 <style>
     /* Theme-aware color variables */
@@ -132,93 +133,6 @@ st.markdown("""
         color: #856404;
         border: 2px solid #ffc107;
         box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
-    }
-    
-    .metric-container {
-        background: var(--bg-primary);
-        border-radius: 12px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        border: 1px solid var(--border-color);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    
-    .metric-container:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    }
-    
-    .chart-container {
-        background: var(--bg-primary);
-        border-radius: 12px;
-        padding: 1rem;
-        margin: 1rem 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border: 1px solid var(--border-color);
-    }
-    
-    .overview-kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .overview-kpi-card {
-        background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-        border-radius: 16px;
-        padding: 1.5rem;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-        border: 2px solid var(--border-color);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .overview-kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 32px rgba(0,0,0,0.18);
-        border-color: var(--primary-color);
-    }
-    
-    .overview-kpi-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, var(--primary-color), var(--success-color));
-    }
-    
-    .kpi-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-        display: block;
-    }
-    
-    .kpi-value {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: var(--primary-color);
-        margin: 0.5rem 0;
-        line-height: 1;
-    }
-    
-    .kpi-label {
-        font-size: 0.95rem;
-        color: var(--text-secondary);
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .kpi-description {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        margin-top: 0.5rem;
-        font-style: italic;
     }
     
     .instructions-container {
@@ -335,21 +249,13 @@ st.markdown("""
             font-size: 1.8rem;
         }
         
-        .metric-container {
-            margin: 0.25rem 0;
-            padding: 0.75rem;
-        }
-        
-        .overview-kpi-grid {
-            grid-template-columns: 1fr;
-        }
-        
         .chart-type-grid {
             grid-template-columns: 1fr;
         }
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 class TelemetrySubscriber:
     def __init__(self):
@@ -684,91 +590,137 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         return default_kpis
 
 def render_overview_tab(kpis: Dict[str, float]):
-    """Render the Overview tab with enhanced KPI display"""
+    """Render the Overview tab with enhanced KPI display using Streamlit native components"""
     st.markdown("### 📊 Performance Overview")
     st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
     
-    # Create the KPI cards using HTML for better styling
-    kpi_cards_html = f"""
-    <div class="overview-kpi-grid">
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">🛣️</span>
-            <div class="kpi-value">{kpis['total_distance_km']:.2f} km</div>
-            <div class="kpi-label">Total Distance</div>
-            <div class="kpi-description">Distance traveled during the session</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">⚡</span>
-            <div class="kpi-value">{kpis['max_speed_ms']:.1f} m/s</div>
-            <div class="kpi-label">Maximum Speed</div>
-            <div class="kpi-description">Highest speed achieved</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">🏃</span>
-            <div class="kpi-value">{kpis['avg_speed_ms']:.1f} m/s</div>
-            <div class="kpi-label">Average Speed</div>
-            <div class="kpi-description">Mean speed throughout the session</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">🔋</span>
-            <div class="kpi-value">{kpis['total_energy_mj']:.2f} MJ</div>
-            <div class="kpi-label">Energy Consumed</div>
-            <div class="kpi-description">Total energy consumption</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">💡</span>
-            <div class="kpi-value">{kpis['avg_power_w']:.1f} W</div>
-            <div class="kpi-label">Average Power</div>
-            <div class="kpi-description">Mean power consumption</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">♻️</span>
-            <div class="kpi-value">{kpis['efficiency_km_per_mj']:.2f}</div>
-            <div class="kpi-label">Efficiency (km/MJ)</div>
-            <div class="kpi-description">Energy efficiency ratio</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">📈</span>
-            <div class="kpi-value">{kpis['max_acceleration']:.2f} m/s²</div>
-            <div class="kpi-label">Max Acceleration</div>
-            <div class="kpi-description">Peak acceleration recorded</div>
-        </div>
-        
-        <div class="overview-kpi-card">
-            <span class="kpi-icon">🎯</span>
-            <div class="kpi-value">{kpis['avg_gyro_magnitude']:.2f} °/s</div>
-            <div class="kpi-label">Avg Gyro Magnitude</div>
-            <div class="kpi-description">Average rotational movement</div>
-        </div>
-    </div>
-    """
+    # Create KPI layout using Streamlit columns instead of custom HTML
+    col1, col2, col3, col4 = st.columns(4)
     
-    st.markdown(kpi_cards_html, unsafe_allow_html=True)
+    with col1:
+        st.metric(
+            label="🛣️ Total Distance",
+            value=f"{kpis['total_distance_km']:.2f} km",
+            help="Distance traveled during the session"
+        )
+        st.metric(
+            label="🔋 Energy Consumed", 
+            value=f"{kpis['total_energy_mj']:.2f} MJ",
+            help="Total energy consumption"
+        )
     
-    # Additional summary information
+    with col2:
+        st.metric(
+            label="⚡ Maximum Speed",
+            value=f"{kpis['max_speed_ms']:.1f} m/s",
+            help="Highest speed achieved"
+        )
+        st.metric(
+            label="💡 Average Power",
+            value=f"{kpis['avg_power_w']:.1f} W",
+            help="Mean power consumption"
+        )
+    
+    with col3:
+        st.metric(
+            label="🏃 Average Speed",
+            value=f"{kpis['avg_speed_ms']:.1f} m/s", 
+            help="Mean speed throughout the session"
+        )
+        st.metric(
+            label="♻️ Efficiency",
+            value=f"{kpis['efficiency_km_per_mj']:.2f} km/MJ",
+            help="Energy efficiency ratio"
+        )
+    
+    with col4:
+        st.metric(
+            label="📈 Max Acceleration",
+            value=f"{kpis['max_acceleration']:.2f} m/s²",
+            help="Peak acceleration recorded"
+        )
+        st.metric(
+            label="🎯 Avg Gyro Magnitude", 
+            value=f"{kpis['avg_gyro_magnitude']:.2f} °/s",
+            help="Average rotational movement"
+        )
+    
+    # Add some spacing
     st.markdown("---")
+    
+    # Performance summary cards using Streamlit containers
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.info("🏆 **Performance Summary**\nMonitor your vehicle's key metrics in real-time")
+        with st.container(border=True):
+            st.markdown("### 🏆 Performance Summary")
+            st.markdown("Monitor your vehicle's key metrics in real-time")
+            
+            # Add performance indicators
+            if kpis['max_speed_ms'] > 0:
+                st.success(f"✅ Max Speed: {kpis['max_speed_ms']:.1f} m/s")
+            else:
+                st.info("⏳ Waiting for speed data")
     
     with col2:
-        if kpis['efficiency_km_per_mj'] > 0:
-            st.success(f"✅ **Efficiency Status**\nCurrently achieving {kpis['efficiency_km_per_mj']:.2f} km/MJ")
-        else:
-            st.warning("⏳ **Efficiency Status**\nWaiting for sufficient data")
+        with st.container(border=True):
+            st.markdown("### ⚡ Efficiency Status")
+            if kpis['efficiency_km_per_mj'] > 0:
+                st.success(f"✅ Current Efficiency")
+                st.metric("", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
+            else:
+                st.warning("⏳ Calculating efficiency...")
+                st.info("Waiting for sufficient data")
     
     with col3:
-        if kpis['total_distance_km'] > 0:
-            st.metric("🎯 **Session Progress**", f"{kpis['total_distance_km']:.2f} km completed")
+        with st.container(border=True):
+            st.markdown("### 🚀 Session Progress")
+            if kpis['total_distance_km'] > 0:
+                st.success(f"✅ Distance Completed")
+                st.metric("", f"{kpis['total_distance_km']:.2f} km")
+                
+                # Calculate estimated range if we have energy data
+                if kpis['total_energy_mj'] > 0:
+                    remaining_efficiency = kpis['efficiency_km_per_mj']
+                    st.info(f"📊 Current rate: {remaining_efficiency:.2f} km/MJ")
+            else:
+                st.info("🎯 Ready to start monitoring")
+    
+    # Additional insights section
+    st.markdown("---")
+    st.markdown("### 📈 Performance Insights")
+    
+    # Create insights based on the data
+    insights_col1, insights_col2 = st.columns(2)
+    
+    with insights_col1:
+        st.markdown("#### 🔋 Energy Analysis")
+        if kpis['avg_power_w'] > 0:
+            st.write(f"• Average power consumption: **{kpis['avg_power_w']:.1f} W**")
+            st.write(f"• Total energy used: **{kpis['total_energy_mj']:.2f} MJ**")
+            
+            # Power efficiency insight
+            if kpis['avg_speed_ms'] > 0:
+                power_per_speed = kpis['avg_power_w'] / kpis['avg_speed_ms']
+                st.write(f"• Power per unit speed: **{power_per_speed:.1f} W/(m/s)**")
         else:
-            st.info("🚀 **Session Status**\nReady to start monitoring")
+            st.info("Connect to view energy analysis")
+    
+    with insights_col2:
+        st.markdown("#### 🏃 Motion Analysis") 
+        if kpis['max_speed_ms'] > 0:
+            st.write(f"• Speed range: **0 - {kpis['max_speed_ms']:.1f} m/s**")
+            st.write(f"• Average speed: **{kpis['avg_speed_ms']:.1f} m/s**")
+            
+            # Speed consistency
+            speed_ratio = kpis['avg_speed_ms'] / kpis['max_speed_ms'] if kpis['max_speed_ms'] > 0 else 0
+            consistency = "High" if speed_ratio > 0.7 else "Medium" if speed_ratio > 0.4 else "Low"
+            st.write(f"• Speed consistency: **{consistency}** ({speed_ratio:.1%})")
+            
+            if kpis['max_acceleration'] > 0:
+                st.write(f"• Peak acceleration: **{kpis['max_acceleration']:.2f} m/s²**")
+        else:
+            st.info("Connect to view motion analysis")
 
 def render_connection_status(subscriber, stats):
     """Render connection status in sidebar"""
