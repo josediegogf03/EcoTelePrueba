@@ -39,6 +39,10 @@ class TelemetryPublisher:
         self.cumulative_energy = 0.0
         self.simulation_time = 0
         
+        # IMU simulation state
+        self.vehicle_heading = 0.0  # Current heading for gyroscope simulation
+        self.prev_speed = 0.0  # Previous speed for acceleration calculation
+        
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -85,7 +89,7 @@ class TelemetryPublisher:
         logger.info("Connection state check timeout, assuming connected")
     
     def generate_telemetry_data(self) -> Dict[str, Any]:
-        """Generate realistic mock telemetry data"""
+        """Generate realistic mock telemetry data including IMU data"""
         current_time = datetime.now()
         
         # Generate realistic speed (0-25 m/s with variations)
@@ -104,14 +108,6 @@ class TelemetryPublisher:
         
         self.cumulative_energy += energy_delta
         self.cumulative_distance += distance_delta
-
-        # Generate MPU data (simulated)
-        acc_x = random.gauss(0, 1.5)
-        acc_y = 9.5 + random.gauss(0, 1)
-        acc_z = random.gauss(0, 1.5)
-        gyro_x = random.gauss(0, 10)
-        gyro_y = random.gauss(0, 10)
-        gyro_z = random.gauss(0, 10)
         
         # Generate GPS coordinates (simulated route)
         base_lat, base_lon = 40.7128, -74.0060
@@ -120,6 +116,32 @@ class TelemetryPublisher:
         
         latitude = base_lat + lat_offset + random.gauss(0, 0.0001)
         longitude = base_lon + lon_offset + random.gauss(0, 0.0001)
+        
+        # Generate Gyroscope data (angular velocity in deg/s)
+        # Simulate turning movements and vibrations
+        turning_rate = 2.0 * math.sin(self.simulation_time * 0.08)  # Gentle turns
+        gyro_x = random.gauss(0, 0.5)  # Roll vibrations
+        gyro_y = random.gauss(0, 0.3)  # Pitch vibrations  
+        gyro_z = turning_rate + random.gauss(0, 0.8)  # Yaw (turning) + noise
+        
+        # Update vehicle heading for realistic simulation
+        self.vehicle_heading += gyro_z * PUBLISH_INTERVAL
+        
+        # Generate Accelerometer data (m/s²)
+        # Calculate longitudinal acceleration from speed change
+        speed_acceleration = (speed - self.prev_speed) / PUBLISH_INTERVAL
+        self.prev_speed = speed
+        
+        # Simulate vehicle dynamics
+        accel_x = speed_acceleration + random.gauss(0, 0.2)  # Forward/backward acceleration
+        accel_y = turning_rate * speed * 0.1 + random.gauss(0, 0.1)  # Lateral acceleration from turns
+        accel_z = 9.81 + random.gauss(0, 0.05)  # Gravity + vertical vibrations
+        
+        # Add some correlation between speed and vibrations
+        vibration_factor = speed * 0.02
+        accel_x += random.gauss(0, vibration_factor)
+        accel_y += random.gauss(0, vibration_factor)
+        accel_z += random.gauss(0, vibration_factor)
         
         self.simulation_time += 1
         
@@ -133,12 +155,17 @@ class TelemetryPublisher:
             'distance_m': round(self.cumulative_distance, 2),
             'latitude': round(latitude, 6),
             'longitude': round(longitude, 6),
-            'acc_x': round(acc_x, 2),
-            'acc_y': round(acc_y, 2),
-            'acc_z': round(acc_z, 2),
-            'gyro_x': round(gyro_x, 2),
-            'gyro_y': round(gyro_y, 2),
-            'gyro_z': round(gyro_z, 2),
+            # Gyroscope data (deg/s)
+            'gyro_x': round(gyro_x, 3),
+            'gyro_y': round(gyro_y, 3),
+            'gyro_z': round(gyro_z, 3),
+            # Accelerometer data (m/s²)
+            'accel_x': round(accel_x, 3),
+            'accel_y': round(accel_y, 3),
+            'accel_z': round(accel_z, 3),
+            # Derived IMU data
+            'vehicle_heading': round(self.vehicle_heading % 360, 2),
+            'total_acceleration': round(math.sqrt(accel_x**2 + accel_y**2 + accel_z**2), 3),
             'message_id': self.message_count + 1,
             'uptime_seconds': self.simulation_time * PUBLISH_INTERVAL
         }
@@ -151,10 +178,11 @@ class TelemetryPublisher:
             
             self.message_count += 1
             
-            # Log every 10th message
+            # Log every 10th message with IMU data
             if self.message_count % 10 == 0:
                 logger.info(f"📡 Published {self.message_count} messages - "
-                           f"Speed: {data['speed_ms']} m/s, Power: {data['power_w']:.1f} W")
+                           f"Speed: {data['speed_ms']} m/s, Power: {data['power_w']:.1f} W, "
+                           f"Accel: {data['total_acceleration']:.2f} m/s²")
             
             return True
             
@@ -164,7 +192,7 @@ class TelemetryPublisher:
     
     async def run(self):
         """Main publishing loop"""
-        logger.info("🚀 Starting Telemetry Publisher")
+        logger.info("🚀 Starting Telemetry Publisher with IMU data")
         
         # Connect to Ably
         if not await self.connect():
