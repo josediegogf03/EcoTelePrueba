@@ -648,9 +648,50 @@ def create_imu_chart(df: pd.DataFrame):
                   name='Accel Z', line=dict(color='brown')), 
         row=2, col=1
     )
+
+    fig2 = make_subplots(
+        rows=2, cols=3,
+        subplot_titles=('Gyroscope (deg/s)', 'Accelerometer (m/s²)'),
+        vertical_spacing=0.1
+    )
+
+    # Gyroscope data
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['gyro_x'], 
+                  name='Gyro X', line=dict(color='red')), 
+        row=1, col=1
+    )
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['gyro_y'], 
+                  name='Gyro Y', line=dict(color='green')), 
+        row=1, col=2
+    )
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['gyro_z'], 
+                  name='Gyro Z', line=dict(color='blue')), 
+        row=1, col=3
+    )
+    
+    # Accelerometer data
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['accel_x'], 
+                  name='Accel X', line=dict(color='orange')), 
+        row=2, col=1
+    )
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['accel_y'], 
+                  name='Accel Y', line=dict(color='purple')), 
+        row=2, col=2
+    )
+    fig2.add_trace(
+        go.Scatter(x=df['timestamp'], y=df['accel_z'], 
+                  name='Accel Z', line=dict(color='brown')), 
+        row=2, col=3
+    )
     
     fig.update_layout(height=600, title_text="IMU Sensor Data")
-    return fig
+    fig2.update_layout(height=600, title_text="IMU Sensor Data (2)")
+    return fig, fig2
 
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency analysis chart"""
