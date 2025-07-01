@@ -663,7 +663,7 @@ def create_imu_chart_2(df: pd.DataFrame):
     
     fig2 = make_subplots(
         rows=2, cols=3,
-        subplot_titles=('Gyroscope (deg/s)', 'Accelerometer (m/s²)'),
+        subplot_titles=('Gyroscope (X)', 'Gyroscope (Y)', 'Gyroscope (Z)', 'Accelerometer (X)', 'Accelerometer (Y)', 'Accelerometer (Z)'),
         vertical_spacing=0.1
     )
 
