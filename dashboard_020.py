@@ -691,7 +691,7 @@ def create_imu_chart(df: pd.DataFrame):
     
     fig.update_layout(height=600, title_text="IMU Sensor Data")
     fig2.update_layout(height=600, title_text="IMU Sensor Data (2)")
-    return fig, fig2
+    return fig
 
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency analysis chart"""
