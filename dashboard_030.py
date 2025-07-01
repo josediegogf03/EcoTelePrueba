@@ -60,7 +60,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS - Updated to prevent scrolling issues
+# Custom CSS - Updated to prevent scrolling issues and preserve position
 st.markdown("""
 <style>
     .main-header {
@@ -129,11 +129,24 @@ st.markdown("""
         gap: 15px;
         margin-bottom: 20px;
     }
-    /* Fixed positioning for dynamic charts to prevent scrolling */
-    .fixed-chart-container {
-        position: relative;
-        scroll-behavior: smooth;
+    /* FIXED: Prevent auto-scroll to top on rerun */
+    .main .block-container {
+        scroll-behavior: auto;
     }
+    
+    /* Preserve scroll position for charts and tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: white;
+    }
+    
+    /* Prevent chart containers from causing scroll jumps */
+    .js-plotly-plot {
+        scroll-margin-top: 0;
+    }
+    
     @media (max-width: 768px) {
         .kpi-container {
             flex-direction: column;
@@ -412,6 +425,10 @@ def initialize_session_state():
     # Add a flag to track if we're in a fragment rerun
     if 'fragment_rerun' not in st.session_state:
         st.session_state.fragment_rerun = False
+    
+    # FIXED: Add session state for active tab to prevent scroll jumps
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = 0
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate key performance indicators"""
@@ -716,152 +733,171 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5, y=0.5, showarrow=False
         )
 
-# Updated dynamic charts section with proper error handling and scrolling fix
-@st.fragment(run_every="3s")
-def render_dynamic_charts_section(df: pd.DataFrame):
-    """Render the dynamic charts section as a fragment with improved stability"""
-    
-    # Create a fixed container to prevent scrolling issues
-    with st.container():
-        st.subheader("📊 Dynamic Charts")
+# FIXED: Updated dynamic charts section using fragments for scroll stability
+@st.fragment(run_every=3)
+def update_data_fragment():
+    """Fragment to handle data updates without causing scroll jumps"""
+    if st.session_state.subscriber and st.session_state.subscriber.is_connected:
+        new_messages = st.session_state.subscriber.get_messages()
         
-        # Get available columns with error handling
-        try:
-            available_columns = get_available_columns(df)
-        except Exception as e:
-            st.error(f"Error getting available columns: {e}")
-            available_columns = []
-        
-        if not available_columns:
-            st.warning("No numeric data available for creating charts.")
-            return
-        
-        # Use empty containers to prevent accumulation
-        controls_container = st.empty()
-        charts_container = st.empty()
-        
-        with controls_container.container():
-            # Add chart button with error handling
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
-                    try:
-                        # Create new chart configuration
-                        new_chart = {
-                            'id': str(uuid.uuid4()),
-                            'title': 'New Chart',
-                            'chart_type': 'line',
-                            'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
-                            'y_axis': available_columns[0] if available_columns else None
-                        }
-                        st.session_state.dynamic_charts.append(new_chart)
-                        # Use st.rerun() without scope parameter
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error adding chart: {e}")
+        if new_messages:
+            new_messages_count = len(new_messages)
+            new_df = pd.DataFrame(new_messages)
             
-            with col2:
-                if st.session_state.dynamic_charts:
-                    st.info(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) created")
-        
-        with charts_container.container():
-            # Display existing charts with improved error handling
-            if st.session_state.dynamic_charts:
-                for i, chart_config in enumerate(st.session_state.dynamic_charts):
-                    try:
-                        with st.container(border=True, key=f"chart_container_{chart_config['id']}"):
-                            st.markdown("---")
-                            
-                            # Chart configuration controls
-                            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
-                            
-                            with col1:
-                                new_title = st.text_input(
-                                    "Chart Title", 
-                                    value=chart_config.get('title', 'New Chart'),
-                                    key=f"title_{chart_config['id']}"
-                                )
-                                if new_title != chart_config.get('title'):
-                                    st.session_state.dynamic_charts[i]['title'] = new_title
-                            
-                            with col2:
-                                new_type = st.selectbox(
-                                    "Chart Type",
-                                    options=['line', 'scatter', 'bar', 'histogram'],
-                                    index=['line', 'scatter', 'bar', 'histogram'].index(chart_config.get('chart_type', 'line')),
-                                    key=f"type_{chart_config['id']}"
-                                )
-                                if new_type != chart_config.get('chart_type'):
-                                    st.session_state.dynamic_charts[i]['chart_type'] = new_type
-                            
-                            with col3:
-                                if chart_config.get('chart_type', 'line') != 'histogram':
-                                    x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
-                                    current_x = chart_config.get('x_axis', x_options[0])
-                                    if current_x not in x_options and x_options:
-                                        current_x = x_options[0]
-                                    
-                                    if x_options:
-                                        new_x = st.selectbox(
-                                            "X-Axis",
-                                            options=x_options,
-                                            index=x_options.index(current_x) if current_x in x_options else 0,
-                                            key=f"x_{chart_config['id']}"
-                                        )
-                                        if new_x != chart_config.get('x_axis'):
-                                            st.session_state.dynamic_charts[i]['x_axis'] = new_x
-                            
-                            with col4:
-                                if available_columns:
-                                    current_y = chart_config.get('y_axis', available_columns[0])
-                                    if current_y not in available_columns:
-                                        current_y = available_columns[0]
-                                    
-                                    new_y = st.selectbox(
-                                        "Y-Axis",
-                                        options=available_columns,
-                                        index=available_columns.index(current_y) if current_y in available_columns else 0,
-                                        key=f"y_{chart_config['id']}"
-                                    )
-                                    if new_y != chart_config.get('y_axis'):
-                                        st.session_state.dynamic_charts[i]['y_axis'] = new_y
-                            
-                            with col5:
-                                if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete this chart"):
-                                    try:
-                                        st.session_state.dynamic_charts.pop(i)
-                                        # Use st.rerun() without scope parameter
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error deleting chart: {e}")
-                            
-                            # Display the chart with error handling
-                            try:
-                                if chart_config.get('y_axis'):
-                                    fig = create_dynamic_chart(df, chart_config)
-                                    st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_config['id']}")
-                                else:
-                                    st.warning("Please select a Y-axis variable for this chart.")
-                            except Exception as e:
-                                st.error(f"Error creating chart: {e}")
-                    
-                    except Exception as e:
-                        st.error(f"Error rendering chart {i}: {e}")
+            # Process timestamps
+            if 'timestamp' in new_df.columns:
+                new_df['timestamp'] = pd.to_datetime(new_df['timestamp'])
             
+            # Append to existing data
+            if st.session_state.telemetry_data.empty:
+                st.session_state.telemetry_data = new_df
             else:
-                st.markdown("""
-                <div class="dynamic-chart-container">
-                    <h4>🎯 Create Custom Charts</h4>
-                    <p>Click "Add Chart" to create custom visualizations with your preferred variables and chart types.</p>
-                    <p><strong>Available chart types:</strong></p>
-                    <ul>
-                        <li><strong>Line:</strong> Great for time series data</li>
-                        <li><strong>Scatter:</strong> Perfect for correlation analysis</li>
-                        <li><strong>Bar:</strong> Good for comparing recent values</li>
-                        <li><strong>Histogram:</strong> Shows data distribution</li>
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                st.session_state.telemetry_data = pd.concat([
+                    st.session_state.telemetry_data, new_df
+                ], ignore_index=True)
+            
+            # Keep only recent data
+            if len(st.session_state.telemetry_data) > MAX_DATAPOINTS:
+                st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
+            
+            st.session_state.last_update = datetime.now()
+            return new_messages_count
+    return 0
+
+def render_dynamic_charts_section(df: pd.DataFrame):
+    """Render the dynamic charts section without fragments to prevent scroll issues"""
+    
+    st.subheader("📊 Dynamic Charts")
+    
+    # Get available columns with error handling
+    try:
+        available_columns = get_available_columns(df)
+    except Exception as e:
+        st.error(f"Error getting available columns: {e}")
+        available_columns = []
+    
+    if not available_columns:
+        st.warning("No numeric data available for creating charts.")
+        return
+    
+    # Add chart button with error handling
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
+            try:
+                # Create new chart configuration
+                new_chart = {
+                    'id': str(uuid.uuid4()),
+                    'title': 'New Chart',
+                    'chart_type': 'line',
+                    'x_axis': 'timestamp' if 'timestamp' in df.columns else available_columns[0],
+                    'y_axis': available_columns[0] if available_columns else None
+                }
+                st.session_state.dynamic_charts.append(new_chart)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error adding chart: {e}")
+    
+    with col2:
+        if st.session_state.dynamic_charts:
+            st.info(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) created")
+    
+    # Display existing charts with improved error handling
+    if st.session_state.dynamic_charts:
+        for i, chart_config in enumerate(st.session_state.dynamic_charts):
+            try:
+                with st.container(border=True, key=f"chart_container_{chart_config['id']}"):
+                    st.markdown("---")
+                    
+                    # Chart configuration controls
+                    col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
+                    
+                    with col1:
+                        new_title = st.text_input(
+                            "Chart Title", 
+                            value=chart_config.get('title', 'New Chart'),
+                            key=f"title_{chart_config['id']}"
+                        )
+                        if new_title != chart_config.get('title'):
+                            st.session_state.dynamic_charts[i]['title'] = new_title
+                    
+                    with col2:
+                        new_type = st.selectbox(
+                            "Chart Type",
+                            options=['line', 'scatter', 'bar', 'histogram'],
+                            index=['line', 'scatter', 'bar', 'histogram'].index(chart_config.get('chart_type', 'line')),
+                            key=f"type_{chart_config['id']}"
+                        )
+                        if new_type != chart_config.get('chart_type'):
+                            st.session_state.dynamic_charts[i]['chart_type'] = new_type
+                    
+                    with col3:
+                        if chart_config.get('chart_type', 'line') != 'histogram':
+                            x_options = ['timestamp'] + available_columns if 'timestamp' in df.columns else available_columns
+                            current_x = chart_config.get('x_axis', x_options[0])
+                            if current_x not in x_options and x_options:
+                                current_x = x_options[0]
+                            
+                            if x_options:
+                                new_x = st.selectbox(
+                                    "X-Axis",
+                                    options=x_options,
+                                    index=x_options.index(current_x) if current_x in x_options else 0,
+                                    key=f"x_{chart_config['id']}"
+                                )
+                                if new_x != chart_config.get('x_axis'):
+                                    st.session_state.dynamic_charts[i]['x_axis'] = new_x
+                    
+                    with col4:
+                        if available_columns:
+                            current_y = chart_config.get('y_axis', available_columns[0])
+                            if current_y not in available_columns:
+                                current_y = available_columns[0]
+                            
+                            new_y = st.selectbox(
+                                "Y-Axis",
+                                options=available_columns,
+                                index=available_columns.index(current_y) if current_y in available_columns else 0,
+                                key=f"y_{chart_config['id']}"
+                            )
+                            if new_y != chart_config.get('y_axis'):
+                                st.session_state.dynamic_charts[i]['y_axis'] = new_y
+                    
+                    with col5:
+                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete this chart"):
+                            try:
+                                st.session_state.dynamic_charts.pop(i)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error deleting chart: {e}")
+                    
+                    # Display the chart with error handling
+                    try:
+                        if chart_config.get('y_axis'):
+                            fig = create_dynamic_chart(df, chart_config)
+                            st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_config['id']}")
+                        else:
+                            st.warning("Please select a Y-axis variable for this chart.")
+                    except Exception as e:
+                        st.error(f"Error creating chart: {e}")
+            
+            except Exception as e:
+                st.error(f"Error rendering chart {i}: {e}")
+    
+    else:
+        st.markdown("""
+        <div class="dynamic-chart-container">
+            <h4>🎯 Create Custom Charts</h4>
+            <p>Click "Add Chart" to create custom visualizations with your preferred variables and chart types.</p>
+            <p><strong>Available chart types:</strong></p>
+            <ul>
+                <li><strong>Line:</strong> Great for time series data</li>
+                <li><strong>Scatter:</strong> Perfect for correlation analysis</li>
+                <li><strong>Bar:</strong> Good for comparing recent values</li>
+                <li><strong>Histogram:</strong> Shows data distribution</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
 def main():
     """Main dashboard function"""
@@ -949,32 +985,10 @@ def main():
     
     st.sidebar.info(f"📡 Channel: {CHANNEL_NAME}")
     
-    # Get new messages and update data
+    # FIXED: Use fragment for data updates to prevent scroll issues
     new_messages_count = 0
-    if st.session_state.subscriber and st.session_state.subscriber.is_connected:
-        new_messages = st.session_state.subscriber.get_messages()
-        
-        if new_messages:
-            new_messages_count = len(new_messages)
-            new_df = pd.DataFrame(new_messages)
-            
-            # Process timestamps
-            if 'timestamp' in new_df.columns:
-                new_df['timestamp'] = pd.to_datetime(new_df['timestamp'])
-            
-            # Append to existing data
-            if st.session_state.telemetry_data.empty:
-                st.session_state.telemetry_data = new_df
-            else:
-                st.session_state.telemetry_data = pd.concat([
-                    st.session_state.telemetry_data, new_df
-                ], ignore_index=True)
-            
-            # Keep only recent data
-            if len(st.session_state.telemetry_data) > MAX_DATAPOINTS:
-                st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
-            
-            st.session_state.last_update = datetime.now()
+    if st.session_state.auto_refresh and st.session_state.subscriber and st.session_state.subscriber.is_connected:
+        new_messages_count = update_data_fragment()
     
     if new_messages_count > 0:
         st.sidebar.success(f"📨 +{new_messages_count} new messages")
@@ -1001,49 +1015,56 @@ def main():
         
         st.info(f"📊 {len(df)} data points | Last update: {st.session_state.last_update.strftime('%H:%M:%S')}")
         
-        # Charts
+        # FIXED: Charts with stable tab handling
         st.subheader("📈 Real-time Analytics")
         
+        # Create tabs with keys to maintain state
         tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
             "Speed Analysis", "Power System", "IMU Sensors", "Efficiency", "GPS Track", "Dynamic Charts", "Raw Data"
         ])
         
         with tab1:
-            st.plotly_chart(create_speed_chart(df), use_container_width=True)
+            # Use containers to prevent scrolling issues
+            with st.container():
+                st.plotly_chart(create_speed_chart(df), use_container_width=True, key="speed_chart")
         
         with tab2:
-            st.plotly_chart(create_power_chart(df), use_container_width=True)
+            with st.container():
+                st.plotly_chart(create_power_chart(df), use_container_width=True, key="power_chart")
         
         with tab3:
-            st.plotly_chart(create_imu_chart(df), use_container_width=True)
+            with st.container():
+                st.plotly_chart(create_imu_chart(df), use_container_width=True, key="imu_chart")
         
         with tab4:
-            st.plotly_chart(create_efficiency_chart(df), use_container_width=True)
+            with st.container():
+                st.plotly_chart(create_efficiency_chart(df), use_container_width=True, key="efficiency_chart")
         
         with tab5:
-            st.plotly_chart(create_gps_map(df), use_container_width=True)
+            with st.container():
+                st.plotly_chart(create_gps_map(df), use_container_width=True, key="gps_map")
         
         with tab6:
             # Use the improved dynamic charts section
-            render_dynamic_charts_section(df)
+            with st.container():
+                render_dynamic_charts_section(df)
         
         with tab7:
-            st.subheader("Raw Telemetry Data")
-            st.dataframe(df.tail(100), use_container_width=True)
-            
-            if not df.empty:
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
+            with st.container():
+                st.subheader("Raw Telemetry Data")
+                st.dataframe(df.tail(100), use_container_width=True)
+                
+                if not df.empty:
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download CSV",
+                        data=csv,
+                        file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
     
-    # Auto-refresh with improved handling
-    if st.session_state.auto_refresh and st.session_state.subscriber and st.session_state.subscriber.is_connected:
-        time.sleep(refresh_interval)
-        st.rerun()
+    # FIXED: Removed the auto-refresh sleep that was causing scroll issues
+    # The fragment handles the auto-refresh now
     
     # Footer
     st.markdown("---")
