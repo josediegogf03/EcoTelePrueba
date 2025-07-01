@@ -712,7 +712,7 @@ def render_connection_status(subscriber, stats):
     """Renders connection status and statistics in the sidebar."""
     if subscriber and subscriber.is_connected:
         st.sidebar.markdown(
-            '<div class="status-indicator status-connected">✅ Connected & Receiving Data</div>',
+            '<div class="status-indicator status-connected">✅ Connected</div>',
             unsafe_allow_html=True,
         )
     else:
