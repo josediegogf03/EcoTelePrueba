@@ -58,8 +58,8 @@ MAX_DATAPOINTS = 50000
 
 # Page configuration - Optimized for better performance
 st.set_page_config(
-    page_title="Shell Eco-marathon Telemetry Dashboard",
-    page_icon="🌏",
+    page_title="🏎️ Shell Eco-marathon Telemetry Dashboard",
+    page_icon="🏎️",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -1387,7 +1387,7 @@ def main():
     # Sticky header
     st.markdown('<div class="sticky-header">', unsafe_allow_html=True)
     st.markdown(
-        '<h1 class="main-header">🌏 Shell Eco-marathon Telemetry Dashboard</h1>',
+        '<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</h1>',
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
