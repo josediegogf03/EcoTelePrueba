@@ -1,4 +1,4 @@
-```markdown
+
 # 🏎️ Shell Eco-marathon Telemetry Dashboard
 
 [![Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
