@@ -798,7 +798,7 @@ def create_power_chart(df: pd.DataFrame):
         rows=2,
         cols=1,
         subplot_titles=("⚡ Voltage & Current", "🔋 Power Output"),
-        vertical_spacing=0.15,
+        vertical_spacing=0.25,
     )
 
     fig.add_trace(
