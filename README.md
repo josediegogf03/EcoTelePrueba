@@ -1,27 +1,37 @@
 # Shell Eco-marathon Telemetry Dashboard
 
-[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange)](https://github.com/your-username/eco-telemetry-dashboard) 
+[![Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A **real-time telemetry system** for Shell Eco-marathon vehicles.  
-Publish mock (or real) sensor data with a lightweight Python publisher and visualize live KPIs, charts & maps in a Streamlit dashboard—deployed seamlessly on Streamlit Community Cloud.
+Publish mock (or real) sensor data with a lightweight Python publisher and visualize live KPIs, interactive charts & maps in a Streamlit dashboard—deployable on Streamlit Community Cloud.
+
+---
+
+## ✨ v0.5 Beta Highlights
+
+- **Custom Chart Builder**  
+  Add, configure and remove your own charts on-the-fly: line, scatter, bar, histogram or heatmap—no code edits required.  
+- **Extended Sensor Suite**  
+  Ingest gyroscope & accelerometer streams alongside speed, voltage, power and GPS for deeper vehicle insights.  
+- **Visual & UX Overhaul**  
+  Theme-aware (light/dark) CSS, sticky header, modern buttons, info cards, tooltips and responsive layouts.  
 
 ---
 
 ## ✨ Features
 
-- **Low-latency WebSocket streaming** via Ably Realtime  
-- **Publisher** (`maindata.py`)  
-  - Simulates speed, voltage, current, power, cumulative energy/distance, GPS  
-  - Publishes JSON events (`telemetry_update`) every _n_ seconds  
-  - Automatic reconnect, graceful shutdown, detailed logging  
-- **Dashboard** (`dashboard_#.py`)  
-  - Connects to the same Ably channel  
-  - Buffers incoming messages thread-safely  
-  - Live KPIs: total distance, max/avg speed, energy, power, efficiency  
-  - Interactive charts: speed-over-time, electrical subsystem, efficiency scatter, GPS track  
+- Publisher (`maindata.py`):  
+  - Simulates & publishes JSON events (`telemetry_update`) over Ably Realtime  
+  - Sensors: speed, voltage, current, power, cumulative energy/distance, GPS, IMU (gyro & accel)  
+  - Auto-reconnect, graceful shutdown, detailed logging  
+- Dashboard (`dashboard_050.py`):  
+  - Subscribes to Ably channel, thread-safe message queue  
+  - Live KPIs: distance, max/avg speed, energy, power, efficiency, max accel, avg gyro  
+  - Tabs: Overview, Speed, Power, IMU, IMU Detail, Efficiency, GPS, **Custom**, Data  
+  - Custom chart builder with drag-and-drop controls  
   - Raw data preview & CSV download  
-  - Auto-refresh, connection stats, error reporting  
+  - Auto-refresh, connection stats & error reporting
 
 ---
 
@@ -30,62 +40,58 @@ Publish mock (or real) sensor data with a lightweight Python publisher and visua
 ```text
 ┌───────────────┐      WebSocket     ┌────────────────────┐      WebSocket     ┌─────────────────────┐
 │  Publisher    │ ──────────────────>│   Ably Realtime    │ ──────────────────>│ Streamlit Dashboard │
-│   maindata.py │                    │     (Pub/Sub)      │                    │   dashboard_#.py    │
+│   maindata.py │                    │     (Pub/Sub)      │                    │  dashboard_050.py   │
 └───────────────┘                    └────────────────────┘                    └─────────────────────┘
 ```
 
 1. **maindata.py**  
-   - Generates & publishes telemetry events to Ably  
+   Generates & publishes telemetry events.  
 2. **Ably Realtime**  
-   - Manages WebSocket connections, message routing  
-3. **dashboard_#.py**  
-   - Subscribes, queues, and renders data in Streamlit  
+   Manages WebSocket connections & message routing.  
+3. **dashboard_050.py**  
+   Subscribes, buffers and renders data via Streamlit.
 
 ---
 
 ## 🚀 Quickstart
 
-### 1. Clone & Install
-
 ```bash
-git clone https://github.com/your-username/ecotele.git
-cd eco-telemetry-dashboard
+# Clone the repo
+git clone https://github.com/ChosF/EcoTele.git
+cd EcoTele
+
+# Checkout the v0.5 Beta tag
+git fetch --tags
+git checkout Dashboard_Beta
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Run the Publisher
-
-```bash
-python maindata.py
-```
-
-_Watch the console for connection logs & publish events._
-
-### 3. Launch the Dashboard
-
-#### Local
-
-```bash
-streamlit run dashboard_#.py
-```
-
-#### Streamlit Community Cloud
-
-1. Push this repo to GitHub  
-2. In [Streamlit Cloud](https://streamlit.io/cloud), “New app” → Select repo & `dashboard_#.py`  
-3. Deploy and enjoy real-time telemetry
+1. **Run the Publisher**  
+   ```bash
+   python maindata.py
+   ```
+2. **Launch the Dashboard (local)**  
+   ```bash
+   streamlit run dashboard_050.py
+   ```
+3. **Deploy on Streamlit Cloud**  
+   - Push this repo to GitHub  
+   - In Streamlit Community Cloud, “New app” → select `dashboard_050.py`
 
 ---
 
 ## 🗂️ Repository Structure
 
 ```
-├── maindata.py           # Telemetry publisher  
-├── dashboard_#.py        # Streamlit subscriber dashboard  
-├── requirements.txt      # Python dependencies  
+├── maindata.py           # Telemetry publisher (v0.5 – IMU & sensor support)
+├── dashboard_050.py      # Current Streamlit dashboard (v0.5 Beta)
+├── dashboard_020.py      # Legacy dashboard build (v0.2 Alpha)
+├── demo_1.py             # First prototype (fully mock data, no Ably)
+├── requirements.txt      # Python dependencies
 ├── README.md             # Project overview & instructions
-├── demo1.py              # Dashboard demo verson. (Fully mock data, lacks connection)
-└── LICENSE               # MIT License  
+└── LICENSE               # MIT License
 ```
 
 ---
@@ -93,9 +99,8 @@ streamlit run dashboard_#.py
 ## 📄 License
 
 This project is released under the **MIT License**.  
-See [LICENSE](LICENSE) for full text.
+See [LICENSE](LICENSE) for details.
 
 ---
 
-> _This project is in **alpha** stage. Feedback, issues and contributions are very welcome!_  
-
+> _This project is in **Beta** stage. Feedback, issues and contributions are very welcome!_
