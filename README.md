@@ -1,11 +1,12 @@
 # 🏎️ Shell Eco-marathon Telemetry Dashboard
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)  
 [![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 
 A full-stack, real-time telemetry system for Shell Eco-marathon vehicles.  
 From an ESP32-based transmitter all the way through to a Streamlit dashboard—you’ll get live KPIs, charts, maps and fully customizable visualizations.
 
+---
 
 ## 🚀 Pipeline Overview
 
@@ -48,12 +49,12 @@ dashboard_050.py (Streamlit subscriber)
    • MQTT over SSL to `mqtt.ably.io:8883`  
    • Mock-data generator for vehicle dynamics & IMU  
 
-2. **Aggregator (`maindata.py`)**  
+2. **Aggregator** (`maindata.py`)  
    • MQTT client retrieves ESP32 payloads  
    • Ably Realtime client republishes under `telemetry_update`  
    • Thread-safe queue, asyncio integration, error tracking  
 
-3. **Dashboard (`dashboard_050.py`)**  
+3. **Dashboard** (`dashboard_050.py`)  
    • Streamlit frontend: thread-safe subscription to Ably Realtime  
    • Key Performance Indicators + rich Plotly charts  
    • Custom charts & correlation heatmap  
@@ -92,7 +93,7 @@ dashboard_050.py (Streamlit subscriber)
 ### Prerequisites
 
 - Python 3.8+  
-- [ESP-IDF toolchain](https://docs.espressif.com/projects/esp-idf/) (for flashing Transmiter.cpp)  
+- [ESP-IDF toolchain](https://docs.espressif.com/projects/esp-idf/) (for flashing `Transmiter.cpp`)  
 - `pip install -r requirements.txt`  
 
 ### 1. Flash the ESP32
@@ -134,7 +135,7 @@ EcoTele/
 ├── dashboard_020.py      # Legacy dashboard build (v0.2 Alpha)
 ├── demo_1.py             # First prototype (fully mock data, no Ably)
 ├── requirements.txt      # Python dependencies
-├── LICENSE               # MIT License
+├── LICENSE               # Apache License 2.0
 └── README.md             # This file
 ```
 
@@ -155,7 +156,7 @@ EcoTele/
 
 ## 📄 License
 
-This project is released under the **MIT License**.  
+This project is licensed under the **Apache License 2.0**.  
 See [LICENSE](LICENSE) for full details.
 
 ---
