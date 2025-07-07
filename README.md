@@ -1,7 +1,7 @@
 # 🏎️ Shell Eco-marathon Telemetry Dashboard
 
-[![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  
+[![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 
 A full-stack, real-time telemetry system for Shell Eco-marathon vehicles.  
 From an ESP32-based transmitter all the way through to a Streamlit dashboard—you’ll get live KPIs, charts, maps and fully customizable visualizations.
