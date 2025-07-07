@@ -130,7 +130,6 @@ streamlit run dashboard_050.py
 EcoTele/
 ├── Transmiter.cpp        # ESP32 mock-data transmitter (ESP-IDF / FreeRTOS)
 ├── maindata.py           # MQTT → Ably Realtime bridge & aggregator
-├── maindata_0.py         # Legacy publisher (mock-only v0.2)
 ├── dashboard_050.py      # Current Streamlit dashboard (v0.5 Beta)
 ├── dashboard_020.py      # Legacy dashboard build (v0.2 Alpha)
 ├── demo_1.py             # First prototype (fully mock data, no Ably)
