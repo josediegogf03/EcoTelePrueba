@@ -162,4 +162,3 @@ See [LICENSE](LICENSE) for full details.
 
 > _Feedback, bug reports & contributions are very welcome!_  
 > https://github.com/ChosF/EcoTele/issues  
-```
