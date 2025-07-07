@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -47,7 +46,9 @@ setup_terminal_logging()
 # Configuration
 ABLY_API_KEY = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
 CHANNEL_NAME = "telemetry-dashboard-channel"
-MAX_DATAPOINTS = 50000  # Increased capacity since we rely less on real-time queuing
+MAX_DATAPOINTS = 50000
+HISTORICAL_REFRESH_INTERVAL = 30  # seconds
+REDUCED_QUEUE_SIZE = 50  # Reduced queue size since we're getting historical data
 
 # Page configuration
 st.set_page_config(
@@ -62,9 +63,11 @@ st.set_page_config(
     },
 )
 
-# Enhanced CSS (keeping the original styles)
-st.markdown("""
+# CSS styling (keeping the existing styles)
+st.markdown(
+    """
 <style>
+    /* Theme-aware color variables */
     :root {
         --primary-color: #1f77b4;
         --success-color: #2ca02c;
@@ -77,6 +80,7 @@ st.markdown("""
         --border-color: #dee2e6;
     }
 
+    /* Dark theme overrides */
     @media (prefers-color-scheme: dark) {
         :root {
             --text-primary: #fafafa;
@@ -129,180 +133,131 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
     }
 
-    .instructions-container {
-        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-        border-radius: 16px;
-        padding: 2rem;
-        margin: 1.5rem 0;
-        border-left: 6px solid var(--primary-color);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    }
-
-    .instructions-title {
-        color: var(--primary-color);
-        font-size: 1.4rem;
-        font-weight: 700;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .instructions-content {
-        color: var(--text-primary);
-        line-height: 1.7;
-        font-size: 1rem;
-    }
-
-    .chart-type-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1.5rem 0;
-    }
-
-    .chart-type-card {
-        background: var(--bg-primary);
+    .historical-data-panel {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
         border-radius: 12px;
         padding: 1rem;
-        border: 2px solid var(--border-color);
-        transition: all 0.2s ease;
+        margin: 1rem 0;
+        border-left: 4px solid var(--primary-color);
     }
 
-    .chart-type-card:hover {
-        border-color: var(--primary-color);
-        transform: translateY(-2px);
-    }
-
-    .chart-type-name {
-        font-weight: 700;
-        color: var(--primary-color);
-        font-size: 1.1rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .chart-type-desc {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        line-height: 1.4;
-    }
-
-    .sticky-header {
-        position: sticky;
-        top: 0;
-        z-index: 100;
-        background: var(--bg-primary);
-        padding: 1rem 0;
-        border-bottom: 2px solid var(--border-color);
-        margin-bottom: 1rem;
-    }
-
-    .stButton > button {
-        border-radius: 8px;
-        border: 2px solid var(--primary-color);
-        background: var(--primary-color);
-        color: white;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .stButton > button:hover {
-        background: transparent;
-        color: var(--primary-color);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background: var(--bg-primary);
-        border-bottom: 2px solid var(--border-color);
-        border-radius: 8px 8px 0 0;
-        padding: 0.5rem;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 6px;
-        margin: 0 0.25rem;
-        transition: all 0.2s ease;
-    }
-
-    .element-container {
-        scroll-margin-top: 120px;
-    }
-
-    @media (max-width: 768px) {
-        .main-header {
-            font-size: 1.8rem;
-        }
-        .chart-type-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* New styles for historical data indicators */
-    .historical-data-indicator {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        color: #1565c0;
-        border: 2px solid #2196f3;
-        border-radius: 8px;
-        padding: 0.75rem;
-        margin: 0.5rem 0;
-        font-weight: 600;
-        font-size: 0.9rem;
-        text-align: center;
-    }
-
-    .data-source-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
+    .supabase-panel {
+        background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
         border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
-    }
-
-    .badge-historical {
-        background: #e3f2fd;
-        color: #1565c0;
-        border: 1px solid #2196f3;
-    }
-
-    .badge-realtime {
-        background: #e8f5e8;
-        color: #2e7d32;
-        border: 1px solid #4caf50;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-left: 4px solid #9c27b0;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
+class HistoricalDataRetriever:
+    """Handles retrieval of historical data from Ably"""
+    
+    def __init__(self, api_key: str, channel_name: str):
+        self.api_key = api_key
+        self.channel_name = channel_name
+        self.rest_client = None
+        self.logger = logging.getLogger("HistoricalDataRetriever")
+        
+    def connect(self):
+        """Connect to Ably REST API"""
+        try:
+            self.rest_client = AblyRest(self.api_key)
+            self.logger.info("✅ Connected to Ably REST API")
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ Failed to connect to Ably REST API: {e}")
+            return False
+    
+    def retrieve_historical_data(self, hours_back: int = 24, limit: int = 1000) -> List[Dict]:
+        """Retrieve historical messages from Ably"""
+        if not self.rest_client:
+            self.logger.error("❌ REST client not connected")
+            return []
+            
+        try:
+            # Calculate start time (hours back from now)
+            start_time = datetime.now() - timedelta(hours=hours_back)
+            start_timestamp = int(start_time.timestamp() * 1000)  # Convert to milliseconds
+            
+            # Get channel
+            channel = self.rest_client.channels.get(self.channel_name)
+            
+            # Retrieve history
+            self.logger.info(f"🔍 Retrieving historical data from {hours_back} hours ago...")
+            history = channel.history(
+                start=start_timestamp,
+                limit=limit,
+                direction='forwards'
+            )
+            
+            messages = []
+            for message in history.items:
+                if message.data and isinstance(message.data, dict):
+                    # Ensure timestamp is properly formatted
+                    msg_data = message.data.copy()
+                    if 'timestamp' not in msg_data:
+                        msg_data['timestamp'] = datetime.fromtimestamp(message.timestamp/1000).isoformat()
+                    messages.append(msg_data)
+            
+            self.logger.info(f"📊 Retrieved {len(messages)} historical messages")
+            return messages
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error retrieving historical data: {e}")
+            return []
+    
+    def retrieve_last_message(self) -> Optional[Dict]:
+        """Retrieve the last message from the channel"""
+        if not self.rest_client:
+            return None
+            
+        try:
+            channel = self.rest_client.channels.get(self.channel_name)
+            history = channel.history(limit=1)
+            
+            if history.items:
+                message = history.items[0]
+                if message.data and isinstance(message.data, dict):
+                    msg_data = message.data.copy()
+                    if 'timestamp' not in msg_data:
+                        msg_data['timestamp'] = datetime.fromtimestamp(message.timestamp/1000).isoformat()
+                    return msg_data
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error retrieving last message: {e}")
+            return None
 
 class TelemetrySubscriber:
-    """Enhanced telemetry subscriber with historical data retrieval capabilities."""
-
+    """Enhanced subscriber with historical data integration"""
+    
     def __init__(self):
         self.ably_client = None
-        self.ably_rest = None  # New: REST client for historical data
         self.channel = None
         self.is_connected = False
-        self.message_queue = queue.Queue(maxsize=100)  # Reduced queue size
+        self.message_queue = queue.Queue(maxsize=REDUCED_QUEUE_SIZE)  # Reduced queue size
         self.connection_thread = None
         self.stats = {
             "messages_received": 0,
-            "historical_messages_retrieved": 0,
             "last_message_time": None,
-            "last_historical_retrieval": None,
             "connection_attempts": 0,
             "errors": 0,
             "last_error": None,
+            "historical_messages_loaded": 0,
+            "last_historical_refresh": None,
         }
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._should_run = False
         self.logger = logging.getLogger("TelemetrySubscriber")
-
+        
+        # Historical data retriever
+        self.historical_retriever = HistoricalDataRetriever(ABLY_API_KEY, CHANNEL_NAME)
+        
     def connect(self) -> bool:
         """Connect to Ably and start receiving messages"""
         try:
@@ -310,22 +265,21 @@ class TelemetrySubscriber:
                 self.stats["connection_attempts"] += 1
 
             self.logger.info("🔌 Starting connection to Ably...")
-
+            
             if self._should_run:
                 self.disconnect()
 
             self._stop_event.clear()
             self._should_run = True
 
-            # Initialize both realtime and REST clients
-            self.ably_client = AblyRealtime(ABLY_API_KEY)
-            self.ably_rest = AblyRest(ABLY_API_KEY)
-
             self.connection_thread = threading.Thread(
                 target=self._connection_worker, daemon=True
             )
             self.connection_thread.start()
-
+            
+            # Also connect historical retriever
+            self.historical_retriever.connect()
+            
             time.sleep(3)
             return self.is_connected
 
@@ -336,7 +290,7 @@ class TelemetrySubscriber:
                 self.stats["last_error"] = str(e)
             self.is_connected = False
             return False
-
+    
     def _connection_worker(self):
         """Worker thread to handle Ably connection"""
         try:
@@ -356,7 +310,8 @@ class TelemetrySubscriber:
     async def _async_connection_handler(self):
         """Handle Ably connection asynchronously"""
         try:
-            self.logger.info("🔑 Creating Ably clients...")
+            self.logger.info("🔑 Creating Ably client...")
+            self.ably_client = AblyRealtime(ABLY_API_KEY)
 
             def on_connected(state_change):
                 self.logger.info(f"✅ Connected to Ably: {state_change}")
@@ -391,6 +346,7 @@ class TelemetrySubscriber:
 
             while self._should_run and not self._stop_event.is_set():
                 await asyncio.sleep(1)
+
                 if hasattr(self.ably_client.connection, "state"):
                     state = self.ably_client.connection.state
                     if state not in ["connected"]:
@@ -431,15 +387,13 @@ class TelemetrySubscriber:
                     self.stats["last_error"] = f"Invalid data type: {type(data)}"
                 return
 
-            # Mark as real-time data
-            data['data_retrieval_type'] = 'realtime'
-            
             self.logger.debug(f"📊 Data keys: {list(data.keys())}")
 
             with self._lock:
-                if self.message_queue.qsize() >= 50:  # Reduced threshold
+                # Clear queue if it's full to prevent blocking
+                if self.message_queue.full():
                     try:
-                        while self.message_queue.qsize() > 25:
+                        while self.message_queue.qsize() > REDUCED_QUEUE_SIZE // 2:
                             self.message_queue.get_nowait()
                     except queue.Empty:
                         pass
@@ -456,88 +410,24 @@ class TelemetrySubscriber:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = f"Message error: {e}"
 
-    async def retrieve_historical_data(self, hours_back: int = 24) -> List[Dict[str, Any]]:
-        """Retrieve historical messages from Ably using REST API"""
+    def load_historical_data(self, hours_back: int = 24) -> List[Dict]:
+        """Load historical data from Ably"""
         try:
-            if not self.ably_rest:
-                self.logger.error("❌ REST client not initialized")
-                return []
-
-            self.logger.info(f"🔄 Retrieving historical data from last {hours_back} hours...")
+            self.logger.info(f"📚 Loading historical data from {hours_back} hours ago...")
+            historical_messages = self.historical_retriever.retrieve_historical_data(hours_back)
             
-            # Calculate time range
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours_back)
-            
-            # Convert to milliseconds since epoch
-            start_ms = int(start_time.timestamp() * 1000)
-            end_ms = int(end_time.timestamp() * 1000)
-
-            # Get the channel for history retrieval
-            channel = self.ably_rest.channels.get(CHANNEL_NAME)
-            
-            # Retrieve history with pagination
-            historical_messages = []
-            
-            # Get the first page of history
-            history_page = await channel.history(
-                start=start_ms,
-                end=end_ms,
-                limit=1000,  # Maximum limit per request
-                direction='forwards'
-            )
-            
-            # Process messages from the first page
-            for message in history_page.items:
-                try:
-                    if message.name == "telemetry_update":
-                        data = message.data
-                        if isinstance(data, str):
-                            data = json.loads(data)
-                        
-                        # Mark as historical data
-                        data['data_retrieval_type'] = 'historical'
-                        data['historical_timestamp'] = message.timestamp
-                        
-                        historical_messages.append(data)
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Error processing historical message: {e}")
-                    continue
-
-            # Get additional pages if available
-            while history_page.has_next():
-                try:
-                    history_page = await history_page.next()
-                    for message in history_page.items:
-                        try:
-                            if message.name == "telemetry_update":
-                                data = message.data
-                                if isinstance(data, str):
-                                    data = json.loads(data)
-                                
-                                data['data_retrieval_type'] = 'historical'
-                                data['historical_timestamp'] = message.timestamp
-                                
-                                historical_messages.append(data)
-                        except Exception as e:
-                            self.logger.warning(f"⚠️ Error processing historical message: {e}")
-                            continue
-                except Exception as e:
-                    self.logger.error(f"❌ Error retrieving additional history page: {e}")
-                    break
-
             with self._lock:
-                self.stats["historical_messages_retrieved"] = len(historical_messages)
-                self.stats["last_historical_retrieval"] = datetime.now()
-
-            self.logger.info(f"✅ Retrieved {len(historical_messages)} historical messages")
+                self.stats["historical_messages_loaded"] = len(historical_messages)
+                self.stats["last_historical_refresh"] = datetime.now()
+            
+            self.logger.info(f"✅ Loaded {len(historical_messages)} historical messages")
             return historical_messages
-
+            
         except Exception as e:
-            self.logger.error(f"❌ Historical data retrieval error: {e}")
+            self.logger.error(f"❌ Error loading historical data: {e}")
             with self._lock:
                 self.stats["errors"] += 1
-                self.stats["last_error"] = f"Historical retrieval error: {e}"
+                self.stats["last_error"] = f"Historical data error: {e}"
             return []
 
     def get_messages(self) -> List[Dict[str, Any]]:
@@ -567,16 +457,9 @@ class TelemetrySubscriber:
             if self.ably_client:
                 try:
                     self.ably_client.close()
-                    self.logger.info("✅ Ably realtime connection closed")
+                    self.logger.info("✅ Ably connection closed")
                 except Exception as e:
-                    self.logger.warning(f"⚠️ Error closing Ably realtime: {e}")
-
-            if self.ably_rest:
-                try:
-                    self.ably_rest.close()
-                    self.logger.info("✅ Ably REST connection closed")
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Error closing Ably REST: {e}")
+                    self.logger.warning(f"⚠️ Error closing Ably: {e}")
 
             if self.connection_thread and self.connection_thread.is_alive():
                 self.connection_thread.join(timeout=5)
@@ -592,7 +475,6 @@ class TelemetrySubscriber:
                 self.stats["last_error"] = f"Disconnect error: {e}"
         finally:
             self.ably_client = None
-            self.ably_rest = None
             self.channel = None
 
     def get_stats(self) -> Dict[str, Any]:
@@ -600,15 +482,14 @@ class TelemetrySubscriber:
         with self._lock:
             return self.stats.copy()
 
-
 def initialize_session_state():
-    """Initialize session state with enhanced defaults"""
+    """Initialize session state variables"""
     defaults = {
         "subscriber": None,
         "telemetry_data": pd.DataFrame(),
-        "historical_data_loaded": False,
+        "historical_data": pd.DataFrame(),
         "last_update": datetime.now(),
-        "last_historical_update": None,
+        "last_historical_refresh": None,
         "auto_refresh": True,
         "auto_historical_refresh": True,
         "dynamic_charts": [],
@@ -621,6 +502,36 @@ def initialize_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
+def merge_historical_and_realtime_data(historical_df: pd.DataFrame, realtime_df: pd.DataFrame) -> pd.DataFrame:
+    """Merge historical and realtime data, removing duplicates"""
+    if historical_df.empty and realtime_df.empty:
+        return pd.DataFrame()
+    
+    if historical_df.empty:
+        return realtime_df.copy()
+    
+    if realtime_df.empty:
+        return historical_df.copy()
+    
+    # Combine dataframes
+    combined_df = pd.concat([historical_df, realtime_df], ignore_index=True)
+    
+    # Remove duplicates based on timestamp and message_id if available
+    if 'timestamp' in combined_df.columns:
+        combined_df['timestamp'] = pd.to_datetime(combined_df['timestamp'])
+        combined_df = combined_df.sort_values('timestamp')
+        
+        # Remove duplicates based on timestamp and message_id
+        if 'message_id' in combined_df.columns:
+            combined_df = combined_df.drop_duplicates(subset=['timestamp', 'message_id'], keep='last')
+        else:
+            combined_df = combined_df.drop_duplicates(subset=['timestamp'], keep='last')
+    
+    # Limit to MAX_DATAPOINTS
+    if len(combined_df) > MAX_DATAPOINTS:
+        combined_df = combined_df.tail(MAX_DATAPOINTS)
+    
+    return combined_df.reset_index(drop=True)
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs with enhanced error handling"""
@@ -688,9 +599,8 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-
 def render_kpi_header(kpis: Dict[str, float]):
-    """Render KPI header with data source indicators"""
+    """Render KPI header"""
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -709,9 +619,8 @@ def render_kpi_header(kpis: Dict[str, float]):
         st.metric("📈 Max Acc.", f"{kpis['max_acceleration']:.2f} m/s²")
         st.metric("🎯 Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s")
 
-
 def render_connection_status(subscriber, stats):
-    """Render enhanced connection status with historical data info"""
+    """Render connection status in sidebar"""
     if subscriber and subscriber.is_connected:
         st.sidebar.markdown(
             '<div class="status-indicator status-connected">✅ Connected</div>',
@@ -723,30 +632,227 @@ def render_connection_status(subscriber, stats):
             unsafe_allow_html=True,
         )
 
-    # Enhanced statistics display
+    # Connection statistics
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        st.metric("📨 Real-time", stats["messages_received"], delta=None)
-        st.metric("📚 Historical", stats["historical_messages_retrieved"], delta=None)
+        st.metric("📨 Messages", stats["messages_received"])
+        st.metric("🔌 Attempts", stats["connection_attempts"])
     with col2:
-        st.metric("🔌 Attempts", stats["connection_attempts"], delta=None)
-        st.metric("❌ Errors", stats["errors"], delta=None)
+        st.metric("❌ Errors", stats["errors"])
+        if stats["last_message_time"]:
+            time_since = (datetime.now() - stats["last_message_time"]).total_seconds()
+            st.metric("⏱️ Last Msg", f"{time_since:.0f}s ago")
+        else:
+            st.metric("⏱️ Last Msg", "Never")
 
-    # Last message and historical retrieval times
-    if stats["last_message_time"]:
-        time_since = (datetime.now() - stats["last_message_time"]).total_seconds()
-        st.sidebar.metric("⏱️ Last Msg", f"{time_since:.0f}s ago", delta=None)
-    else:
-        st.sidebar.metric("⏱️ Last Msg", "Never", delta=None)
+def render_historical_data_panel():
+    """Render historical data controls"""
+    st.sidebar.markdown(
+        """
+        <div class="historical-data-panel">
+            <h3>📚 Historical Data</h3>
+            <p>Retrieve past 24 hours of telemetry data from Ably's persistent storage</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        if st.button("🔄 Load History", use_container_width=True, help="Load historical data from Ably"):
+            if st.session_state.subscriber:
+                with st.spinner("Loading historical data..."):
+                    historical_messages = st.session_state.subscriber.load_historical_data(24)
+                    if historical_messages:
+                        historical_df = pd.DataFrame(historical_messages)
+                        if "timestamp" in historical_df.columns:
+                            historical_df["timestamp"] = pd.to_datetime(historical_df["timestamp"])
+                        st.session_state.historical_data = historical_df
+                        st.success(f"✅ Loaded {len(historical_messages)} historical messages")
+                    else:
+                        st.warning("⚠️ No historical data available")
+            else:
+                st.error("❌ Please connect first")
+    
+    with col2:
+        auto_historical = st.checkbox(
+            "Auto Load",
+            value=st.session_state.get("auto_historical_refresh", True),
+            help="Automatically refresh historical data every 30 seconds"
+        )
+        st.session_state.auto_historical_refresh = auto_historical
 
-    if stats["last_historical_retrieval"]:
-        hist_time_since = (datetime.now() - stats["last_historical_retrieval"]).total_seconds()
-        st.sidebar.metric("📚 Last Hist", f"{hist_time_since:.0f}s ago", delta=None)
+    # Display historical data stats
+    if not st.session_state.historical_data.empty:
+        st.sidebar.success(f"📊 {len(st.session_state.historical_data)} historical records loaded")
+        
+        if st.session_state.subscriber:
+            stats = st.session_state.subscriber.get_stats()
+            if stats.get("last_historical_refresh"):
+                time_since = (datetime.now() - stats["last_historical_refresh"]).total_seconds()
+                st.sidebar.info(f"⏱️ Last refresh: {time_since:.0f}s ago")
 
+def render_supabase_panel():
+    """Render Supabase integration panel"""
+    st.sidebar.markdown(
+        """
+        <div class="supabase-panel">
+            <h3>🗃️ Past Sessions</h3>
+            <p>Retrieve data from previous racing sessions stored in Supabase</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    # Session selection
+    session_options = [
+        "Select a session...",
+        "Session 2025-01-01 (Practice)",
+        "Session 2025-01-02 (Qualification)",
+        "Session 2025-01-03 (Race 1)",
+        "Session 2025-01-04 (Race 2)",
+    ]
+    
+    selected_session = st.sidebar.selectbox(
+        "📅 Select Session",
+        options=session_options,
+        help="Choose a past session to load data from"
+    )
+    
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        if st.button("📥 Load Session", use_container_width=True, disabled=selected_session == "Select a session..."):
+            if selected_session != "Select a session...":
+                with st.spinner(f"Loading {selected_session}..."):
+                    # Placeholder for Supabase integration
+                    time.sleep(2)
+                    st.info("🚧 Supabase integration coming soon!")
+    
+    with col2:
+        if st.button("🗑️ Clear", use_container_width=True):
+            st.session_state.historical_data = pd.DataFrame()
+            st.success("✅ Historical data cleared")
 
-# Keep all the existing chart functions unchanged
+# Chart creation functions (keeping existing ones for brevity)
+def create_speed_chart(df: pd.DataFrame):
+    """Generate speed chart"""
+    if df.empty or "speed_ms" not in df.columns:
+        return go.Figure().add_annotation(
+            text="No speed data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    fig = px.line(df, x="timestamp", y="speed_ms", title="🚗 Vehicle Speed Over Time",
+                  labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
+                  color_discrete_sequence=["#1f77b4"])
+    return fig
+
+def create_power_chart(df: pd.DataFrame):
+    """Generate power chart"""
+    if df.empty or not all(col in df.columns for col in ["voltage_v", "current_a", "power_w"]):
+        return go.Figure().add_annotation(
+            text="No power data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    fig = make_subplots(rows=2, cols=1, subplot_titles=("⚡ Voltage & Current", "🔋 Power Output"),
+                        vertical_spacing=0.15)
+    
+    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["voltage_v"], name="Voltage (V)",
+                            line=dict(color="#2ca02c", width=2)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["current_a"], name="Current (A)",
+                            line=dict(color="#d62728", width=2)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["power_w"], name="Power (W)",
+                            line=dict(color="#ff7f0e", width=2)), row=2, col=1)
+    
+    fig.update_layout(height=500, title_text="⚡ Electrical System Performance")
+    return fig
+
+def create_imu_chart(df: pd.DataFrame):
+    """Generate IMU chart"""
+    if df.empty or not all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"]):
+        return go.Figure().add_annotation(
+            text="No IMU data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    fig = make_subplots(rows=2, cols=1, subplot_titles=("🎯 Gyroscope Data (deg/s)", "📈 Accelerometer Data (m/s²)"),
+                        vertical_spacing=0.25)
+    
+    colors_gyro = ["#e74c3c", "#2ecc71", "#3498db"]
+    for i, axis in enumerate(["gyro_x", "gyro_y", "gyro_z"]):
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=df[axis], name=f"Gyro {axis[-1].upper()}",
+                                line=dict(color=colors_gyro[i], width=2)), row=1, col=1)
+    
+    colors_accel = ["#f39c12", "#9b59b6", "#34495e"]
+    for i, axis in enumerate(["accel_x", "accel_y", "accel_z"]):
+        fig.add_trace(go.Scatter(x=df["timestamp"], y=df[axis], name=f"Accel {axis[-1].upper()}",
+                                line=dict(color=colors_accel[i], width=2)), row=2, col=1)
+    
+    fig.update_layout(height=600, title_text="🎮 IMU Sensor Data Analysis")
+    return fig
+
+def create_efficiency_chart(df: pd.DataFrame):
+    """Generate efficiency chart"""
+    if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
+        return go.Figure().add_annotation(
+            text="No efficiency data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    fig = px.scatter(df, x="speed_ms", y="power_w", color="voltage_v" if "voltage_v" in df.columns else None,
+                     title="⚡ Efficiency Analysis: Speed vs Power Consumption",
+                     labels={"speed_ms": "Speed (m/s)", "power_w": "Power (W)"},
+                     color_continuous_scale="viridis")
+    return fig
+
+def create_gps_map(df: pd.DataFrame):
+    """Generate GPS map"""
+    if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
+        return go.Figure().add_annotation(
+            text="No GPS data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    df_valid = df.dropna(subset=["latitude", "longitude"])
+    if df_valid.empty:
+        return go.Figure().add_annotation(
+            text="No valid GPS coordinates", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
+        )
+    
+    center_point = dict(lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean())
+    
+    fig = px.scatter_map(df_valid, lat="latitude", lon="longitude",
+                         color="speed_ms" if "speed_ms" in df_valid.columns else None,
+                         size="power_w" if "power_w" in df_valid.columns else None,
+                         hover_data=["speed_ms", "power_w", "voltage_v"] if all(col in df_valid.columns for col in ["speed_ms", "power_w", "voltage_v"]) else None,
+                         map_style="open-street-map", title="🛰️ Vehicle Track and Performance",
+                         height=400, zoom=15, center=center_point, color_continuous_scale="plasma")
+    
+    return fig
+
+def render_overview_tab(kpis: Dict[str, float]):
+    """Render overview tab"""
+    st.markdown("### 📊 Performance Overview")
+    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("🛣️ Total Distance", f"{kpis['total_distance_km']:.2f} km", help="Distance traveled during the session")
+        st.metric("🔋 Energy Consumed", f"{kpis['total_energy_mj']:.2f} MJ", help="Total energy consumption")
+    
+    with col2:
+        st.metric("🚀 Maximum Speed", f"{kpis['max_speed_ms']:.1f} m/s", help="Highest speed achieved")
+        st.metric("💡 Average Power", f"{kpis['avg_power_w']:.1f} W", help="Mean power consumption")
+    
+    with col3:
+        st.metric("🏃 Average Speed", f"{kpis['avg_speed_ms']:.1f} m/s", help="Mean speed throughout the session")
+        st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ", help="Energy efficiency ratio")
+    
+    with col4:
+        st.metric("📈 Max Acceleration", f"{kpis['max_acceleration']:.2f} m/s²", help="Peak acceleration recorded")
+        st.metric("🎯 Avg Gyro Magnitude", f"{kpis['avg_gyro_magnitude']:.2f} °/s", help="Average rotational movement")
+
 def create_optimized_chart(df: pd.DataFrame, chart_func, title: str):
-    """Creates an optimized Plotly chart by applying consistent styling."""
+    """Create optimized chart with consistent styling"""
     try:
         fig = chart_func(df)
         if fig:
@@ -763,472 +869,43 @@ def create_optimized_chart(df: pd.DataFrame, chart_func, title: str):
         st.error(f"Error creating {title}: {e}")
         return None
 
-
-def create_speed_chart(df: pd.DataFrame):
-    """Generate speed chart with data source indicators"""
-    if df.empty or "speed_ms" not in df.columns:
-        return go.Figure().add_annotation(
-            text="No speed data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    fig = px.line(
-        df, x="timestamp", y="speed_ms", title="🚗 Vehicle Speed Over Time",
-        labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
-        color="data_retrieval_type" if "data_retrieval_type" in df.columns else None,
-        color_discrete_map={"historical": "#2196f3", "realtime": "#4caf50"}
-    )
-    return fig
-
-
-def create_power_chart(df: pd.DataFrame):
-    """Generate power chart with enhanced styling"""
-    if df.empty or not all(col in df.columns for col in ["voltage_v", "current_a", "power_w"]):
-        return go.Figure().add_annotation(
-            text="No power data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    fig = make_subplots(
-        rows=2, cols=1, subplot_titles=("⚡ Voltage & Current", "🔋 Power Output"),
-        vertical_spacing=0.15,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=df["timestamp"], y=df["voltage_v"], name="Voltage (V)",
-            line=dict(color="#2ca02c", width=2),
-        ), row=1, col=1,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["timestamp"], y=df["current_a"], name="Current (A)",
-            line=dict(color="#d62728", width=2),
-        ), row=1, col=1,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["timestamp"], y=df["power_w"], name="Power (W)",
-            line=dict(color="#ff7f0e", width=2),
-        ), row=2, col=1,
-    )
-
-    fig.update_layout(height=500, title_text="⚡ Electrical System Performance")
-    return fig
-
-
-def create_imu_chart(df: pd.DataFrame):
-    """Generate IMU chart"""
-    if df.empty or not all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"]):
-        return go.Figure().add_annotation(
-            text="No IMU data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    fig = make_subplots(
-        rows=2, cols=1, 
-        subplot_titles=("🎯 Gyroscope Data (deg/s)", "📈 Accelerometer Data (m/s²)"),
-        vertical_spacing=0.25,
-    )
-
-    colors_gyro = ["#e74c3c", "#2ecc71", "#3498db"]
-    for i, axis in enumerate(["gyro_x", "gyro_y", "gyro_z"]):
-        fig.add_trace(
-            go.Scatter(
-                x=df["timestamp"], y=df[axis], name=f"Gyro {axis[-1].upper()}",
-                line=dict(color=colors_gyro[i], width=2),
-            ), row=1, col=1,
-        )
-
-    colors_accel = ["#f39c12", "#9b59b6", "#34495e"]
-    for i, axis in enumerate(["accel_x", "accel_y", "accel_z"]):
-        fig.add_trace(
-            go.Scatter(
-                x=df["timestamp"], y=df[axis], name=f"Accel {axis[-1].upper()}",
-                line=dict(color=colors_accel[i], width=2),
-            ), row=2, col=1,
-        )
-
-    fig.update_layout(height=600, title_text="🎮 IMU Sensor Data Analysis")
-    return fig
-
-
-def create_imu_chart_2(df: pd.DataFrame):
-    """Generate detailed IMU chart"""
-    if df.empty or not all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"]):
-        return go.Figure().add_annotation(
-            text="No IMU data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    fig = make_subplots(
-        rows=2, cols=3,
-        subplot_titles=("🌀 Gyro X", "🌀 Gyro Y", "🌀 Gyro Z", "📊 Accel X", "📊 Accel Y", "📊 Accel Z"),
-        vertical_spacing=0.3, horizontal_spacing=0.1,
-    )
-
-    gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
-    accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
-
-    for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
-        fig.add_trace(
-            go.Scatter(
-                x=df["timestamp"], y=df[axis], name=f"Gyro {axis[-1].upper()}",
-                line=dict(color=color, width=2), showlegend=False,
-            ), row=1, col=i + 1,
-        )
-
-    for i, (axis, color) in enumerate(zip(["accel_x", "accel_y", "accel_z"], accel_colors)):
-        fig.add_trace(
-            go.Scatter(
-                x=df["timestamp"], y=df[axis], name=f"Accel {axis[-1].upper()}",
-                line=dict(color=color, width=2), showlegend=False,
-            ), row=2, col=i + 1,
-        )
-
-    fig.update_layout(height=600, title_text="🎮 Detailed IMU Sensor Analysis")
-    return fig
-
-
-def create_efficiency_chart(df: pd.DataFrame):
-    """Generate efficiency chart"""
-    if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
-        return go.Figure().add_annotation(
-            text="No efficiency data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    fig = px.scatter(
-        df, x="speed_ms", y="power_w", 
-        color="voltage_v" if "voltage_v" in df.columns else None,
-        title="⚡ Efficiency Analysis: Speed vs Power Consumption",
-        labels={"speed_ms": "Speed (m/s)", "power_w": "Power (W)"},
-        color_continuous_scale="viridis",
-    )
-    return fig
-
-
-def create_gps_map(df: pd.DataFrame):
-    """Generate GPS map"""
-    if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
-        return go.Figure().add_annotation(
-            text="No GPS data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    df_valid = df.dropna(subset=["latitude", "longitude"])
-    if df_valid.empty:
-        return go.Figure().add_annotation(
-            text="No valid GPS coordinates", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    center_point = dict(lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean())
-
-    fig = px.scatter_map(
-        df_valid, lat="latitude", lon="longitude",
-        color="speed_ms" if "speed_ms" in df_valid.columns else None,
-        size="power_w" if "power_w" in df_valid.columns else None,
-        hover_data=["speed_ms", "power_w", "voltage_v"] if all(
-            col in df_valid.columns for col in ["speed_ms", "power_w", "voltage_v"]
-        ) else None,
-        map_style="open-street-map", title="🛰️ Vehicle Track and Performance",
-        height=400, zoom=15, center=center_point, color_continuous_scale="plasma",
-    )
-    return fig
-
-
-def get_available_columns(df: pd.DataFrame) -> List[str]:
-    """Get available numeric columns for plotting"""
-    if df.empty:
-        return []
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    exclude_cols = ["message_id", "uptime_seconds"]
-    return [col for col in numeric_columns if col not in exclude_cols]
-
-
-def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
-    """Create dynamic chart with enhanced functionality"""
-    if df.empty:
-        return go.Figure().add_annotation(
-            text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    x_col = chart_config.get("x_axis")
-    y_col = chart_config.get("y_axis")
-    chart_type = chart_config.get("chart_type", "line")
-    title = chart_config.get("title", f"{y_col} vs {x_col}")
-
-    if not y_col or y_col not in df.columns:
-        return go.Figure().add_annotation(
-            text="Invalid column selection", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-    try:
-        if chart_type == "line":
-            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
-        elif chart_type == "scatter":
-            fig = px.scatter(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#ff7f0e"])
-        elif chart_type == "bar":
-            recent_df = df.tail(20)
-            fig = px.bar(recent_df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#2ca02c"])
-        elif chart_type == "histogram":
-            fig = px.histogram(df, x=y_col, title=f"Distribution of {y_col}", color_discrete_sequence=["#d62728"])
-        elif chart_type == "heatmap":
-            numeric_cols = get_available_columns(df)
-            if len(numeric_cols) >= 2:
-                corr_matrix = df[numeric_cols].corr()
-                fig = px.imshow(
-                    corr_matrix, title=f"🔥 Correlation Heatmap",
-                    color_continuous_scale="RdBu_r", aspect="auto"
-                )
-            else:
-                fig = go.Figure().add_annotation(
-                    text="Need at least 2 numeric columns for heatmap",
-                    xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-                )
-        else:
-            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
-
-        fig.update_layout(height=400)
-        return fig
-
-    except Exception as e:
-        return go.Figure().add_annotation(
-            text=f"Error creating chart: {str(e)}", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-        )
-
-
-def render_dynamic_charts_section(df: pd.DataFrame):
-    """Render the dynamic charts section"""
-    st.session_state.is_auto_refresh = True
-
-    st.markdown("""
-    <div class="instructions-container">
-        <div class="instructions-title">🎯 Create Custom Charts</div>
-        <div class="instructions-content">
-            <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
-            <p><strong>Enhanced:</strong> Charts now show historical vs real-time data when available.</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="chart-type-grid">
-        <div class="chart-type-card">
-            <div class="chart-type-name">📈 Line Chart</div>
-            <div class="chart-type-desc">Great for time series data and trends</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">🔵 Scatter Plot</div>
-            <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">📊 Bar Chart</div>
-            <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">📉 Histogram</div>
-            <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">🔥 Heatmap</div>
-            <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    try:
-        available_columns = get_available_columns(df)
-    except Exception as e:
-        st.error(f"Error getting available columns: {e}")
-        available_columns = []
-
-    if not available_columns:
-        st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
-        return
-
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
-            try:
-                new_chart = {
-                    "id": str(uuid.uuid4()),
-                    "title": "New Chart",
-                    "chart_type": "line",
-                    "x_axis": "timestamp" if "timestamp" in df.columns else available_columns[0],
-                    "y_axis": available_columns[0] if available_columns else None,
-                }
-                st.session_state.dynamic_charts.append(new_chart)
-                st.session_state.is_auto_refresh = False
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error adding chart: {e}")
-
-    with col2:
-        if st.session_state.dynamic_charts:
-            st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
-
-    if st.session_state.dynamic_charts:
-        for i, chart_config in enumerate(st.session_state.dynamic_charts):
-            try:
-                with st.container(border=True):
-                    col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
-
-                    with col1:
-                        new_title = st.text_input(
-                            "Title", value=chart_config.get("title", "New Chart"),
-                            key=f"title_{chart_config['id']}"
-                        )
-                        if new_title != chart_config.get("title"):
-                            st.session_state.dynamic_charts[i]["title"] = new_title
-
-                    with col2:
-                        new_type = st.selectbox(
-                            "Type", options=["line", "scatter", "bar", "histogram", "heatmap"],
-                            index=["line", "scatter", "bar", "histogram", "heatmap"].index(
-                                chart_config.get("chart_type", "line")
-                            ),
-                            key=f"type_{chart_config['id']}"
-                        )
-                        if new_type != chart_config.get("chart_type"):
-                            st.session_state.dynamic_charts[i]["chart_type"] = new_type
-
-                    with col3:
-                        if chart_config.get("chart_type", "line") not in ["histogram", "heatmap"]:
-                            x_options = (
-                                ["timestamp"] + available_columns if "timestamp" in df.columns else available_columns
-                            )
-                            current_x = chart_config.get("x_axis", x_options[0])
-                            if current_x not in x_options and x_options:
-                                current_x = x_options[0]
-
-                            if x_options:
-                                new_x = st.selectbox(
-                                    "X-Axis", options=x_options,
-                                    index=x_options.index(current_x) if current_x in x_options else 0,
-                                    key=f"x_{chart_config['id']}"
-                                )
-                                if new_x != chart_config.get("x_axis"):
-                                    st.session_state.dynamic_charts[i]["x_axis"] = new_x
-
-                    with col4:
-                        if chart_config.get("chart_type", "line") != "heatmap":
-                            if available_columns:
-                                current_y = chart_config.get("y_axis", available_columns[0])
-                                if current_y not in available_columns:
-                                    current_y = available_columns[0]
-
-                                new_y = st.selectbox(
-                                    "Y-Axis", options=available_columns,
-                                    index=available_columns.index(current_y) if current_y in available_columns else 0,
-                                    key=f"y_{chart_config['id']}"
-                                )
-                                if new_y != chart_config.get("y_axis"):
-                                    st.session_state.dynamic_charts[i]["y_axis"] = new_y
-
-                    with col5:
-                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
-                            try:
-                                st.session_state.dynamic_charts.pop(i)
-                                st.session_state.is_auto_refresh = False
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error deleting chart: {e}")
-
-                    try:
-                        if chart_config.get("chart_type") == "heatmap" or chart_config.get("y_axis"):
-                            fig = create_dynamic_chart(df, chart_config)
-                            if fig:
-                                st.plotly_chart(fig, use_container_width=True, key=f"chart_{chart_config['id']}")
-                        else:
-                            st.warning("Please select a Y-axis variable for this chart.")
-                    except Exception as e:
-                        st.error(f"Error creating chart: {e}")
-
-            except Exception as e:
-                st.error(f"Error rendering chart {i}: {e}")
-
-
-def render_overview_tab(kpis: Dict[str, float]):
-    """Render the enhanced overview tab"""
-    st.markdown("### 📊 Performance Overview")
-    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
-
-    # Display data source information
-    if st.session_state.historical_data_loaded:
-        st.markdown("""
-        <div class="historical-data-indicator">
-            📚 Historical data loaded from the last 24 hours
-            <span class="data-source-badge badge-historical">HISTORICAL</span>
-            <span class="data-source-badge badge-realtime">REAL-TIME</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            label="🛣️ Total Distance", value=f"{kpis['total_distance_km']:.2f} km",
-            help="Distance traveled during the session"
-        )
-        st.metric(
-            label="🔋 Energy Consumed", value=f"{kpis['total_energy_mj']:.2f} MJ",
-            help="Total energy consumption"
-        )
-
-    with col2:
-        st.metric(
-            label="🚀 Maximum Speed", value=f"{kpis['max_speed_ms']:.1f} m/s",
-            help="Highest speed achieved"
-        )
-        st.metric(
-            label="💡 Average Power", value=f"{kpis['avg_power_w']:.1f} W",
-            help="Mean power consumption"
-        )
-
-    with col3:
-        st.metric(
-            label="🏃 Average Speed", value=f"{kpis['avg_speed_ms']:.1f} m/s",
-            help="Mean speed throughout the session"
-        )
-        st.metric(
-            label="♻️ Efficiency", value=f"{kpis['efficiency_km_per_mj']:.2f} km/MJ",
-            help="Energy efficiency ratio"
-        )
-
-    with col4:
-        st.metric(
-            label="📈 Max Acceleration", value=f"{kpis['max_acceleration']:.2f} m/s²",
-            help="Peak acceleration recorded"
-        )
-        st.metric(
-            label="🎯 Avg Gyro Magnitude", value=f"{kpis['avg_gyro_magnitude']:.2f} °/s",
-            help="Average rotational movement"
-        )
-
-
-async def main():
-    """Enhanced main function with historical data support"""
+def main():
+    """Main dashboard function"""
     st.markdown('<div class="sticky-header">', unsafe_allow_html=True)
     st.markdown('<h1 class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</h1>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
+    
     initialize_session_state()
-
+    
+    # Sidebar controls
     with st.sidebar:
         st.header("🔧 Connection Control")
-
+        
+        # Connection buttons
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔌 Connect", use_container_width=True):
                 if st.session_state.subscriber:
                     st.session_state.subscriber.disconnect()
                     time.sleep(2)
-
+                
                 with st.spinner("Connecting..."):
                     st.session_state.subscriber = TelemetrySubscriber()
                     if st.session_state.subscriber.connect():
                         st.success("✅ Connected!")
+                        # Load initial historical data
+                        historical_messages = st.session_state.subscriber.load_historical_data(24)
+                        if historical_messages:
+                            historical_df = pd.DataFrame(historical_messages)
+                            if "timestamp" in historical_df.columns:
+                                historical_df["timestamp"] = pd.to_datetime(historical_df["timestamp"])
+                            st.session_state.historical_data = historical_df
                     else:
                         st.error("❌ Failed!")
-
+                
                 st.session_state.is_auto_refresh = False
                 st.rerun()
-
+        
         with col2:
             if st.button("🛑 Disconnect", use_container_width=True):
                 if st.session_state.subscriber:
@@ -1237,248 +914,198 @@ async def main():
                 st.info("🛑 Disconnected")
                 st.session_state.is_auto_refresh = False
                 st.rerun()
-
-        # Enhanced historical data controls
-        st.subheader("📚 Historical Data")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📥 Load History", use_container_width=True, 
-                        help="Retrieve past 24 hours of telemetry data"):
-                if st.session_state.subscriber:
-                    with st.spinner("Loading historical data..."):
-                        try:
-                            # Use asyncio to call the async method
-                            import asyncio
-                            historical_data = asyncio.run(
-                                st.session_state.subscriber.retrieve_historical_data(24)
-                            )
-                            
-                            if historical_data:
-                                hist_df = pd.DataFrame(historical_data)
-                                if "timestamp" in hist_df.columns:
-                                    hist_df["timestamp"] = pd.to_datetime(hist_df["timestamp"])
-                                
-                                # Replace current data with historical data
-                                st.session_state.telemetry_data = hist_df
-                                st.session_state.historical_data_loaded = True
-                                st.session_state.last_historical_update = datetime.now()
-                                st.success(f"✅ Loaded {len(historical_data)} historical records!")
-                            else:
-                                st.warning("⚠️ No historical data found")
-                        except Exception as e:
-                            st.error(f"❌ Error loading history: {e}")
-                else:
-                    st.warning("Connect first to load historical data")
-
-        with col2:
-            st.session_state.auto_historical_refresh = st.checkbox(
-                "🔄 Auto Load", value=st.session_state.auto_historical_refresh,
-                help="Automatically refresh historical data every 30 seconds"
-            )
-
-        # Connection status and stats
+        # Connection status
         stats = (
-            st.session_state.subscriber.get_stats() if st.session_state.subscriber else {
-                "messages_received": 0, "historical_messages_retrieved": 0,
-                "connection_attempts": 0, "errors": 0,
-                "last_message_time": None, "last_historical_retrieval": None, "last_error": None,
+            st.session_state.subscriber.get_stats()
+            if st.session_state.subscriber
+            else {
+                "messages_received": 0,
+                "connection_attempts": 0,
+                "errors": 0,
+                "last_message_time": None,
+                "last_error": None,
+                "historical_messages_loaded": 0,
+                "last_historical_refresh": None,
             }
         )
-
+        
         render_connection_status(st.session_state.subscriber, stats)
-
+        
         if stats["last_error"]:
             st.error(f"⚠️ {stats['last_error'][:40]}...")
-
+        
         st.divider()
-
+        
+        # Historical data controls
+        render_historical_data_panel()
+        
+        st.divider()
+        
+        # Supabase integration
+        render_supabase_panel()
+        
+        st.divider()
+        
         # Settings
         st.subheader("⚙️ Settings")
         new_auto_refresh = st.checkbox("🔄 Auto Refresh", value=st.session_state.auto_refresh)
-
+        
         if new_auto_refresh != st.session_state.auto_refresh:
             st.session_state.auto_refresh = new_auto_refresh
             st.session_state.is_auto_refresh = False
-
+        
         if st.session_state.auto_refresh:
             refresh_interval = st.slider("Refresh Rate (s)", 1, 10, 3)
-
+        
         st.info(f"📡 Channel: {CHANNEL_NAME}")
-
-    # Enhanced data ingestion with historical data support
-    new_messages_count = 0
     
-    # Handle real-time messages
+    # Data processing
+    new_messages_count = 0
     if st.session_state.subscriber and st.session_state.subscriber.is_connected:
         new_messages = st.session_state.subscriber.get_messages()
-
+        
         if new_messages:
             new_messages_count = len(new_messages)
             new_df = pd.DataFrame(new_messages)
-
+            
             if "timestamp" in new_df.columns:
                 new_df["timestamp"] = pd.to_datetime(new_df["timestamp"])
-
-            # Merge with existing data correctly
+            
             if st.session_state.telemetry_data.empty:
                 st.session_state.telemetry_data = new_df
             else:
-                # Ensure new real-time data is added to existing historical data
-                st.session_state.telemetry_data = pd.concat(
-                    [st.session_state.telemetry_data, new_df], ignore_index=True
-                )
-
-            # Sort by timestamp if available
-            if "timestamp" in st.session_state.telemetry_data.columns:
-                st.session_state.telemetry_data = st.session_state.telemetry_data.sort_values("timestamp")
-
-            # Maintain size limit
+                st.session_state.telemetry_data = pd.concat([st.session_state.telemetry_data, new_df], ignore_index=True)
+            
+            # Limit telemetry data size
             if len(st.session_state.telemetry_data) > MAX_DATAPOINTS:
                 st.session_state.telemetry_data = st.session_state.telemetry_data.tail(MAX_DATAPOINTS)
-
+            
             st.session_state.last_update = datetime.now()
-
-    # Auto-refresh historical data every 30 seconds
+    
+    # Auto-refresh historical data
     if (st.session_state.auto_historical_refresh and 
         st.session_state.subscriber and 
         st.session_state.subscriber.is_connected):
         
-        current_time = datetime.now()
-        if (st.session_state.last_historical_update is None or
-            (current_time - st.session_state.last_historical_update).total_seconds() >= 30):
-            
-            try:
-                # Load historical data in background
-                historical_data = asyncio.run(
-                    st.session_state.subscriber.retrieve_historical_data(24)
-                )
-                
-                if historical_data:
-                    hist_df = pd.DataFrame(historical_data)
-                    if "timestamp" in hist_df.columns:
-                        hist_df["timestamp"] = pd.to_datetime(hist_df["timestamp"])
-                    
-                    # Replace the data with the updated historical data
-                    st.session_state.telemetry_data = hist_df
-                    st.session_state.last_historical_update = current_time
-                    st.session_state.historical_data_loaded = True
-                    
-            except Exception as e:
-                st.session_state.subscriber.stats["errors"] += 1
-                st.session_state.subscriber.stats["last_error"] = f"Auto-refresh error: {e}"
-
-    df = st.session_state.telemetry_data.copy()
-
-    # Enhanced empty state handling
+        # Check if it's time to refresh historical data
+        should_refresh = False
+        if st.session_state.last_historical_refresh is None:
+            should_refresh = True
+        else:
+            time_since_refresh = (datetime.now() - st.session_state.last_historical_refresh).total_seconds()
+            if time_since_refresh > HISTORICAL_REFRESH_INTERVAL:
+                should_refresh = True
+        
+        if should_refresh:
+            historical_messages = st.session_state.subscriber.load_historical_data(24)
+            if historical_messages:
+                historical_df = pd.DataFrame(historical_messages)
+                if "timestamp" in historical_df.columns:
+                    historical_df["timestamp"] = pd.to_datetime(historical_df["timestamp"])
+                st.session_state.historical_data = historical_df
+                st.session_state.last_historical_refresh = datetime.now()
+    
+    # Merge historical and realtime data
+    df = merge_historical_and_realtime_data(st.session_state.historical_data, st.session_state.telemetry_data)
+    
+    # Display empty state
     if df.empty:
         st.warning("⏳ Waiting for telemetry data...")
-
+        
         col1, col2 = st.columns(2)
         with col1:
             st.info(
                 "**Getting Started:**\n"
                 "1. Ensure maindata.py is running\n"
                 "2. Click 'Connect' to start receiving data\n"
-                "3. Click 'Load History' to retrieve past data"
+                "3. Historical data will be loaded automatically"
             )
-
+        
         with col2:
             with st.expander("🔍 Debug Information"):
                 st.json({
                     "Connected": st.session_state.subscriber.is_connected if st.session_state.subscriber else False,
-                    "Real-time Messages": stats["messages_received"],
-                    "Historical Messages": stats["historical_messages_retrieved"],
-                    "Historical Data Loaded": st.session_state.historical_data_loaded,
+                    "Realtime Messages": stats["messages_received"],
+                    "Historical Messages": stats.get("historical_messages_loaded", 0),
                     "Errors": stats["errors"],
                     "Channel": CHANNEL_NAME,
                 })
         return
-
-    # Enhanced status display
+    
+    # Data status
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.info(f"📊 **{len(df):,}** data points")
+        st.info(f"📊 **{len(df):,}** total data points")
     with col2:
         st.info(f"⏰ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
     with col3:
-        if new_messages_count > 0:
-            st.success(f"📨 +{new_messages_count}")
-        else:
-            st.info("📨 No new messages")
+        if not st.session_state.historical_data.empty:
+            st.info(f"📚 **{len(st.session_state.historical_data):,}** historical")
     with col4:
-        if st.session_state.historical_data_loaded:
-            st.info("📚 Historical data loaded")
-
+        if new_messages_count > 0:
+            st.success(f"📨 +{new_messages_count} new")
+    
     # Calculate KPIs
     kpis = calculate_kpis(df)
-
-    # Enhanced dashboard with data source indicators
+    
+    # Dashboard tabs
     st.subheader("📈 Dashboard")
-
-    tab_names = [
-        "📊 Overview", "🚗 Speed", "⚡ Power", "🎮 IMU", "🎮 IMU Detail",
-        "⚡ Efficiency", "🛰️ GPS", "📈 Custom", "📃 Data"
-    ]
+    
+    tab_names = ["📊 Overview", "🚗 Speed", "⚡ Power", "🎮 IMU", "⚡ Efficiency", "🛰️ GPS", "📃 Data"]
     tabs = st.tabs(tab_names)
-
-    # Render all tabs (unchanged logic but with enhanced overview)
+    
     with tabs[0]:
         render_overview_tab(kpis)
-
+    
     with tabs[1]:
         render_kpi_header(kpis)
         fig = create_optimized_chart(df, create_speed_chart, "Speed Chart")
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-
+    
     with tabs[2]:
         render_kpi_header(kpis)
         fig = create_optimized_chart(df, create_power_chart, "Power Chart")
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-
+    
     with tabs[3]:
         render_kpi_header(kpis)
         fig = create_optimized_chart(df, create_imu_chart, "IMU Chart")
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-
+    
     with tabs[4]:
-        render_kpi_header(kpis)
-        fig = create_optimized_chart(df, create_imu_chart_2, "IMU Detail Chart")
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-
-    with tabs[5]:
         render_kpi_header(kpis)
         fig = create_optimized_chart(df, create_efficiency_chart, "Efficiency Chart")
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-
-    with tabs[6]:
+    
+    with tabs[5]:
         render_kpi_header(kpis)
         fig = create_optimized_chart(df, create_gps_map, "GPS Map")
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-
-    with tabs[7]:
+    
+    with tabs[6]:
         render_kpi_header(kpis)
-        render_dynamic_charts_section(df)
-
-    with tabs[8]:
-        render_kpi_header(kpis)
+        
         st.subheader("📃 Raw Telemetry Data")
         
-        # Enhanced data display with source indicators
-        if 'data_retrieval_type' in df.columns:
-            historical_count = len(df[df['data_retrieval_type'] == 'historical'])
-            realtime_count = len(df[df['data_retrieval_type'] == 'realtime'])
-            st.info(f"📊 Data composition: {historical_count} historical, {realtime_count} real-time")
+        # Data source breakdown
+        if not df.empty:
+            col1, col2 = st.columns(2)
+            with col1:
+                realtime_count = len(st.session_state.telemetry_data)
+                st.metric("🔴 Realtime Messages", realtime_count)
+            with col2:
+                historical_count = len(st.session_state.historical_data)
+                st.metric("📚 Historical Messages", historical_count)
         
         st.warning("ℹ️ Only the **last 100 datapoints** are displayed below. Download the CSV for the complete dataset.")
         st.dataframe(df.tail(100), use_container_width=True, height=400)
-
+        
         csv = df.to_csv(index=False)
         st.download_button(
             label="📥 Download CSV",
@@ -1487,29 +1114,28 @@ async def main():
             mime="text/csv",
             use_container_width=True,
         )
-
-    # Enhanced auto-refresh logic
+    
+    # Auto-refresh functionality
     if (st.session_state.auto_refresh and 
         st.session_state.subscriber and 
         st.session_state.subscriber.is_connected):
+        
         if not hasattr(st.session_state, "fragment_rerun") or not st.session_state.fragment_rerun:
             time.sleep(refresh_interval)
             st.session_state.is_auto_refresh = True
             st.rerun()
-
+    
     st.session_state.is_auto_refresh = False
-
-    # Enhanced footer
+    
+    # Footer
     st.divider()
     st.markdown(
         "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
-        "<p><strong>Shell Eco-marathon Telemetry Dashboard</strong> | Enhanced with Historical Data Support</p>"
-        "<p>🚗 Optimized for performance monitoring and energy efficiency analysis | 📚 24-hour data persistence</p>"
+        "<p><strong>Shell Eco-marathon Telemetry Dashboard</strong> | Enhanced with Historical Data Persistence</p>"
+        "<p>🚗 Optimized for performance monitoring and energy efficiency analysis</p>"
         "</div>",
         unsafe_allow_html=True,
     )
 
-
 if __name__ == "__main__":
-    # Run the async main function
-    asyncio.run(main())
+    main()
