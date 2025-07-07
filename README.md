@@ -1,6 +1,6 @@
 # 🏎️ Shell Eco-marathon Telemetry Dashboard
 
-[![Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
+[![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  
 
 A full-stack, real-time telemetry system for Shell Eco-marathon vehicles.  
