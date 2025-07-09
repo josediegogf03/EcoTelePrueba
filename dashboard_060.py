@@ -706,7 +706,7 @@ def merge_telemetry_data(realtime_data: List[Dict],
         # Convert to DataFrame
         df = pd.DataFrame(all_data)
         
-        # Ensure timestamp is datetime - Fixed conversion
+        # Ensure timestamp is a datetime object
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
             df.dropna(subset=['timestamp'], inplace=True)
@@ -1772,7 +1772,7 @@ def main():
                 st.metric("Columns", len(df.columns))
             with col2:
                 if 'timestamp' in df.columns and len(df) > 1:
-                    # Fixed timestamp handling - ensure proper datetime conversion
+                    # Handle timestamp conversion and calculations
                     try:
                         timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
                         timestamp_series = timestamp_series.dropna()
@@ -1815,8 +1815,7 @@ def main():
     st.divider()
     st.markdown(
         "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
-        "<p><strong>Shell Eco-marathon Telemetry Dashboard</strong> | Multi-Source Data Integration with Pagination</p>"
-        "<p>🚗 Real-time + Session Data | 📚 Historical Analysis | 🔄 Data Triangulation | 📄 Up to 1M records/session</p>"
+        "<p>Shell Eco-marathon Telemetry Dashboard</p>"
         "</div>",
         unsafe_allow_html=True,
     )
