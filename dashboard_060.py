@@ -1,4 +1,3 @@
-# dashboard_updated.py - Enhanced Dashboard with Supabase Integration and Session Management
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -88,139 +87,303 @@ st.markdown(
 <style>
     /* Theme-aware color variables */
     :root {
-        --primary-color: #1f77b4;
-        --success-color: #2ca02c;
-        --warning-color: #ff7f0e;
-        --error-color: #d62728;
-        --text-primary: #262730;
-        --text-secondary: #6c757d;
+        --primary-color: #2563eb;
+        --secondary-color: #3b82f6;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --error-color: #ef4444;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
         --bg-primary: #ffffff;
-        --bg-secondary: #f8f9fa;
-        --border-color: #dee2e6;
+        --bg-secondary: #f9fafb;
+        --bg-card: #ffffff;
+        --border-color: #e5e7eb;
+        --border-hover: #d1d5db;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     }
 
     /* Dark theme overrides */
+    [data-theme="dark"] {
+        --text-primary: #f9fafb;
+        --text-secondary: #9ca3af;
+        --bg-primary: #111827;
+        --bg-secondary: #1f2937;
+        --bg-card: #1f2937;
+        --border-color: #374151;
+        --border-hover: #4b5563;
+    }
+
     @media (prefers-color-scheme: dark) {
         :root {
-            --text-primary: #fafafa;
-            --text-secondary: #a0a0a0;
-            --bg-primary: #0e1117;
-            --bg-secondary: #262730;
-            --border-color: #4a4a4a;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --bg-card: #1f2937;
+            --border-color: #374151;
+            --border-hover: #4b5563;
         }
     }
 
     .main-header {
-        font-size: 2.2rem;
+        font-size: 2.5rem;
         color: var(--primary-color);
         text-align: center;
-        margin-bottom: 1rem;
-        font-weight: 700;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+        font-weight: 800;
+        text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
     .status-indicator {
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 0.75rem;
-        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
         margin: 0.5rem 0;
         font-weight: 600;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
+        font-size: 0.875rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(10px);
     }
 
     .status-connected {
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-        color: #155724;
-        border: 2px solid #28a745;
-        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
+        color: var(--success-color);
+        border: 2px solid rgba(16, 185, 129, 0.2);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
     }
 
     .status-disconnected {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-        color: #721c24;
-        border: 2px solid #dc3545;
-        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.2);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1));
+        color: var(--error-color);
+        border: 2px solid rgba(239, 68, 68, 0.2);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
     }
 
     .status-connecting {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-        color: #856404;
-        border: 2px solid #ffc107;
-        box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));
+        color: var(--warning-color);
+        border: 2px solid rgba(245, 158, 11, 0.2);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
     }
 
-    .session-card {
-        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-        border-radius: 12px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border: 2px solid var(--border-color);
-        transition: all 0.2s ease;
-        cursor: pointer;
+    .data-source-card {
+        background: var(--bg-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid var(--border-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-sm);
     }
 
-    .session-card:hover {
-        border-color: var(--primary-color);
+    .data-source-card:hover {
+        border-color: var(--border-hover);
+        box-shadow: var(--shadow-md);
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(31, 119, 180, 0.2);
     }
 
-    .session-card.selected {
+    .triangulation-stats {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(59, 130, 246, 0.05));
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid rgba(37, 99, 235, 0.1);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .triangulation-stats h4 {
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
         border-color: var(--primary-color);
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
     }
 
-    .data-source-selector {
-        background: var(--bg-primary);
-        border-radius: 8px;
-        padding: 1rem;
-        border: 2px solid var(--border-color);
-        margin: 1rem 0;
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.25rem;
     }
 
-    .triangulation-info {
-        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-left: 4px solid var(--warning-color);
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        font-weight: 500;
     }
 
-    /* Sticky header for better navigation */
+    .instructions-container {
+        background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+        border-radius: 16px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-md);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .instructions-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        border-radius: 16px 16px 0 0;
+    }
+
+    .instructions-title {
+        color: var(--primary-color);
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .instructions-content {
+        color: var(--text-primary);
+        line-height: 1.6;
+        font-size: 1rem;
+    }
+
+    .chart-type-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }
+
+    .chart-type-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .chart-type-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+
+    .chart-type-card:hover {
+        border-color: var(--primary-color);
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .chart-type-card:hover::before {
+        transform: scaleX(1);
+    }
+
+    .chart-type-name {
+        font-weight: 700;
+        color: var(--primary-color);
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .chart-type-desc {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
     .sticky-header {
         position: sticky;
         top: 0;
         z-index: 100;
         background: var(--bg-primary);
         padding: 1rem 0;
-        border-bottom: 2px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 1rem;
+        backdrop-filter: blur(10px);
     }
 
-    /* Improved button styling */
     .stButton > button {
         border-radius: 8px;
-        border: 2px solid var(--primary-color);
+        border: 1px solid var(--primary-color);
         background: var(--primary-color);
         color: white;
         font-weight: 600;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 0.5rem 1rem;
     }
 
     .stButton > button:hover {
         background: transparent;
         color: var(--primary-color);
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    }
+
+    .stSelectbox > div > div {
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s ease;
+    }
+
+    .stSelectbox > div > div:hover {
+        border-color: var(--primary-color);
     }
 
     /* Mobile responsiveness */
     @media (max-width: 768px) {
         .main-header {
-            font-size: 1.8rem;
+            font-size: 2rem;
+        }
+        
+        .chart-type-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
         }
     }
 </style>
@@ -483,6 +646,7 @@ class EnhancedTelemetryManager:
                 duration = stats["end_time"] - stats["start_time"]
                 session_list.append({
                     "session_id": session_id,
+                    "display_name": f"{session_id[:8]}... • {stats['start_time'].strftime('%Y-%m-%d %H:%M')} • {stats['record_count']} records",
                     "start_time": stats["start_time"],
                     "end_time": stats["end_time"],
                     "duration": duration,
@@ -657,6 +821,7 @@ def initialize_session_state():
         "selected_session": None,
         "available_sessions": [],
         "last_session_refresh": None,
+        "is_auto_refresh": False,
     }
 
     for key, value in defaults.items():
@@ -814,7 +979,7 @@ def render_overview_tab(kpis: Dict[str, float]):
 
 def render_data_source_selector():
     """Renders the data source selection interface."""
-    st.markdown('<div class="data-source-selector">', unsafe_allow_html=True)
+    st.markdown('<div class="data-source-card">', unsafe_allow_html=True)
     st.markdown("### 🔧 Data Source Configuration")
     
     # Data source mode selection
@@ -822,53 +987,61 @@ def render_data_source_selector():
         "Select Data Source:",
         options=[DATA_SOURCE_REALTIME, DATA_SOURCE_HISTORICAL],
         index=0 if st.session_state.data_source_mode == DATA_SOURCE_REALTIME else 1,
-        help="Choose between real-time data with recent history or historical session data"
+        help="Choose between real-time data or historical session data"
     )
     
     if new_mode != st.session_state.data_source_mode:
         st.session_state.data_source_mode = new_mode
         st.rerun()
 
-    # Show mode-specific information
+    # Show mode-specific interface
     if st.session_state.data_source_mode == DATA_SOURCE_REALTIME:
-        st.markdown(
-            """
-            **Real Time + Recent Data Mode:**
-            - 🔄 Live telemetry from Ably real-time channel
-            - 📊 Recent data from Supabase database (last 10 minutes)
-            - 💾 Streamlit session history
-            - 🔍 Automatic data triangulation to prevent duplicates
-            """
-        )
-        
-        # Display triangulation info
+        # Display triangulation statistics
         if st.session_state.telemetry_manager:
             stats = st.session_state.telemetry_manager.get_stats()
             triangulation_stats = stats.get("data_source_stats", {})
             
-            st.markdown('<div class="triangulation-info">', unsafe_allow_html=True)
-            st.markdown("**📊 Data Triangulation Statistics:**")
+            st.markdown('<div class="triangulation-stats">', unsafe_allow_html=True)
+            st.markdown('<h4>📊 Data Source Statistics</h4>', unsafe_allow_html=True)
+            
+            st.markdown('<div class="stats-grid">', unsafe_allow_html=True)
+            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("🔄 Ably Real-time", triangulation_stats.get("ably_realtime", 0))
+                st.markdown(f'''
+                <div class="stat-card">
+                    <div class="stat-value">{triangulation_stats.get("ably_realtime", 0)}</div>
+                    <div class="stat-label">🔄 Real-time</div>
+                </div>
+                ''', unsafe_allow_html=True)
+            
             with col2:
-                st.metric("📊 Supabase Recent", triangulation_stats.get("supabase_recent", 0))
+                st.markdown(f'''
+                <div class="stat-card">
+                    <div class="stat-value">{triangulation_stats.get("supabase_recent", 0)}</div>
+                    <div class="stat-label">📊 Database</div>
+                </div>
+                ''', unsafe_allow_html=True)
+            
             with col3:
-                st.metric("💾 Streamlit History", triangulation_stats.get("streamlit_history", 0))
+                st.markdown(f'''
+                <div class="stat-card">
+                    <div class="stat-value">{triangulation_stats.get("streamlit_history", 0)}</div>
+                    <div class="stat-label">💾 History</div>
+                </div>
+                ''', unsafe_allow_html=True)
+            
             with col4:
-                st.metric("🗑️ Duplicates Removed", triangulation_stats.get("duplicates_removed", 0))
-            st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown(f'''
+                <div class="stat-card">
+                    <div class="stat-value">{triangulation_stats.get("duplicates_removed", 0)}</div>
+                    <div class="stat-label">🗑️ Duplicates</div>
+                </div>
+                ''', unsafe_allow_html=True)
+            
+            st.markdown('</div></div>', unsafe_allow_html=True)
 
     else:  # Historical mode
-        st.markdown(
-            """
-            **Historical Database Mode:**
-            - 📚 Access complete historical sessions
-            - 📅 Select specific sessions to analyze
-            - 📈 Full dataset without real-time limitations
-            """
-        )
-        
         # Refresh sessions button
         col1, col2 = st.columns([1, 3])
         with col1:
@@ -880,31 +1053,35 @@ def render_data_source_selector():
                 else:
                     st.error("Supabase not connected")
 
-        # Display available sessions
+        # Session selection dropdown
         if st.session_state.available_sessions:
-            st.markdown("**Available Sessions:**")
+            session_options = ["Select a session..."] + [
+                session["display_name"] for session in st.session_state.available_sessions
+            ]
             
-            for session in st.session_state.available_sessions:
-                session_id = session["session_id"]
-                start_time = session["start_time"]
-                duration = session["duration"]
-                record_count = session["record_count"]
-                
-                # Create a compact session card
-                is_selected = st.session_state.selected_session == session_id
-                card_class = "session-card selected" if is_selected else "session-card"
-                
-                with st.container():
-                    if st.button(
-                        f"📋 Session: {session_id[:8]}...\n"
-                        f"📅 Start: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                        f"⏱️ Duration: {duration}\n"
-                        f"📊 Records: {record_count}",
-                        key=f"session_{session_id}",
-                        use_container_width=True
-                    ):
-                        st.session_state.selected_session = session_id
-                        st.rerun()
+            # Find current selection index
+            current_index = 0
+            if st.session_state.selected_session:
+                for i, session in enumerate(st.session_state.available_sessions):
+                    if session["session_id"] == st.session_state.selected_session:
+                        current_index = i + 1
+                        break
+            
+            selected_option = st.selectbox(
+                "Available Sessions:",
+                options=session_options,
+                index=current_index,
+                help="Select a historical session to analyze"
+            )
+            
+            if selected_option != "Select a session..." and selected_option:
+                # Find the session ID for the selected option
+                for session in st.session_state.available_sessions:
+                    if session["display_name"] == selected_option:
+                        if st.session_state.selected_session != session["session_id"]:
+                            st.session_state.selected_session = session["session_id"]
+                            st.rerun()
+                        break
         else:
             st.info("No historical sessions available. Click 'Refresh Sessions' to load data.")
 
@@ -960,7 +1137,7 @@ def create_optimized_chart(df: pd.DataFrame, chart_func, title: str):
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
                 font=dict(size=12),
-                title=dict(font=dict(size=16, color="#1f77b4")),
+                title=dict(font=dict(size=16, color="#2563eb")),
                 margin=dict(l=40, r=40, t=60, b=40),
                 height=400,
             )
@@ -980,7 +1157,7 @@ def create_speed_chart(df: pd.DataFrame):
     fig = px.line(
         df, x="timestamp", y="speed_ms", title="🚗 Vehicle Speed Over Time",
         labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
-        color_discrete_sequence=["#1f77b4"],
+        color_discrete_sequence=["#2563eb"],
     )
     return fig
 
@@ -999,15 +1176,15 @@ def create_power_chart(df: pd.DataFrame):
 
     fig.add_trace(
         go.Scatter(x=df["timestamp"], y=df["voltage_v"], name="Voltage (V)",
-                  line=dict(color="#2ca02c", width=2)), row=1, col=1,
+                  line=dict(color="#10b981", width=2)), row=1, col=1,
     )
     fig.add_trace(
         go.Scatter(x=df["timestamp"], y=df["current_a"], name="Current (A)",
-                  line=dict(color="#d62728", width=2)), row=1, col=1,
+                  line=dict(color="#ef4444", width=2)), row=1, col=1,
     )
     fig.add_trace(
         go.Scatter(x=df["timestamp"], y=df["power_w"], name="Power (W)",
-                  line=dict(color="#ff7f0e", width=2)), row=2, col=1,
+                  line=dict(color="#f59e0b", width=2)), row=2, col=1,
     )
 
     fig.update_layout(height=500, title_text="⚡ Electrical System Performance")
@@ -1026,14 +1203,14 @@ def create_imu_chart(df: pd.DataFrame):
         vertical_spacing=0.25,
     )
 
-    colors_gyro = ["#e74c3c", "#2ecc71", "#3498db"]
+    colors_gyro = ["#e74c3c", "#10b981", "#2563eb"]
     for i, axis in enumerate(["gyro_x", "gyro_y", "gyro_z"]):
         fig.add_trace(
             go.Scatter(x=df["timestamp"], y=df[axis], name=f"Gyro {axis[-1].upper()}",
                       line=dict(color=colors_gyro[i], width=2)), row=1, col=1,
         )
 
-    colors_accel = ["#f39c12", "#9b59b6", "#34495e"]
+    colors_accel = ["#f59e0b", "#8b5cf6", "#374151"]
     for i, axis in enumerate(["accel_x", "accel_y", "accel_z"]):
         fig.add_trace(
             go.Scatter(x=df["timestamp"], y=df[axis], name=f"Accel {axis[-1].upper()}",
@@ -1057,8 +1234,8 @@ def create_imu_chart_2(df: pd.DataFrame):
         vertical_spacing=0.3, horizontal_spacing=0.1,
     )
 
-    gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
-    accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
+    gyro_colors = ["#e74c3c", "#10b981", "#2563eb"]
+    accel_colors = ["#f59e0b", "#8b5cf6", "#374151"]
 
     for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
         fig.add_trace(
@@ -1148,14 +1325,14 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
 
     try:
         if chart_type == "line":
-            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
+            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#2563eb"])
         elif chart_type == "scatter":
-            fig = px.scatter(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#ff7f0e"])
+            fig = px.scatter(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#f59e0b"])
         elif chart_type == "bar":
             recent_df = df.tail(20)
-            fig = px.bar(recent_df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#2ca02c"])
+            fig = px.bar(recent_df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#10b981"])
         elif chart_type == "histogram":
-            fig = px.histogram(df, x=y_col, title=f"Distribution of {y_col}", color_discrete_sequence=["#d62728"])
+            fig = px.histogram(df, x=y_col, title=f"Distribution of {y_col}", color_discrete_sequence=["#ef4444"])
         elif chart_type == "heatmap":
             numeric_cols = get_available_columns(df)
             if len(numeric_cols) >= 2:
@@ -1166,7 +1343,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                     text="Need at least 2 numeric columns for heatmap", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
                 )
         else:
-            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
+            fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#2563eb"])
 
         fig.update_layout(height=400)
         return fig
@@ -1179,15 +1356,52 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Renders the section for creating and displaying dynamic, user-configured charts."""
+    
+    st.session_state.is_auto_refresh = True
+
+    # Displays an enhanced instructions section using custom HTML styling.
     st.markdown(
         """
     <div class="instructions-container">
-        <div class="instructions-title">🎯 Create Custom Charts</div>
+        <div class="instructions-title">
+            🎯 Create Custom Charts
+        </div>
         <div class="instructions-content">
             <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
+            <p><strong>Note:</strong> Chart visibility may be reduced when auto refresh is enabled.</p>
         </div>
     </div>
-    """, unsafe_allow_html=True,
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Displays information about different chart types in a grid layout.
+    st.markdown(
+        """
+    <div class="chart-type-grid">
+        <div class="chart-type-card">
+            <div class="chart-type-name">📈 Line Chart</div>
+            <div class="chart-type-desc">Great for time series data and trends</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">🔵 Scatter Plot</div>
+            <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">📊 Bar Chart</div>
+            <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">📉 Histogram</div>
+            <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
+        </div>
+        <div class="chart-type-card">
+            <div class="chart-type-name">🔥 Heatmap</div>
+            <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
+        </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
     )
 
     try:
@@ -1197,9 +1411,10 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         available_columns = []
 
     if not available_columns:
-        st.warning("⏳ No numeric data available for creating charts. Load data first.")
+        st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
         return
 
+    # Displays controls for adding and managing dynamic charts.
     col1, col2 = st.columns([1, 3])
     with col1:
         if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
@@ -1212,6 +1427,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                     "y_axis": available_columns[0] if available_columns else None,
                 }
                 st.session_state.dynamic_charts.append(new_chart)
+                st.session_state.is_auto_refresh = False
                 st.rerun()
             except Exception as e:
                 st.error(f"Error adding chart: {e}")
@@ -1220,15 +1436,18 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         if st.session_state.dynamic_charts:
             st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
 
+    # Iterates through and displays each dynamically configured chart.
     if st.session_state.dynamic_charts:
         for i, chart_config in enumerate(st.session_state.dynamic_charts):
             try:
                 with st.container(border=True):
+                    # Arranges chart configuration controls in a compact row.
                     col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
 
                     with col1:
                         new_title = st.text_input(
-                            "Title", value=chart_config.get("title", "New Chart"),
+                            "Title",
+                            value=chart_config.get("title", "New Chart"),
                             key=f"title_{chart_config['id']}",
                         )
                         if new_title != chart_config.get("title"):
@@ -1236,24 +1455,31 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 
                     with col2:
                         new_type = st.selectbox(
-                            "Type", options=["line", "scatter", "bar", "histogram", "heatmap"],
+                            "Type",
+                            options=["line", "scatter", "bar", "histogram", "heatmap"],
                             index=["line", "scatter", "bar", "histogram", "heatmap"].index(
                                 chart_config.get("chart_type", "line")
-                            ), key=f"type_{chart_config['id']}",
+                            ),
+                            key=f"type_{chart_config['id']}",
                         )
                         if new_type != chart_config.get("chart_type"):
                             st.session_state.dynamic_charts[i]["chart_type"] = new_type
 
                     with col3:
                         if chart_config.get("chart_type", "line") not in ["histogram", "heatmap"]:
-                            x_options = (["timestamp"] + available_columns if "timestamp" in df.columns else available_columns)
+                            x_options = (
+                                ["timestamp"] + available_columns
+                                if "timestamp" in df.columns
+                                else available_columns
+                            )
                             current_x = chart_config.get("x_axis", x_options[0])
                             if current_x not in x_options and x_options:
                                 current_x = x_options[0]
 
                             if x_options:
                                 new_x = st.selectbox(
-                                    "X-Axis", options=x_options,
+                                    "X-Axis",
+                                    options=x_options,
                                     index=x_options.index(current_x) if current_x in x_options else 0,
                                     key=f"x_{chart_config['id']}",
                                 )
@@ -1268,7 +1494,8 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                     current_y = available_columns[0]
 
                                 new_y = st.selectbox(
-                                    "Y-Axis", options=available_columns,
+                                    "Y-Axis",
+                                    options=available_columns,
                                     index=available_columns.index(current_y) if current_y in available_columns else 0,
                                     key=f"y_{chart_config['id']}",
                                 )
@@ -1279,10 +1506,12 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                         if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
                             try:
                                 st.session_state.dynamic_charts.pop(i)
+                                st.session_state.is_auto_refresh = False
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error deleting chart: {e}")
 
+                    # Displays the dynamically created chart.
                     try:
                         if chart_config.get("chart_type") == "heatmap" or chart_config.get("y_axis"):
                             fig = create_dynamic_chart(df, chart_config)
