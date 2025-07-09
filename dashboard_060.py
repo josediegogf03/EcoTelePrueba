@@ -52,11 +52,11 @@ st.set_page_config(
     menu_items={
         "Get Help": "https://github.com/your-repo",
         "Report a bug": "https://github.com/your-repo/issues",
-        "About": "Shell Eco-marathon Enhanced Telemetry Dashboard with Historical Data",
+        "About": "Shell Eco-marathon Telemetry Dashboard",
     },
 )
 
-# Enhanced CSS styling
+# CSS styling
 st.markdown("""
 <style>
     :root {
@@ -267,7 +267,7 @@ def setup_terminal_logging():
 setup_terminal_logging()
 
 class EnhancedTelemetryManager:
-    """Enhanced telemetry manager with multi-source data integration."""
+    """Telemetry manager with multi-source data integration."""
     
     def __init__(self):
         self.realtime_subscriber = None
@@ -739,7 +739,7 @@ def render_kpi_header(kpis: Dict[str, float]):
         st.metric("🎯 Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s")
 
 def render_overview_tab(kpis: Dict[str, float]):
-    """Render overview tab with enhanced KPIs."""
+    """Render overview tab with KPIs."""
     st.markdown("### 📊 Performance Overview")
     st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
     
@@ -1283,7 +1283,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 
 def main():
     """Main dashboard function."""
-    st.markdown('<div class="main-header">🏎️ Shell Eco-marathon Enhanced Telemetry Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>', unsafe_allow_html=True)
     
     initialize_session_state()
     
@@ -1624,7 +1624,7 @@ def main():
     st.divider()
     st.markdown(
         "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
-        "<p><strong>Shell Eco-marathon Enhanced Telemetry Dashboard</strong> | Multi-Source Data Integration</p>"
+        "<p><strong>Shell Eco-marathon Telemetry Dashboard</strong> | Multi-Source Data Integration</p>"
         "<p>🚗 Real-time + Session Data | 📚 Historical Analysis | 🔄 Data Triangulation</p>"
         "</div>",
         unsafe_allow_html=True,
