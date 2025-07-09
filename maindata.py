@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 class TelemetryBridgeWithDB:
     """
-    Enhanced bridge class that:
+    Bridge class that:
     1. Subscribes to ESP32 MQTT telemetry data via Ably OR generates mock data
     2. Republishes to dashboard channel for real-time updates
     3. Batches and stores data in Supabase database every 9 seconds
