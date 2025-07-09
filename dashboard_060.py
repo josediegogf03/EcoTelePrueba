@@ -517,6 +517,12 @@ class EnhancedTelemetryManager:
                 if request_count > 1:
                     self.stats["pagination_stats"]["sessions_paginated"] += 1
             
+            # Log pagination stats
+            self.logger.info(f"📄 Pagination Stats - Total Requests: {self.stats['pagination_stats']['total_requests']}, "
+                           f"Total Rows Fetched: {self.stats['pagination_stats']['total_rows_fetched']}, "
+                           f"Largest Session: {self.stats['pagination_stats']['largest_session_size']}, "
+                           f"Sessions Paginated: {self.stats['pagination_stats']['sessions_paginated']}")
+            
             if all_data:
                 df = pd.DataFrame(all_data)
                 df['data_source'] = data_source
@@ -700,9 +706,9 @@ def merge_telemetry_data(realtime_data: List[Dict],
         # Convert to DataFrame
         df = pd.DataFrame(all_data)
         
-        # Ensure timestamp is datetime
+        # Ensure timestamp is datetime - Fixed conversion
         if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
             df.dropna(subset=['timestamp'], inplace=True)
         else:
             return df
@@ -911,21 +917,6 @@ def render_session_info(session_data: Dict[str, Any]):
         <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
     </div>
     """, unsafe_allow_html=True)
-
-def render_pagination_info(stats: Dict[str, Any]):
-    """Render pagination information."""
-    pagination_stats = stats.get("pagination_stats", {})
-    
-    if pagination_stats.get("total_requests", 0) > 0:
-        st.markdown(f"""
-        <div class="pagination-info">
-            <h4>📄 Pagination Statistics</h4>
-            <p>📊 <strong>Total API Requests:</strong> {pagination_stats.get('total_requests', 0):,}</p>
-            <p>📋 <strong>Total Rows Fetched:</strong> {pagination_stats.get('total_rows_fetched', 0):,}</p>
-            <p>📈 <strong>Largest Session:</strong> {pagination_stats.get('largest_session_size', 0):,} rows</p>
-            <p>📄 <strong>Sessions Requiring Pagination:</strong> {pagination_stats.get('sessions_paginated', 0):,}</p>
-        </div>
-        """, unsafe_allow_html=True)
 
 def create_speed_chart(df: pd.DataFrame):
     """Create speed chart."""
@@ -1473,9 +1464,6 @@ def main():
                     else:
                         st.metric("⏱️ Last Msg", "Never")
                 
-                # Show pagination stats
-                render_pagination_info(stats)
-                
                 if stats["last_error"]:
                     st.error(f"⚠️ {stats['last_error'][:40]}...")
             
@@ -1542,11 +1530,6 @@ def main():
                         if not historical_df.empty:
                             st.success(f"✅ Loaded {len(historical_df):,} data points")
                         st.rerun()
-                
-                # Show pagination stats for historical mode
-                if st.session_state.telemetry_manager:
-                    stats = st.session_state.telemetry_manager.get_stats()
-                    render_pagination_info(stats)
                     
             else:
                 st.info("Click 'Refresh Sessions' to load available sessions from Supabase.")
@@ -1789,13 +1772,26 @@ def main():
                 st.metric("Columns", len(df.columns))
             with col2:
                 if 'timestamp' in df.columns and len(df) > 1:
-                    time_span = df['timestamp'].max() - df['timestamp'].min()
-                    st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
-                    
-                    # Calculate data rate
-                    if time_span.total_seconds() > 0:
-                        data_rate = len(df) / time_span.total_seconds()
-                        st.metric("Data Rate", f"{data_rate:.2f} Hz")
+                    # Fixed timestamp handling - ensure proper datetime conversion
+                    try:
+                        timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+                        timestamp_series = timestamp_series.dropna()
+                        
+                        if len(timestamp_series) > 1:
+                            time_span = timestamp_series.max() - timestamp_series.min()
+                            st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
+                            
+                            # Calculate data rate
+                            if time_span.total_seconds() > 0:
+                                data_rate = len(df) / time_span.total_seconds()
+                                st.metric("Data Rate", f"{data_rate:.2f} Hz")
+                        else:
+                            st.metric("Time Span", "N/A")
+                            st.metric("Data Rate", "N/A")
+                    except Exception as e:
+                        st.metric("Time Span", "Error")
+                        st.metric("Data Rate", "Error")
+                        st.error(f"Error calculating time metrics: {e}")
             with col3:
                 memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024  # MB
                 st.metric("Memory Usage", f"{memory_usage:.2f} MB")
@@ -1826,4 +1822,4 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()            
+    main()
