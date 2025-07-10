@@ -1406,9 +1406,7 @@ def main():
             st.session_state.is_viewing_historical = (data_source_mode == "historical")
             st.session_state.selected_session = None
             st.session_state.current_session_id = None
-            # Use st.experimental_rerun() or return early to prevent duplicate rendering
             st.rerun()
-            return  # Add this return to prevent further execution
         
         # Real-time mode controls
         if st.session_state.data_source_mode == "realtime_session":
@@ -1435,9 +1433,7 @@ def main():
                         else:
                             st.error("❌ Failed to connect to any service!")
                     
-                    # Remove the rerun here or add return
-                    # st.rerun()
-                    return  # Add this to prevent duplicate rendering
+                    # Don't call st.rerun() here - let the auto-refresh handle updates
             
             with col2:
                 if st.button("🛑 Disconnect", use_container_width=True):
@@ -1445,8 +1441,7 @@ def main():
                         st.session_state.telemetry_manager.disconnect()
                         st.session_state.telemetry_manager = None
                     st.info("🛑 Disconnected")
-                    # st.rerun()
-                    return
+                    # Don't call st.rerun() here
             
             # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
@@ -1498,7 +1493,7 @@ def main():
             if st.button("🔄 Refresh Sessions", use_container_width=True):
                 with st.spinner("Loading sessions..."):
                     st.session_state.historical_sessions = st.session_state.telemetry_manager.get_historical_sessions()
-                st.rerun()
+                # Don't call st.rerun() here - the data will be available immediately
             
             # Session selection
             if st.session_state.historical_sessions:
@@ -1517,9 +1512,11 @@ def main():
                 if selected_session_idx is not None:
                     selected_session = st.session_state.historical_sessions[selected_session_idx]
                     
-                    if st.session_state.selected_session is None or \
-                       st.session_state.selected_session['session_id'] != selected_session['session_id'] or \
-                       st.session_state.telemetry_data.empty:
+                    # Only load data if we haven't loaded this session yet or if data is empty
+                    if (st.session_state.selected_session is None or 
+                        st.session_state.selected_session['session_id'] != selected_session['session_id'] or 
+                        st.session_state.telemetry_data.empty):
+                        
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
                         
@@ -1534,7 +1531,7 @@ def main():
                         
                         if not historical_df.empty:
                             st.success(f"✅ Loaded {len(historical_df):,} data points")
-                        st.rerun()
+                        # Removed st.rerun() call here - this was causing the duplicate dashboard
                     
             else:
                 st.info("Click 'Refresh Sessions' to load available sessions from Supabase.")
@@ -1813,11 +1810,8 @@ def main():
         st.session_state.telemetry_manager and 
         st.session_state.telemetry_manager.is_connected):
         
-        # Use a placeholder for auto-refresh instead of full rerun
         time.sleep(st.session_state.get('refresh_interval', 3))
-        # Only rerun if there's actually new data to show
-        if new_messages_count > 0:
-            st.rerun()
+        st.rerun()
     
     # Footer
     st.divider()
