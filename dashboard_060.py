@@ -61,7 +61,7 @@ st.set_page_config(
     },
 )
 
-# CSS styling - Fixed transparent background and tab styling issues
+# CSS styling
 st.markdown("""
 <style>
     :root {
@@ -238,12 +238,11 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
     }
 
-    /* Fixed tab styling to prevent double rendering and grayed-out issues */
     .stTabs [data-baseweb="tab-list"] {
         position: sticky;
         top: 0;
         z-index: 50;
-        background: var(--bg-primary) !important;
+        background: var(--bg-primary);
         border-bottom: 2px solid var(--border-color);
         border-radius: 8px 8px 0 0;
         padding: 0.5rem;
@@ -254,12 +253,6 @@ st.markdown("""
         border-radius: 6px;
         margin: 0 0.25rem;
         transition: all 0.2s ease;
-        background: var(--bg-primary) !important;
-    }
-
-    .stTabs [data-baseweb="tab-panel"] {
-        background: var(--bg-primary) !important;
-        padding: 1rem;
     }
 
     @media (max-width: 768px) {
@@ -753,7 +746,9 @@ def initialize_session_state():
             "current_session": None,
             "total_requests": 0,
             "total_rows": 0
-        }
+        },
+        # Add refresh interval to session state
+        "refresh_interval": 3
     }
     
     for key, value in defaults.items():
@@ -839,8 +834,8 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def render_kpi_metrics(kpis: Dict[str, float]):
-    """Render KPI metrics in columns - Used only in tabs to prevent double rendering."""
+def render_kpi_header(kpis: Dict[str, float]):
+    """Render KPI header with metrics."""
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -1477,40 +1472,26 @@ def main():
             
             st.divider()
             
-            # Auto-refresh settings - Fixed to prevent TypeError
+            # Auto-refresh settings
             st.subheader("⚙️ Settings")
             
-            # Use session state to track auto refresh to prevent grayed-out state
-            if "auto_refresh_state" not in st.session_state:
-                st.session_state.auto_refresh_state = True
+            # Use a callback to update session state properly
+            def update_auto_refresh():
+                st.session_state.auto_refresh = st.session_state.auto_refresh_checkbox
+
+            def update_refresh_interval():
+                st.session_state.refresh_interval = st.session_state.refresh_interval_slider
             
-            auto_refresh = st.checkbox(
-                "🔄 Auto Refresh", 
-                value=st.session_state.auto_refresh_state,
-                help="Automatically refresh data from real-time stream",
-                key="auto_refresh_checkbox"
-            )
-            
-            if auto_refresh != st.session_state.auto_refresh:
-                st.session_state.auto_refresh = auto_refresh
-                st.session_state.auto_refresh_state = auto_refresh
-            
-            # Use session state for refresh interval to prevent issues
-            if "refresh_interval_state" not in st.session_state:
-                st.session_state.refresh_interval_state = 3
+            st.checkbox("🔄 Auto Refresh", 
+                       value=st.session_state.auto_refresh,
+                       help="Automatically refresh data from real-time stream",
+                       key="auto_refresh_checkbox",
+                       on_change=update_auto_refresh)
             
             if st.session_state.auto_refresh:
-                refresh_interval = st.slider(
-                    "Refresh Rate (s)", 
-                    min_value=1, 
-                    max_value=10, 
-                    value=st.session_state.refresh_interval_state,
-                    key="refresh_interval_slider"
-                )
-                st.session_state.refresh_interval = refresh_interval
-                st.session_state.refresh_interval_state = refresh_interval
-            else:
-                st.session_state.refresh_interval = 3
+                st.slider("Refresh Rate (s)", 1, 10, st.session_state.refresh_interval,
+                         key="refresh_interval_slider", 
+                         on_change=update_refresh_interval)
             
         else: # Historical data mode controls
             st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
@@ -1547,7 +1528,6 @@ def main():
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
                         
-                        # Show loading indicator for large datasets
                         if selected_session['record_count'] > 10000:
                             st.info(f"📊 Loading {selected_session['record_count']:,} records... This may take a moment due to pagination.")
                         
@@ -1576,21 +1556,18 @@ def main():
             new_messages = st.session_state.telemetry_manager.get_realtime_messages()
             
             current_session_data_from_supabase = pd.DataFrame()
-            # If new messages are arriving, update current_session_id and fetch its historical part
             if new_messages and 'session_id' in new_messages[0]:
                 current_session_id = new_messages[0]['session_id']
                 if st.session_state.current_session_id != current_session_id or \
                    st.session_state.telemetry_data.empty:
                     st.session_state.current_session_id = current_session_id
                     
-                    # Show loading indicator for large current sessions
                     with st.spinner(f"Loading current session data for {current_session_id[:8]}..."):
                         current_session_data_from_supabase = st.session_state.telemetry_manager.get_current_session_data(current_session_id)
                     
                     if not current_session_data_from_supabase.empty:
                         st.success(f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session")
                 
-            # Merge new real-time data with existing and (optionally) full current session data
             if new_messages or not current_session_data_from_supabase.empty:
                 merged_data = merge_telemetry_data(
                     new_messages,
@@ -1677,7 +1654,6 @@ def main():
         if st.session_state.data_source_mode == "realtime_session" and new_messages_count > 0:
             st.success(f"📨 +{new_messages_count}")
     with col4:
-        # Show data source indicator
         if st.session_state.is_viewing_historical:
             st.info("📚 Historical")
         else:
@@ -1694,82 +1670,79 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
     
-    # Tabs for different visualizations - Fixed to prevent double rendering
+    # Tabs for different visualizations
     st.subheader("📈 Dashboard")
     
-    # Single tab definition to prevent double rendering
-    tab_overview, tab_speed, tab_power, tab_imu, tab_imu_detail, tab_efficiency, tab_gps, tab_custom, tab_data = st.tabs([
+    tab_names = [
         "📊 Overview",
-        "🚗 Speed", 
+        "🚗 Speed",
         "⚡ Power",
         "🎮 IMU",
         "🎮 IMU Detail",
         "⚡ Efficiency",
         "🛰️ GPS",
         "📈 Custom",
-        "📃 Data"
-    ])
+        "📃 Data",
+    ]
+    tabs = st.tabs(tab_names)
     
-    # Render content for each tab - without additional KPI headers to prevent double rendering
-    with tab_overview:
+    # Render content for each tab
+    with tabs[0]:
         render_overview_tab(kpis)
     
-    with tab_speed:
-        render_kpi_metrics(kpis)
+    with tabs[1]:
+        render_kpi_header(kpis)
         fig = create_speed_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_power:
-        render_kpi_metrics(kpis)
+    with tabs[2]:
+        render_kpi_header(kpis)
         fig = create_power_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_imu:
-        render_kpi_metrics(kpis)
+    with tabs[3]:
+        render_kpi_header(kpis)
         fig = create_imu_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_imu_detail:
-        render_kpi_metrics(kpis)
+    with tabs[4]:
+        render_kpi_header(kpis)
         fig = create_imu_detail_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_efficiency:
-        render_kpi_metrics(kpis)
+    with tabs[5]:
+        render_kpi_header(kpis)
         fig = create_efficiency_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_gps:
-        render_kpi_metrics(kpis)
+    with tabs[6]:
+        render_kpi_header(kpis)
         fig = create_gps_map(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab_custom:
-        render_kpi_metrics(kpis)
+    with tabs[7]:
+        render_kpi_header(kpis)
         render_dynamic_charts_section(df)
     
-    with tab_data:
-        render_kpi_metrics(kpis)
+    with tabs[8]:
+        render_kpi_header(kpis)
         
         st.subheader("📃 Raw Telemetry Data")
         
-        # Show information about data size and pagination
         if len(df) > 1000:
             st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset.")
         else:
             st.info(f"ℹ️ Showing all {len(df):,} data points below.")
         
-        # Show sample of data
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
         
-        # Download options
         col1, col2 = st.columns(2)
         with col1:
             csv = df.to_csv(index=False)
@@ -1793,7 +1766,6 @@ def main():
                     use_container_width=True,
                 )
         
-        # Data statistics
         with st.expander("📊 Dataset Statistics"):
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -1801,16 +1773,14 @@ def main():
                 st.metric("Columns", len(df.columns))
             with col2:
                 if 'timestamp' in df.columns and len(df) > 1:
-                    # Handle timestamp conversion and calculations
                     try:
                         timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
                         timestamp_series = timestamp_series.dropna()
                         
                         if len(timestamp_series) > 1:
                             time_span = timestamp_series.max() - timestamp_series.min()
-                            st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
+                            st.metric("Time Span", str(time_span).split('.')[0])
                             
-                            # Calculate data rate
                             if time_span.total_seconds() > 0:
                                 data_rate = len(df) / time_span.total_seconds()
                                 st.metric("Data Rate", f"{data_rate:.2f} Hz")
@@ -1831,13 +1801,17 @@ def main():
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
     
-    # Auto-refresh for real-time mode only - Fixed to prevent errors
+    # Fixed auto-refresh implementation using st.rerun instead of time.sleep
     if (st.session_state.data_source_mode == "realtime_session" and 
         st.session_state.auto_refresh and 
         st.session_state.telemetry_manager and 
         st.session_state.telemetry_manager.is_connected):
         
-        time.sleep(st.session_state.get('refresh_interval', 3))
+        # Use a placeholder and sleep in a way that doesn't block the UI
+        placeholder = st.empty()
+        with placeholder.container():
+            time.sleep(st.session_state.refresh_interval)
+        placeholder.empty()
         st.rerun()
     
     # Footer
