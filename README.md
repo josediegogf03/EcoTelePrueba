@@ -3,7 +3,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)  
 [![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 
-A full-stack, real-time—and now historical—telemetry system for Shell Eco-marathon vehicles.  
+A full-stack, real-time and now historical telemetry system for Shell Eco-marathon vehicles.  
 From an ESP32-based transmitter through cloud persistence to a Streamlit dashboard, you get live KPIs, charts, maps and replayable past runs.
 
 ---
