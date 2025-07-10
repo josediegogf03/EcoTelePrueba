@@ -242,11 +242,10 @@ st.markdown("""
         position: sticky;
         top: 0;
         z-index: 50;
-        background: var(--bg-primary);
+        background: transparent;
         border-bottom: 2px solid var(--border-color);
         border-radius: 8px 8px 0 0;
         padding: 0.5rem;
-        box-shadow: 0 2px 8px var(--shadow-color);
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -459,7 +458,7 @@ class EnhancedTelemetryManager:
             request_count = 0
             max_requests = math.ceil(MAX_DATAPOINTS_PER_SESSION / SUPABASE_MAX_ROWS_PER_REQUEST)
             
-            self.logger.info(f"🔄 Starting paginated fetch for session {session_id[:8]}... (max {max_requests} requests)")
+            self.logger.info(f"🔄 Starting paginated fetch for session {session_id[:8]}...")
             
             while offset < MAX_DATAPOINTS_PER_SESSION:
                 try:
@@ -478,7 +477,7 @@ class EnhancedTelemetryManager:
                     request_count += 1
                     
                     if not response.data:
-                        self.logger.info(f"✅ No more data found at offset {offset}, pagination complete")
+                        self.logger.info(f"✅ No more data found at offset {offset}")
                         break
                     
                     batch_size = len(response.data)
@@ -488,7 +487,7 @@ class EnhancedTelemetryManager:
                     self.logger.info(f"📊 Fetched {batch_size} rows (total: {total_fetched})")
                     
                     if batch_size < SUPABASE_MAX_ROWS_PER_REQUEST:
-                        self.logger.info(f"✅ Reached end of data (got {batch_size} < {SUPABASE_MAX_ROWS_PER_REQUEST})")
+                        self.logger.info(f"✅ Reached end of data")
                         break
                     
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
@@ -511,7 +510,7 @@ class EnhancedTelemetryManager:
             if all_data:
                 df = pd.DataFrame(all_data)
                 df['data_source'] = data_source
-                self.logger.info(f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}... using {request_count} requests")
+                self.logger.info(f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}...")
                 return df
             else:
                 self.logger.warning(f"⚠️ No data found for session {session_id}")
@@ -708,9 +707,7 @@ def initialize_session_state():
             "current_session": None,
             "total_requests": 0,
             "total_rows": 0
-        },
-        "refresh_interval": 3,
-        "last_auto_refresh": datetime.now()
+        }
     }
     
     for key, value in defaults.items():
@@ -1353,17 +1350,6 @@ def main():
     
     initialize_session_state()
     
-    # Auto-refresh logic at the beginning to check if it should refresh
-    should_auto_refresh = (
-        st.session_state.data_source_mode == "realtime_session" and 
-        st.session_state.auto_refresh and 
-        st.session_state.telemetry_manager and 
-        st.session_state.telemetry_manager.is_connected
-    )
-    
-    # Check if enough time has passed for auto-refresh
-    time_since_last_refresh = (datetime.now() - st.session_state.last_auto_refresh).total_seconds()
-    
     # Sidebar for connection and data source selection
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
@@ -1445,30 +1431,36 @@ def main():
             
             st.divider()
             
-            # Auto-refresh settings - FIXED VERSION
+            # Auto-refresh settings - Fixed to prevent dynamic import issues
             st.subheader("⚙️ Settings")
             
-            # Use session state for auto refresh checkbox
+            # Create unique key for the checkbox to avoid conflicts
+            auto_refresh_key = f"auto_refresh_{id(st.session_state)}"
             new_auto_refresh = st.checkbox(
                 "🔄 Auto Refresh", 
                 value=st.session_state.auto_refresh, 
                 help="Automatically refresh data from real-time stream",
-                key="auto_refresh_checkbox"
+                key=auto_refresh_key
             )
             
             if new_auto_refresh != st.session_state.auto_refresh:
                 st.session_state.auto_refresh = new_auto_refresh
             
-            # Only show slider if auto refresh is enabled, and use session state
+            # Only show slider if auto_refresh is enabled and use fixed value approach
             if st.session_state.auto_refresh:
-                refresh_interval = st.slider(
-                    "Refresh Rate (s)", 
-                    min_value=1, 
-                    max_value=10, 
-                    value=st.session_state.refresh_interval,
-                    key="refresh_interval_slider"
+                refresh_options = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                current_index = refresh_options.index(3) if 3 in refresh_options else 2
+                
+                refresh_interval = st.selectbox(
+                    "Refresh Rate (seconds)",
+                    options=refresh_options,
+                    index=current_index,
+                    key=f"refresh_rate_{id(st.session_state)}"
                 )
-                st.session_state.refresh_interval = refresh_interval
+            else:
+                refresh_interval = 3
+            
+            st.session_state.refresh_interval = refresh_interval
             
         else: # Historical data mode controls
             st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
@@ -1604,9 +1596,6 @@ def main():
                     "Telemetry Data Points (in memory)": len(st.session_state.telemetry_data),
                     "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
                     "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
-                    "Auto Refresh Enabled": st.session_state.auto_refresh,
-                    "Should Auto Refresh Now": should_auto_refresh,
-                    "Time Since Last Refresh": f"{time_since_last_refresh:.1f}s",
                 }
                 
                 if st.session_state.telemetry_manager:
@@ -1622,13 +1611,6 @@ def main():
                     })
                 
                 st.json(debug_info)
-        
-        # Auto-refresh trigger even when no data
-        if should_auto_refresh and time_since_last_refresh >= st.session_state.refresh_interval:
-            st.session_state.last_auto_refresh = datetime.now()
-            time.sleep(0.1)  # Small delay to prevent rapid rerun loops
-            st.rerun()
-        
         return
     
     # Status row for populated data
@@ -1657,7 +1639,7 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
     
-    # Tabs for different visualizations - SINGLE INSTANCE ONLY
+    # Tabs for different visualizations - THIS IS THE ONLY PLACE TABS SHOULD BE RENDERED
     st.subheader("📈 Dashboard")
     
     tab_names = [
@@ -1787,10 +1769,13 @@ def main():
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
     
-    # Auto-refresh for real-time mode only - FIXED VERSION
-    if should_auto_refresh and time_since_last_refresh >= st.session_state.refresh_interval:
-        st.session_state.last_auto_refresh = datetime.now()
-        time.sleep(0.1)  # Small delay to prevent rapid rerun loops
+    # Auto-refresh for real-time mode only
+    if (st.session_state.data_source_mode == "realtime_session" and 
+        st.session_state.auto_refresh and 
+        st.session_state.telemetry_manager and 
+        st.session_state.telemetry_manager.is_connected):
+        
+        time.sleep(st.session_state.get('refresh_interval', 3))
         st.rerun()
     
     # Footer
