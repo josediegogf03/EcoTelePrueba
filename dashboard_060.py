@@ -2195,6 +2195,7 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
     with tabs[7]:
+        
         render_kpi_header(kpis)
         render_dynamic_charts_section(df)
 
@@ -2204,11 +2205,9 @@ def main():
         st.subheader("📃 Raw Telemetry Data")
 
         if len(df) > 1000:
-            st.info(
-                f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset."
-            )
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
         else:
-            st.info(f"ℹ️ Showing all {len(df):,} data points below.")
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
 
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
