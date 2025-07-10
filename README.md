@@ -3,8 +3,8 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)  
 [![Status: Beta](https://img.shields.io/badge/status-beta-yellow)](https://github.com/ChosF/EcoTele/releases/tag/Dashboard_Beta)  
 
-A full-stack, real-time telemetry system for Shell Eco-marathon vehicles.  
-From an ESP32-based transmitter all the way through to a Streamlit dashboard—you’ll get live KPIs, charts, maps and fully customizable visualizations.
+A full-stack, real-time—and now historical—telemetry system for Shell Eco-marathon vehicles.  
+From an ESP32-based transmitter through cloud persistence to a Streamlit dashboard, you get live KPIs, charts, maps and replayable past runs.
 
 ---
 
@@ -12,53 +12,55 @@ From an ESP32-based transmitter all the way through to a Streamlit dashboard—y
 
 ```text
 ESP32 Transmitter (Transmiter.cpp)
-        └─ publishes mock (soon: real) sensor data via MQTT → 
-Ably MQTT Broker (mqtt.ably.io) →
-maindata.py (MQTT → Ably Realtime bridge) →
-Ably Realtime Pub/Sub →
-dashboard_050.py (Streamlit subscriber)
+        └─ MQTT/SSL → Ably MQTT Broker →
+Bridge & DB Writer (maindata.py)
+   • republishes live → Ably Realtime Pub/Sub
+   • batches & stores → Supabase
+        └─ Streamlit Dashboard (dashboard_060.py)
+           • Real-time view
+           • Historical run browser
 ```
 
 ---
 
-## ✨ v0.5 Beta Highlights
+## ✨ v0.6 Beta Highlights
 
-- **ESP32 Transmitter** (`Transmiter.cpp`)  
-  - Runs on your vehicle’s ESP32 module  
-  - Publishes speed, voltage, power, GPS, gyroscope & accelerometer data (mock for now) via MQTT over SSL  
-  - Ready to swap in real sensor reads  
+- **ESP32 Hardware Support**  
+  Connect your on-vehicle ESP32 running the transmitter program to stream real sensor data via secure MQTT.
 
-- **Aggregator Bridge** (`maindata.py`)  
-  - Subscribes to the `EcoTele` MQTT topic  
-  - Republishes incoming JSON payloads into an Ably Realtime channel  
-  - Handles reconnects, back-pressure, and graceful shutdown  
+- **Cloud Persistence & Sessions**  
+  All telemetry is batched and saved in Supabase. Each run is tracked as a distinct session, preserving start time, duration and record counts.
 
-- **Streamlit Dashboard** (`dashboard_050.py`)  
-  - Live KPIs: distance, max/avg speed, energy, power, efficiency, max accel, avg gyro  
-  - Nine tabs: Overview, Speed, Power, IMU, IMU Detail, Efficiency, GPS, Custom, Data  
-  - **Custom Chart Builder** – add/remove line, scatter, bar, histogram or heatmap on-the-fly  
-  - Theme-aware styling, sticky header, modern buttons & responsive layout  
-  - High-capacity buffer (up to 50 000 points)  
+- **Historical Data Mode**  
+  Browse, select and replay any past session. Automatic pagination handles large datasets seamlessly.
+
+- **Unified Live + Replay**  
+  Live streaming and historical replay share the same timeline view with automatic deduplication, so charts never jump or repeat.
+
+- **Enhanced UX for Big Data**  
+  Informative spinners during load, “Large Dataset” notices, dual CSV download (full vs sample), and detailed metrics: time span, data rate, memory usage and source breakdown.
 
 ---
 
 ## 🎯 Features
 
-1. **Transmitter**  
-   • ESP32 C++ application using ESP-IDF & FreeRTOS  
-   • MQTT over SSL to `mqtt.ably.io:8883`  
-   • Mock-data generator for vehicle dynamics & IMU  
+1. **ESP32 Transmitter** (`Transmiter.cpp`)  
+   • FreeRTOS C++ app publishes speed, voltage, power, GPS, IMU via MQTT over SSL.  
 
-2. **Aggregator** (`maindata.py`)  
-   • MQTT client retrieves ESP32 payloads  
-   • Ably Realtime client republishes under `telemetry_update`  
-   • Thread-safe queue, asyncio integration, error tracking  
+2. **Bridge & Database** (`maindata.py`)  
+   • Consumes from MQTT or mock generator.  
+   • Republishes live events to Ably Realtime.  
+   • Batches writes every few seconds to Supabase with session metadata.  
 
-3. **Dashboard** (`dashboard_050.py`)  
-   • Streamlit frontend: thread-safe subscription to Ably Realtime  
-   • Key Performance Indicators + rich Plotly charts  
-   • Custom charts & correlation heatmap  
-   • CSV download & raw data view  
+3. **Dashboard** (`dashboard_060.py`)  
+   • Real-time + historical mode selection.  
+   • Session list & loader with pagination.  
+   • Full KPI suite & rich Plotly charts + custom-chart builder.  
+   • CSV exports, dataset statistics and responsive theming.  
+
+4. **Legacy & Prototypes**  
+   • `dashboard_050.py` (v0.5) – current live-only build  
+   • `dashboard_020.py` & `demo_1.py` – prior alpha prototypes  
 
 ---
 
@@ -69,20 +71,19 @@ dashboard_050.py (Streamlit subscriber)
 │  ESP32 Transmitter     │
 │  (Transmiter.cpp)      │
 └──────────┬─────────────┘
-           │ MQTT (SSL)
+           │ MQTT/SSL → Ably MQTT 
 ┌──────────▼─────────────┐
-│   Ably MQTT Broker     │
-│  (mqtt.ably.io:8883)   │
+│ Bridge & DB Writer     │
+│ (maindata.py)          │
+│ • Live → Ably Realtime │
+│ • Batch → Supabase     │
 └──────────┬─────────────┘
-           │ MQTT
+           │ Pub/Sub & HTTP 
 ┌──────────▼─────────────┐
-│  maindata.py           │
-│  (MQTT → Ably Realtime)│
-└──────────┬─────────────┘
-           │ Ably Realtime
-┌──────────▼─────────────┐
-│  dashboard_050.py      │
-│  (Streamlit subscriber)│
+│  Streamlit Dashboard   │
+│  (dashboard_060.py)    │
+│ • Live view            │
+│ • Historical browser   │
 └────────────────────────┘
 ```
 
@@ -93,20 +94,20 @@ dashboard_050.py (Streamlit subscriber)
 ### Prerequisites
 
 - Python 3.8+  
-- [ESP-IDF toolchain](https://docs.espressif.com/projects/esp-idf/) (for flashing `Transmiter.cpp`)  
+- ESP-IDF toolchain (for `Transmiter.cpp`)  
 - `pip install -r requirements.txt`  
 
-### 1. Flash the ESP32
+### 1. Flash & Run ESP32
 
 ```bash
-# From your ESP-IDF project directory:
+# in ESP-IDF project
 idf.py set-target esp32
-idf.py menuconfig        # confirm MQTT & WiFi settings
+idf.py menuconfig   # configure Wi-Fi & MQTT
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-### 2. Start the Aggregator
+### 2. Start Bridge & DB Writer
 
 ```bash
 cd EcoTele
@@ -114,13 +115,13 @@ pip install -r requirements.txt
 python maindata.py
 ```
 
-### 3. Launch the Dashboard
+### 3. Launch Dashboard
 
 ```bash
-streamlit run dashboard_050.py
+streamlit run dashboard_060.py
 ```
 
-> **Deploy** on Streamlit Community Cloud by pointing to `dashboard_050.py` in your GitHub repo.
+> Deploy on Streamlit Community Cloud by selecting `dashboard_060.py`.
 
 ---
 
@@ -128,37 +129,34 @@ streamlit run dashboard_050.py
 
 ```
 EcoTele/
-├── Transmiter.cpp        # ESP32 mock-data transmitter (ESP-IDF / FreeRTOS)
-├── maindata.py           # MQTT → Ably Realtime bridge & aggregator
-├── dashboard_050.py      # Current Streamlit dashboard (v0.5 Beta)
-├── dashboard_020.py      # Legacy dashboard build (v0.2 Alpha)
-├── demo_1.py             # First prototype (fully mock data, no Ably)
-├── requirements.txt      # Python dependencies
-├── LICENSE               # Apache License 2.0
-└── README.md             # This file
+├── Transmiter.cpp       # ESP32 data transmitter (MQTT/SSL)
+├── maindata.py          # Bridge + batch-to-Supabase service
+├── dashboard_060.py     # Current Streamlit dashboard (live + historical)
+├── dashboard_050.py     # Live-only dashboard (v0.5 Beta)
+├── dashboard_020.py     # Legacy dashboard (v0.2 Alpha)
+├── demo_1.py            # First prototype (mock-only)
+├── requirements.txt     # Python dependencies
+├── LICENSE              # Apache 2.0 License
+└── README.md            # This file
 ```
 
 ---
 
 ## 🚧 Roadmap & Future Work
 
-- **Persistent Storage**  
-  Store incoming data so users can reconnect/reload without losing history.  
-- **Historical Replay**  
-  Enable “time-travel” through past telemetry sessions.  
-- **Resilience Improvements**  
-  Fix the auto-refresh freeze (observed when left off >4 min) and support offline buffering.  
-- **Real Sensor Integration**  
-  Swap mock generators for live IMU, GPS & power-train feeds.  
+- Offline buffering & retry logic  
+- Historical replay controls (playback, scrubbing)  
+- User authentication & multi-user data isolation  
+- Real-sensor integration for powertrain & IMU  
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0**.  
-See [LICENSE](LICENSE) for full details.
+Licensed under the **Apache License 2.0**.  
+See [LICENSE](LICENSE) for details.
 
 ---
 
-> _Feedback, bug reports & contributions are very welcome!_  
-> https://github.com/ChosF/EcoTele/issues  
+> Feedback, bug reports & contributions:  
+> https://github.com/ChosF/EcoTele/issues
