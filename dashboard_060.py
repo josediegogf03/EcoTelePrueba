@@ -17,6 +17,13 @@ import uuid
 import warnings
 import math
 
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    AUTOREFRESH_AVAILABLE = True
+except ImportError:
+    AUTOREFRESH_AVAILABLE = False
+    
 # Handles imports with error checking
 try:
     from ably import AblyRealtime, AblyRest
@@ -1770,14 +1777,22 @@ def main():
                         st.write(f"• {source}: {count:,} rows")
     
     # Auto-refresh for real-time mode only
-    if (st.session_state.data_source_mode == "realtime_session" and 
-        st.session_state.auto_refresh and 
-        st.session_state.telemetry_manager and 
-        st.session_state.telemetry_manager.is_connected):
-        
-        time.sleep(st.session_state.get('refresh_interval', 3))
-        st.rerun()
-    
+    if (
+        st.session_state.data_source_mode == "realtime_session"
+        and st.session_state.auto_refresh
+    ):
+        if AUTOREFRESH_AVAILABLE:
+            # refresh_interval is in seconds; st_autorefresh expects milliseconds:
+            st_autorefresh(
+                interval=st.session_state.refresh_interval * 1000,
+                key="auto_refresh",
+            )
+        else:
+            st.warning(
+                "🔄 To enable smooth auto-refresh install:\n"
+                "`pip install streamlit-autorefresh`"
+            )
+            
     # Footer
     st.divider()
     st.markdown(
