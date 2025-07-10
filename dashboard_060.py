@@ -1406,7 +1406,9 @@ def main():
             st.session_state.is_viewing_historical = (data_source_mode == "historical")
             st.session_state.selected_session = None
             st.session_state.current_session_id = None
+            # Use st.experimental_rerun() or return early to prevent duplicate rendering
             st.rerun()
+            return  # Add this return to prevent further execution
         
         # Real-time mode controls
         if st.session_state.data_source_mode == "realtime_session":
@@ -1433,7 +1435,9 @@ def main():
                         else:
                             st.error("❌ Failed to connect to any service!")
                     
-                    st.rerun()
+                    # Remove the rerun here or add return
+                    # st.rerun()
+                    return  # Add this to prevent duplicate rendering
             
             with col2:
                 if st.button("🛑 Disconnect", use_container_width=True):
@@ -1441,7 +1445,8 @@ def main():
                         st.session_state.telemetry_manager.disconnect()
                         st.session_state.telemetry_manager = None
                     st.info("🛑 Disconnected")
-                    st.rerun()
+                    # st.rerun()
+                    return
             
             # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
@@ -1808,8 +1813,11 @@ def main():
         st.session_state.telemetry_manager and 
         st.session_state.telemetry_manager.is_connected):
         
+        # Use a placeholder for auto-refresh instead of full rerun
         time.sleep(st.session_state.get('refresh_interval', 3))
-        st.rerun()
+        # Only rerun if there's actually new data to show
+        if new_messages_count > 0:
+            st.rerun()
     
     # Footer
     st.divider()
