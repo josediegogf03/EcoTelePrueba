@@ -23,7 +23,7 @@ try:
     AUTOREFRESH_AVAILABLE = True
 except ImportError:
     AUTOREFRESH_AVAILABLE = False
-    
+
 # Handles imports with error checking
 try:
     from ably import AblyRealtime, AblyRest
@@ -38,14 +38,20 @@ try:
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
-    st.error("❌ Supabase library not available. Please install: pip install supabase")
+    st.error(
+        "❌ Supabase library not available. Please install: pip install supabase"
+    )
     st.stop()
 
 # Disables tracemalloc warnings
-warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*tracemalloc.*")
+warnings.filterwarnings(
+    "ignore", category=RuntimeWarning, message=".*tracemalloc.*"
+)
 
 # Configuration
-DASHBOARD_ABLY_API_KEY = "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
+DASHBOARD_ABLY_API_KEY = (
+    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
+)
 DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://dsfmdziehhgmrconjcns.supabase.co"
 SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzZm1kemllaGhnbXJjb25qY25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MDEyOTIsImV4cCI6MjA2NzQ3NzI5Mn0.P41bpLkP0tKpTktLx6hFOnnyrAB9N_yihQP1v6zTRwc"
@@ -69,7 +75,8 @@ st.set_page_config(
 )
 
 # CSS styling
-st.markdown("""
+st.markdown(
+    """
 <style>
     :root {
         --primary-color: #1f77b4;
@@ -269,7 +276,9 @@ st.markdown("""
         }
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Logger setup
 def setup_terminal_logging():
@@ -289,7 +298,7 @@ setup_terminal_logging()
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
-    
+
     def __init__(self):
         self.realtime_subscriber = None
         self.supabase_client = None
@@ -307,14 +316,14 @@ class EnhancedTelemetryManager:
                 "total_requests": 0,
                 "total_rows_fetched": 0,
                 "largest_session_size": 0,
-                "sessions_paginated": 0
-            }
+                "sessions_paginated": 0,
+            },
         }
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._should_run = False
         self.logger = logging.getLogger("TelemetryDashboard")
-        
+
     def connect_supabase(self) -> bool:
         """Connect to Supabase database."""
         try:
@@ -327,34 +336,34 @@ class EnhancedTelemetryManager:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             return False
-    
+
     def connect_realtime(self) -> bool:
         """Connect to Ably for real-time data."""
         try:
             with self._lock:
                 self.stats["connection_attempts"] += 1
-            
+
             if self._should_run:
                 self.disconnect()
-            
+
             self._stop_event.clear()
             self._should_run = True
-            
+
             self.connection_thread = threading.Thread(
                 target=self._connection_worker, daemon=True
             )
             self.connection_thread.start()
-            
+
             time.sleep(3)
             return self.is_connected
-            
+
         except Exception as e:
             self.logger.error(f"❌ Real-time connection failed: {e}")
             with self._lock:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             return False
-    
+
     def _connection_worker(self):
         """Worker thread for Ably connection."""
         try:
@@ -367,59 +376,65 @@ class EnhancedTelemetryManager:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             self.is_connected = False
-    
+
     async def _async_connection_handler(self):
         """Handle Ably connection asynchronously."""
         try:
             self.realtime_subscriber = AblyRealtime(DASHBOARD_ABLY_API_KEY)
-            
+
             def on_connected(state_change):
                 self.is_connected = True
                 self.logger.info("✅ Connected to Ably")
-            
+
             def on_disconnected(state_change):
                 self.is_connected = False
                 self.logger.warning("❌ Disconnected from Ably")
-            
+
             def on_failed(state_change):
                 self.is_connected = False
                 self.logger.error(f"💥 Connection failed: {state_change}")
-            
+
             self.realtime_subscriber.connection.on("connected", on_connected)
-            self.realtime_subscriber.connection.on("disconnected", on_disconnected)
+            self.realtime_subscriber.connection.on(
+                "disconnected", on_disconnected
+            )
             self.realtime_subscriber.connection.on("failed", on_failed)
-            
+
             await self.realtime_subscriber.connection.once_async("connected")
-            
-            channel = self.realtime_subscriber.channels.get(DASHBOARD_CHANNEL_NAME)
-            await channel.subscribe("telemetry_update", self._on_message_received)
-            
+
+            channel = self.realtime_subscriber.channels.get(
+                DASHBOARD_CHANNEL_NAME
+            )
+            await channel.subscribe(
+                "telemetry_update", self._on_message_received
+            )
+
             while self._should_run and not self._stop_event.is_set():
                 await asyncio.sleep(1)
-                
+
         except Exception as e:
             self.logger.error(f"💥 Async connection error: {e}")
             with self._lock:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             self.is_connected = False
-    
+
     def _on_message_received(self, message):
         """Handle incoming real-time messages."""
         try:
             data = message.data
-            
+
             if isinstance(data, str):
                 try:
                     data = json.loads(data)
                 except json.JSONDecodeError as e:
                     self.logger.error(f"❌ JSON decode error: {e}")
                     return
-            
+
             if not isinstance(data, dict):
                 self.logger.warning(f"⚠️ Invalid data type: {type(data)}")
                 return
-            
+
             with self._lock:
                 if self.message_queue.qsize() > 500:
                     while self.message_queue.qsize() > 250:
@@ -427,18 +442,18 @@ class EnhancedTelemetryManager:
                             self.message_queue.get_nowait()
                         except queue.Empty:
                             break
-                
-                data['data_source'] = 'realtime'
+
+                data["data_source"] = "realtime"
                 self.message_queue.put(data)
                 self.stats["messages_received"] += 1
                 self.stats["last_message_time"] = datetime.now()
-                
+
         except Exception as e:
             self.logger.error(f"❌ Message handling error: {e}")
             with self._lock:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
-    
+
     def get_realtime_messages(self) -> List[Dict[str, Any]]:
         """Get all queued real-time messages."""
         messages = []
@@ -450,247 +465,292 @@ class EnhancedTelemetryManager:
                 except queue.Empty:
                     break
         return messages
-    
-    def _paginated_fetch(self, session_id: str, data_source: str = 'supabase_current') -> pd.DataFrame:
+
+    def _paginated_fetch(
+        self, session_id: str, data_source: str = "supabase_current"
+    ) -> pd.DataFrame:
         """Fetch all data for a session using pagination to overcome the 1000 row limit."""
         try:
             if not self.supabase_client:
                 self.logger.error("❌ Supabase client not initialized")
                 return pd.DataFrame()
-            
+
             all_data = []
             offset = 0
             total_fetched = 0
             request_count = 0
-            max_requests = math.ceil(MAX_DATAPOINTS_PER_SESSION / SUPABASE_MAX_ROWS_PER_REQUEST)
-            
-            self.logger.info(f"🔄 Starting paginated fetch for session {session_id[:8]}...")
-            
+            max_requests = math.ceil(
+                MAX_DATAPOINTS_PER_SESSION / SUPABASE_MAX_ROWS_PER_REQUEST
+            )
+
+            self.logger.info(
+                f"🔄 Starting paginated fetch for session {session_id[:8]}..."
+            )
+
             while offset < MAX_DATAPOINTS_PER_SESSION:
                 try:
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
-                    
-                    self.logger.info(f"📄 Fetching page {request_count + 1}: rows {offset}-{range_end}")
-                    
-                    response = (self.supabase_client
-                              .table(SUPABASE_TABLE_NAME)
-                              .select("*")
-                              .eq("session_id", session_id)
-                              .order("timestamp", desc=False)
-                              .range(offset, range_end)
-                              .execute())
-                    
+
+                    self.logger.info(
+                        f"📄 Fetching page {request_count + 1}: rows {offset}-{range_end}"
+                    )
+
+                    response = (
+                        self.supabase_client.table(SUPABASE_TABLE_NAME)
+                        .select("*")
+                        .eq("session_id", session_id)
+                        .order("timestamp", desc=False)
+                        .range(offset, range_end)
+                        .execute()
+                    )
+
                     request_count += 1
-                    
+
                     if not response.data:
-                        self.logger.info(f"✅ No more data found at offset {offset}")
+                        self.logger.info(
+                            f"✅ No more data found at offset {offset}"
+                        )
                         break
-                    
+
                     batch_size = len(response.data)
                     all_data.extend(response.data)
                     total_fetched += batch_size
-                    
-                    self.logger.info(f"📊 Fetched {batch_size} rows (total: {total_fetched})")
-                    
+
+                    self.logger.info(
+                        f"📊 Fetched {batch_size} rows (total: {total_fetched})"
+                    )
+
                     if batch_size < SUPABASE_MAX_ROWS_PER_REQUEST:
                         self.logger.info(f"✅ Reached end of data")
                         break
-                    
+
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
                     time.sleep(0.1)
-                    
+
                 except Exception as e:
-                    self.logger.error(f"❌ Error in pagination request {request_count}: {e}")
+                    self.logger.error(
+                        f"❌ Error in pagination request {request_count}: {e}"
+                    )
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
                     continue
-            
+
             with self._lock:
                 self.stats["pagination_stats"]["total_requests"] += request_count
-                self.stats["pagination_stats"]["total_rows_fetched"] += total_fetched
+                self.stats["pagination_stats"][
+                    "total_rows_fetched"
+                ] += total_fetched
                 self.stats["pagination_stats"]["largest_session_size"] = max(
-                    self.stats["pagination_stats"]["largest_session_size"], total_fetched
+                    self.stats["pagination_stats"]["largest_session_size"],
+                    total_fetched,
                 )
                 if request_count > 1:
                     self.stats["pagination_stats"]["sessions_paginated"] += 1
-            
+
             if all_data:
                 df = pd.DataFrame(all_data)
-                df['data_source'] = data_source
-                self.logger.info(f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}...")
+                df["data_source"] = data_source
+                self.logger.info(
+                    f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}..."
+                )
                 return df
             else:
                 self.logger.warning(f"⚠️ No data found for session {session_id}")
                 return pd.DataFrame()
-                
+
         except Exception as e:
-            self.logger.error(f"❌ Error in paginated fetch for session {session_id}: {e}")
+            self.logger.error(
+                f"❌ Error in paginated fetch for session {session_id}: {e}"
+            )
             with self._lock:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             return pd.DataFrame()
-    
+
     def get_current_session_data(self, session_id: str) -> pd.DataFrame:
         """Get current session data from Supabase with pagination support."""
-        self.logger.info(f"🔄 Fetching current session data for {session_id[:8]}...")
-        return self._paginated_fetch(session_id, 'supabase_current')
-    
+        self.logger.info(
+            f"🔄 Fetching current session data for {session_id[:8]}..."
+        )
+        return self._paginated_fetch(session_id, "supabase_current")
+
     def get_historical_sessions(self) -> List[Dict[str, Any]]:
         """Get list of historical sessions with pagination support."""
         try:
             if not self.supabase_client:
                 self.logger.error("❌ Supabase client not initialized")
                 return []
-            
+
             self.logger.info("🔄 Fetching historical sessions list...")
-            
+
             all_records = []
             offset = 0
-            
+
             while True:
                 try:
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
-                    
-                    response = (self.supabase_client
-                              .table(SUPABASE_TABLE_NAME)
-                              .select("session_id, timestamp")
-                              .order("timestamp", desc=True)
-                              .range(offset, range_end)
-                              .execute())
-                    
+
+                    response = (
+                        self.supabase_client.table(SUPABASE_TABLE_NAME)
+                        .select("session_id, timestamp")
+                        .order("timestamp", desc=True)
+                        .range(offset, range_end)
+                        .execute()
+                    )
+
                     if not response.data:
                         break
-                    
+
                     all_records.extend(response.data)
-                    
+
                     if len(response.data) < SUPABASE_MAX_ROWS_PER_REQUEST:
                         break
-                    
+
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
-                    
+
                 except Exception as e:
-                    self.logger.error(f"❌ Error fetching session records at offset {offset}: {e}")
+                    self.logger.error(
+                        f"❌ Error fetching session records at offset {offset}: {e}"
+                    )
                     break
-            
+
             if not all_records:
                 self.logger.warning("⚠️ No session records found")
                 return []
-            
+
             sessions = {}
             for record in all_records:
-                session_id = record['session_id']
-                timestamp = record['timestamp']
-                
+                session_id = record["session_id"]
+                timestamp = record["timestamp"]
+
                 if session_id not in sessions:
                     sessions[session_id] = {
-                        'session_id': session_id,
-                        'start_time': timestamp,
-                        'end_time': timestamp,
-                        'record_count': 1
+                        "session_id": session_id,
+                        "start_time": timestamp,
+                        "end_time": timestamp,
+                        "record_count": 1,
                     }
                 else:
-                    sessions[session_id]['record_count'] += 1
-                    if timestamp < sessions[session_id]['start_time']:
-                        sessions[session_id]['start_time'] = timestamp
-                    if timestamp > sessions[session_id]['end_time']:
-                        sessions[session_id]['end_time'] = timestamp
-            
+                    sessions[session_id]["record_count"] += 1
+                    if timestamp < sessions[session_id]["start_time"]:
+                        sessions[session_id]["start_time"] = timestamp
+                    if timestamp > sessions[session_id]["end_time"]:
+                        sessions[session_id]["end_time"] = timestamp
+
             session_list = []
             for session_info in sessions.values():
                 try:
-                    start_dt = datetime.fromisoformat(session_info['start_time'].replace('Z', '+00:00'))
-                    end_dt = datetime.fromisoformat(session_info['end_time'].replace('Z', '+00:00'))
+                    start_dt = datetime.fromisoformat(
+                        session_info["start_time"].replace("Z", "+00:00")
+                    )
+                    end_dt = datetime.fromisoformat(
+                        session_info["end_time"].replace("Z", "+00:00")
+                    )
                     duration = end_dt - start_dt
-                    
-                    session_list.append({
-                        'session_id': session_info['session_id'],
-                        'start_time': start_dt,
-                        'end_time': end_dt,
-                        'duration': duration,
-                        'record_count': session_info['record_count']
-                    })
+
+                    session_list.append(
+                        {
+                            "session_id": session_info["session_id"],
+                            "start_time": start_dt,
+                            "end_time": end_dt,
+                            "duration": duration,
+                            "record_count": session_info["record_count"],
+                        }
+                    )
                 except Exception as e:
-                    self.logger.error(f"❌ Error processing session {session_info['session_id']}: {e}")
-            
-            sorted_sessions = sorted(session_list, key=lambda x: x['start_time'], reverse=True)
-            self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
+                    self.logger.error(
+                        f"❌ Error processing session {session_info['session_id']}: {e}"
+                    )
+
+            sorted_sessions = sorted(
+                session_list, key=lambda x: x["start_time"], reverse=True
+            )
+            self.logger.info(
+                f"✅ Found {len(sorted_sessions)} unique sessions"
+            )
             return sorted_sessions
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error fetching historical sessions: {e}")
             with self._lock:
                 self.stats["errors"] += 1
                 self.stats["last_error"] = str(e)
             return []
-    
+
     def get_historical_data(self, session_id: str) -> pd.DataFrame:
         """Get historical data for a specific session with pagination support."""
-        self.logger.info(f"🔄 Fetching historical data for session {session_id[:8]}...")
-        return self._paginated_fetch(session_id, 'supabase_historical')
-    
+        self.logger.info(
+            f"🔄 Fetching historical data for session {session_id[:8]}..."
+        )
+        return self._paginated_fetch(session_id, "supabase_historical")
+
     def disconnect(self):
         """Disconnect from all services."""
         try:
             self._should_run = False
             self._stop_event.set()
             self.is_connected = False
-            
+
             if self.realtime_subscriber:
                 try:
                     self.realtime_subscriber.close()
                 except Exception as e:
                     self.logger.warning(f"⚠️ Error closing Ably: {e}")
-            
+
             if self.connection_thread and self.connection_thread.is_alive():
                 self.connection_thread.join(timeout=5)
-            
+
             self.logger.info("🔚 Disconnected from services")
-            
+
         except Exception as e:
             self.logger.error(f"❌ Disconnect error: {e}")
         finally:
             self.realtime_subscriber = None
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get connection statistics including pagination info."""
         with self._lock:
             return self.stats.copy()
 
-def merge_telemetry_data(realtime_data: List[Dict], 
-                        supabase_data: pd.DataFrame, 
-                        streamlit_history: pd.DataFrame) -> pd.DataFrame:
+def merge_telemetry_data(
+    realtime_data: List[Dict],
+    supabase_data: pd.DataFrame,
+    streamlit_history: pd.DataFrame,
+) -> pd.DataFrame:
     """Merge data from multiple sources with deduplication."""
     try:
         all_data = []
-        
+
         if realtime_data:
             all_data.extend(realtime_data)
-        
+
         if not supabase_data.empty:
-            all_data.extend(supabase_data.to_dict('records'))
-        
+            all_data.extend(supabase_data.to_dict("records"))
+
         if not streamlit_history.empty:
-            all_data.extend(streamlit_history.to_dict('records'))
-        
+            all_data.extend(streamlit_history.to_dict("records"))
+
         if not all_data:
             return pd.DataFrame()
-        
+
         df = pd.DataFrame(all_data)
-        
-        if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
-            df.dropna(subset=['timestamp'], inplace=True)
+
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(
+                df["timestamp"], errors="coerce", utc=True
+            )
+            df.dropna(subset=["timestamp"], inplace=True)
         else:
             return df
-        
-        dedup_columns = ['timestamp']
-        if 'message_id' in df.columns:
-            dedup_columns.append('message_id')
-        
-        df = df.drop_duplicates(subset=dedup_columns, keep='last')
-        df = df.sort_values('timestamp', ascending=True).reset_index(drop=True)
-        
+
+        dedup_columns = ["timestamp"]
+        if "message_id" in df.columns:
+            dedup_columns.append("message_id")
+
+        df = df.drop_duplicates(subset=dedup_columns, keep="last")
+        df = df.sort_values("timestamp", ascending=True).reset_index(drop=True)
+
         return df
-        
+
     except Exception as e:
         st.error(f"Error merging telemetry data: {e}")
         return pd.DataFrame()
@@ -712,44 +772,56 @@ def initialize_session_state():
             "is_loading": False,
             "current_session": None,
             "total_requests": 0,
-            "total_rows": 0
+            "total_rows": 0,
         },
-        "chart_info_initialized": False
+        "chart_info_initialized": False,
     }
-    
+
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
+    # MODIFICATION START: Add km/h defaults
     default_kpis = {
         "current_speed_ms": 0.0,
         "total_distance_km": 0.0,
         "max_speed_ms": 0.0,
         "avg_speed_ms": 0.0,
+        "current_speed_kmh": 0.0,
+        "max_speed_kmh": 0.0,
+        "avg_speed_kmh": 0.0,
         "total_energy_kwh": 0.0,
         "avg_power_w": 0.0,
         "efficiency_km_per_kwh": 0.0,
         "battery_voltage_v": 0.0,
         "battery_percentage": 0.0,
     }
-    
+    # MODIFICATION END
+
     if df.empty:
         return default_kpis
-    
+
     try:
         numeric_cols = [
-            "energy_j", "speed_ms", "distance_m", "power_w",
-            "voltage_v", "current_a", "latitude", "longitude", "altitude"
+            "energy_j",
+            "speed_ms",
+            "distance_m",
+            "power_w",
+            "voltage_v",
+            "current_a",
+            "latitude",
+            "longitude",
+            "altitude",
         ]
-        
+
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-        
+
         kpis = default_kpis.copy()
-        
+
         # Current speed (latest value)
         if "speed_ms" in df.columns:
             speed_data = df["speed_ms"].dropna()
@@ -757,25 +829,37 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
                 kpis["current_speed_ms"] = max(0, speed_data.iloc[-1])
                 kpis["max_speed_ms"] = max(0, speed_data.max())
                 kpis["avg_speed_ms"] = max(0, speed_data.mean())
-        
+
+        # MODIFICATION START: Convert speeds to km/h
+        kpis["current_speed_kmh"] = kpis["current_speed_ms"] * 3.6
+        kpis["max_speed_kmh"] = kpis["max_speed_ms"] * 3.6
+        kpis["avg_speed_kmh"] = kpis["avg_speed_ms"] * 3.6
+        # MODIFICATION END
+
         # Distance
         if "distance_m" in df.columns and not df["distance_m"].dropna().empty:
-            kpis["total_distance_km"] = max(0, df["distance_m"].dropna().iloc[-1] / 1000)
-        
+            kpis["total_distance_km"] = max(
+                0, df["distance_m"].dropna().iloc[-1] / 1000
+            )
+
         # Energy in kWh
         if "energy_j" in df.columns and not df["energy_j"].dropna().empty:
-            kpis["total_energy_kwh"] = max(0, df["energy_j"].dropna().iloc[-1] / 3_600_000)  # Convert J to kWh
-        
+            kpis["total_energy_kwh"] = max(
+                0, df["energy_j"].dropna().iloc[-1] / 3_600_000
+            )  # Convert J to kWh
+
         # Power
         if "power_w" in df.columns:
             power_data = df["power_w"].dropna()
             if not power_data.empty:
                 kpis["avg_power_w"] = max(0, power_data.mean())
-        
+
         # Efficiency in km/kWh
         if kpis["total_energy_kwh"] > 0:
-            kpis["efficiency_km_per_kwh"] = kpis["total_distance_km"] / kpis["total_energy_kwh"]
-        
+            kpis["efficiency_km_per_kwh"] = (
+                kpis["total_distance_km"] / kpis["total_energy_kwh"]
+            )
+
         # Battery voltage (latest value)
         if "voltage_v" in df.columns:
             voltage_data = df["voltage_v"].dropna()
@@ -787,11 +871,20 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
                 min_voltage = 40.0
                 current_voltage = kpis["battery_voltage_v"]
                 if current_voltage > min_voltage:
-                    kpis["battery_percentage"] = min(100, max(0, 
-                        ((current_voltage - min_voltage) / (max_voltage - min_voltage)) * 100))
-        
+                    kpis["battery_percentage"] = min(
+                        100,
+                        max(
+                            0,
+                            (
+                                (current_voltage - min_voltage)
+                                / (max_voltage - min_voltage)
+                            )
+                            * 100,
+                        ),
+                    )
+
         return kpis
-        
+
     except Exception as e:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
@@ -799,84 +892,101 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
 def render_kpi_header(kpis: Dict[str, float]):
     """Render KPI header with metrics."""
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
-        st.metric("🚀 Current Speed", f"{kpis['current_speed_ms']:.1f} m/s")
+        # MODIFICATION START: Display speed in km/h
+        st.metric("🚀 Current Speed", f"{kpis['current_speed_kmh']:.1f} km/h")
+        # MODIFICATION END
         st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-    
+
     with col2:
-        st.metric("🏃 Max Speed", f"{kpis['max_speed_ms']:.1f} m/s")
-        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s")
-    
+        # MODIFICATION START: Display speed in km/h
+        st.metric("🏃 Max Speed", f"{kpis['max_speed_kmh']:.1f} km/h")
+        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_kmh']:.1f} km/h")
+        # MODIFICATION END
+
     with col3:
         st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
         st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-    
+
     with col4:
         # Battery indicator with voltage and percentage
-        battery_display = f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        battery_display = (
+            f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        )
         st.metric("🔋 Battery", battery_display)
-        st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh")
+        st.metric(
+            "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
+        )
 
 def render_overview_tab(kpis: Dict[str, float]):
     """Render overview tab with KPIs."""
     st.markdown("### 📊 Performance Overview")
-    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
-    
+    st.markdown(
+        "Real-time key performance indicators for your Shell Eco-marathon vehicle"
+    )
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
+        # MODIFICATION START: Display speed in km/h
         st.metric(
             label="🚀 Current Speed",
-            value=f"{kpis['current_speed_ms']:.1f} m/s",
-            help="Current vehicle speed"
+            value=f"{kpis['current_speed_kmh']:.1f} km/h",
+            help="Current vehicle speed",
         )
+        # MODIFICATION END
         st.metric(
             label="🛣️ Total Distance",
             value=f"{kpis['total_distance_km']:.2f} km",
-            help="Distance traveled during the session"
+            help="Distance traveled during the session",
         )
-    
+
     with col2:
+        # MODIFICATION START: Display speed in km/h
         st.metric(
             label="🏃 Maximum Speed",
-            value=f"{kpis['max_speed_ms']:.1f} m/s",
-            help="Highest speed achieved"
+            value=f"{kpis['max_speed_kmh']:.1f} km/h",
+            help="Highest speed achieved",
         )
         st.metric(
             label="⚡ Average Speed",
-            value=f"{kpis['avg_speed_ms']:.1f} m/s",
-            help="Mean speed throughout the session"
+            value=f"{kpis['avg_speed_kmh']:.1f} km/h",
+            help="Mean speed throughout the session",
         )
-    
+        # MODIFICATION END
+
     with col3:
         st.metric(
             label="🔋 Energy Consumed",
             value=f"{kpis['total_energy_kwh']:.2f} kWh",
-            help="Total energy consumption"
+            help="Total energy consumption",
         )
         st.metric(
             label="💡 Average Power",
             value=f"{kpis['avg_power_w']:.1f} W",
-            help="Mean power consumption"
+            help="Mean power consumption",
         )
-    
+
     with col4:
-        battery_display = f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        battery_display = (
+            f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        )
         st.metric(
             label="🔋 Battery Status",
             value=battery_display,
-            help="Current battery voltage and estimated percentage"
+            help="Current battery voltage and estimated percentage",
         )
         st.metric(
             label="♻️ Efficiency",
             value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
-            help="Energy efficiency ratio"
+            help="Energy efficiency ratio",
         )
 
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <div class="session-info">
         <h3>📊 Session Information</h3>
         <p>📋 <strong>Session:</strong> {session_data['session_id'][:8]}...</p>
@@ -884,24 +994,31 @@ def render_session_info(session_data: Dict[str, Any]):
         <p>⏱️ <strong>Duration:</strong> {session_data['duration']}</p>
         <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 def create_speed_chart(df: pd.DataFrame):
     """Create speed chart."""
     if df.empty or "speed_ms" not in df.columns:
         return go.Figure().add_annotation(
             text="No speed data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     fig = px.line(
-        df, x="timestamp", y="speed_ms",
+        df,
+        x="timestamp",
+        y="speed_ms",
         title="🚗 Vehicle Speed Over Time",
         labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
         color_discrete_sequence=["#1f77b4"],
     )
-    
+
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -909,144 +1026,214 @@ def create_speed_chart(df: pd.DataFrame):
         margin=dict(l=40, r=40, t=60, b=40),
         height=400,
     )
-    
+
     return fig
 
 def create_power_chart(df: pd.DataFrame):
     """Create power chart."""
-    if df.empty or not all(col in df.columns for col in ["voltage_v", "current_a", "power_w"]):
+    if df.empty or not all(
+        col in df.columns for col in ["voltage_v", "current_a", "power_w"]
+    ):
         return go.Figure().add_annotation(
             text="No power data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     fig = make_subplots(
-        rows=2, cols=1,
+        rows=2,
+        cols=1,
         subplot_titles=("⚡ Voltage & Current", "🔋 Power Output"),
         vertical_spacing=0.15,
     )
-    
+
     fig.add_trace(
         go.Scatter(
-            x=df["timestamp"], y=df["voltage_v"],
-            name="Voltage (V)", line=dict(color="#2ca02c", width=2),
-        ), row=1, col=1,
+            x=df["timestamp"],
+            y=df["voltage_v"],
+            name="Voltage (V)",
+            line=dict(color="#2ca02c", width=2),
+        ),
+        row=1,
+        col=1,
     )
-    
+
     fig.add_trace(
         go.Scatter(
-            x=df["timestamp"], y=df["current_a"],
-            name="Current (A)", line=dict(color="#d62728", width=2),
-        ), row=1, col=1,
+            x=df["timestamp"],
+            y=df["current_a"],
+            name="Current (A)",
+            line=dict(color="#d62728", width=2),
+        ),
+        row=1,
+        col=1,
     )
-    
+
     fig.add_trace(
         go.Scatter(
-            x=df["timestamp"], y=df["power_w"],
-            name="Power (W)", line=dict(color="#ff7f0e", width=2),
-        ), row=2, col=1,
+            x=df["timestamp"],
+            y=df["power_w"],
+            name="Power (W)",
+            line=dict(color="#ff7f0e", width=2),
+        ),
+        row=2,
+        col=1,
     )
-    
+
     fig.update_layout(
         height=500,
         title_text="⚡ Electrical System Performance",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    
+
     return fig
 
 def create_imu_chart(df: pd.DataFrame):
     """Create IMU chart."""
-    if df.empty or not all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"]):
+    if df.empty or not all(
+        col in df.columns
+        for col in [
+            "gyro_x",
+            "gyro_y",
+            "gyro_z",
+            "accel_x",
+            "accel_y",
+            "accel_z",
+        ]
+    ):
         return go.Figure().add_annotation(
             text="No IMU data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=("🎯 Gyroscope Data (deg/s)", "📈 Accelerometer Data (m/s²)"),
+        rows=2,
+        cols=1,
+        subplot_titles=(
+            "🎯 Gyroscope Data (deg/s)",
+            "📈 Accelerometer Data (m/s²)",
+        ),
         vertical_spacing=0.25,
     )
-    
+
     colors_gyro = ["#e74c3c", "#2ecc71", "#3498db"]
     for i, axis in enumerate(["gyro_x", "gyro_y", "gyro_z"]):
         fig.add_trace(
             go.Scatter(
-                x=df["timestamp"], y=df[axis],
+                x=df["timestamp"],
+                y=df[axis],
                 name=f"Gyro {axis[-1].upper()}",
                 line=dict(color=colors_gyro[i], width=2),
-            ), row=1, col=1,
+            ),
+            row=1,
+            col=1,
         )
-    
+
     colors_accel = ["#f39c12", "#9b59b6", "#34495e"]
     for i, axis in enumerate(["accel_x", "accel_y", "accel_z"]):
         fig.add_trace(
             go.Scatter(
-                x=df["timestamp"], y=df[axis],
+                x=df["timestamp"],
+                y=df[axis],
                 name=f"Accel {axis[-1].upper()}",
                 line=dict(color=colors_accel[i], width=2),
-            ), row=2, col=1,
+            ),
+            row=2,
+            col=1,
         )
-    
+
     fig.update_layout(
         height=600,
         title_text="🎮 IMU Sensor Data Analysis",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    
+
     return fig
 
 def create_imu_detail_chart(df: pd.DataFrame):
     """Create detailed IMU chart."""
-    if df.empty or not all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z", "accel_x", "accel_y", "accel_z"]):
+    if df.empty or not all(
+        col in df.columns
+        for col in [
+            "gyro_x",
+            "gyro_y",
+            "gyro_z",
+            "accel_x",
+            "accel_y",
+            "accel_z",
+        ]
+    ):
         return go.Figure().add_annotation(
             text="No IMU data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     fig = make_subplots(
-        rows=2, cols=3,
-        subplot_titles=("🌀 Gyro X", "🌀 Gyro Y", "🌀 Gyro Z", "📊 Accel X", "📊 Accel Y", "📊 Accel Z"),
+        rows=2,
+        cols=3,
+        subplot_titles=(
+            "🌀 Gyro X",
+            "🌀 Gyro Y",
+            "🌀 Gyro Z",
+            "📊 Accel X",
+            "📊 Accel Y",
+            "📊 Accel Z",
+        ),
         vertical_spacing=0.3,
         horizontal_spacing=0.1,
     )
-    
+
     gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
     accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
-    
+
     for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
         fig.add_trace(
             go.Scatter(
-                x=df["timestamp"], y=df[axis],
+                x=df["timestamp"],
+                y=df[axis],
                 name=f"Gyro {axis[-1].upper()}",
                 line=dict(color=color, width=2),
                 showlegend=False,
-            ), row=1, col=i + 1,
+            ),
+            row=1,
+            col=i + 1,
         )
-    
-    for i, (axis, color) in enumerate(zip(["accel_x", "accel_y", "accel_z"], accel_colors)):
+
+    for i, (axis, color) in enumerate(
+        zip(["accel_x", "accel_y", "accel_z"], accel_colors)
+    ):
         fig.add_trace(
             go.Scatter(
-                x=df["timestamp"], y=df[axis],
+                x=df["timestamp"],
+                y=df[axis],
                 name=f"Accel {axis[-1].upper()}",
                 line=dict(color=color, width=2),
                 showlegend=False,
-            ), row=2, col=i + 1,
+            ),
+            row=2,
+            col=i + 1,
         )
-    
+
     fig.update_layout(
         height=600,
         title_text="🎮 Detailed IMU Sensor Analysis",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    
+
     return fig
 
 def create_efficiency_chart(df: pd.DataFrame):
@@ -1054,57 +1241,70 @@ def create_efficiency_chart(df: pd.DataFrame):
     if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
         return go.Figure().add_annotation(
             text="No efficiency data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     fig = px.scatter(
-        df, x="speed_ms", y="power_w",
+        df,
+        x="speed_ms",
+        y="power_w",
         color="voltage_v" if "voltage_v" in df.columns else None,
         title="⚡ Efficiency Analysis: Speed vs Power Consumption",
         labels={"speed_ms": "Speed (m/s)", "power_w": "Power (W)"},
         color_continuous_scale="viridis",
     )
-    
+
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         height=400,
     )
-    
+
     return fig
 
 def create_gps_map_with_altitude(df: pd.DataFrame):
     """Create GPS map with altitude chart as subplot."""
-    if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
+    if df.empty or not all(
+        col in df.columns for col in ["latitude", "longitude"]
+    ):
         return go.Figure().add_annotation(
             text="No GPS data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     df_valid = df.dropna(subset=["latitude", "longitude"])
     if df_valid.empty:
         return go.Figure().add_annotation(
             text="No valid GPS coordinates",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     # Create subplot with map on left and altitude on right
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         column_widths=[0.7, 0.3],
         subplot_titles=("🛰️ Vehicle Track", "⛰️ Altitude Profile"),
-        specs=[[{"type": "scattermap"}, {"type": "scatter"}]]
+        specs=[[{"type": "scattermap"}, {"type": "scatter"}]],
     )
-    
+
     # Add map trace
     center_point = dict(
-        lat=df_valid["latitude"].mean(),
-        lon=df_valid["longitude"].mean()
+        lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
-    
+
     fig.add_trace(
         go.Scattermap(
             lat=df_valid["latitude"],
@@ -1112,18 +1312,21 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             mode="markers+lines",
             marker=dict(
                 size=8,
-                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
+                color=df_valid["speed_ms"]
+                if "speed_ms" in df_valid.columns
+                else "#1f77b4",
                 colorscale="plasma",
                 showscale=True,
-                colorbar=dict(title="Speed (m/s)", x=0.65)
+                colorbar=dict(title="Speed (m/s)", x=0.65),
             ),
             line=dict(width=2, color="#1f77b4"),
             hovertemplate="Lat: %{lat}<br>Lon: %{lon}<br>Speed: %{marker.color:.1f} m/s<extra></extra>",
-            name="Track"
+            name="Track",
         ),
-        row=1, col=1
+        row=1,
+        col=1,
     )
-    
+
     # Add altitude trace if available
     if "altitude" in df.columns:
         altitude_data = df.dropna(subset=["altitude"])
@@ -1135,9 +1338,10 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                     mode="lines",
                     line=dict(color="#2ca02c", width=2),
                     name="Altitude",
-                    hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>"
+                    hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>",
                 ),
-                row=1, col=2
+                row=1,
+                col=2,
             )
     else:
         # If no altitude data, show a message
@@ -1148,43 +1352,40 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 mode="text",
                 text=["No altitude data available"],
                 textposition="middle center",
-                showlegend=False
+                showlegend=False,
             ),
-            row=1, col=2
+            row=1,
+            col=2,
         )
-    
+
     # Update layout
     fig.update_layout(
         title_text="🛰️ GPS Tracking and Altitude Analysis",
         height=500,
-        showlegend=False
+        showlegend=False,
     )
-    
+
     # Update map layout
     fig.update_layout(
         map=dict(
-            style="open-street-map",
-            center=center_point,
-            zoom=15,
-            bearing=0,
-            pitch=0
+            style="open-street-map", center=center_point, zoom=15, bearing=0, pitch=0
         )
     )
-    
+
     # Update altitude plot layout
     fig.update_xaxes(title_text="Time", row=1, col=2)
     fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
-    
+
     return fig
 
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
     if df.empty:
         return []
-    
+
     numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
     exclude_cols = ["message_id", "uptime_seconds"]
-    
+
     return [col for col in numeric_columns if col not in exclude_cols]
 
 def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
@@ -1192,72 +1393,124 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     if df.empty:
         return go.Figure().add_annotation(
             text="No data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
         )
-    
+
     x_col = chart_config.get("x_axis")
     y_col = chart_config.get("y_axis")
     chart_type = chart_config.get("chart_type", "line")
     title = chart_config.get("title", f"{y_col} vs {x_col}")
-    
+
     if chart_type == "heatmap":
         numeric_cols = get_available_columns(df)
         if len(numeric_cols) >= 2:
             corr_matrix = df[numeric_cols].corr()
-            fig = px.imshow(corr_matrix, title="🔥 Correlation Heatmap", color_continuous_scale="RdBu_r", aspect="auto")
+            fig = px.imshow(
+                corr_matrix,
+                title="🔥 Correlation Heatmap",
+                color_continuous_scale="RdBu_r",
+                aspect="auto",
+            )
         else:
             return go.Figure().add_annotation(
                 text="Need at least 2 numeric columns for heatmap",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
             )
     else:
         if not y_col or y_col not in df.columns:
             return go.Figure().add_annotation(
                 text="Invalid Y-axis column selection",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
             )
-        
+
         if x_col not in df.columns:
-             return go.Figure().add_annotation(
+            return go.Figure().add_annotation(
                 text="Invalid X-axis column selection",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
             )
 
         try:
             if chart_type == "line":
-                fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
+                fig = px.line(
+                    df,
+                    x=x_col,
+                    y=y_col,
+                    title=title,
+                    color_discrete_sequence=["#1f77b4"],
+                )
             elif chart_type == "scatter":
-                fig = px.scatter(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#ff7f0e"])
+                fig = px.scatter(
+                    df,
+                    x=x_col,
+                    y=y_col,
+                    title=title,
+                    color_discrete_sequence=["#ff7f0e"],
+                )
             elif chart_type == "bar":
-                recent_df = df.tail(20) 
+                recent_df = df.tail(20)
                 if recent_df.empty:
                     return go.Figure().add_annotation(
                         text="Not enough recent data for bar chart",
-                        xref="paper", yref="paper",
-                        x=0.5, y=0.5, showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.5,
+                        y=0.5,
+                        showarrow=False,
                     )
-                fig = px.bar(recent_df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#2ca02c"])
+                fig = px.bar(
+                    recent_df,
+                    x=x_col,
+                    y=y_col,
+                    title=title,
+                    color_discrete_sequence=["#2ca02c"],
+                )
             elif chart_type == "histogram":
-                fig = px.histogram(df, x=y_col, title=f"Distribution of {y_col}", color_discrete_sequence=["#d62728"])
+                fig = px.histogram(
+                    df,
+                    x=y_col,
+                    title=f"Distribution of {y_col}",
+                    color_discrete_sequence=["#d62728"],
+                )
             else:
-                fig = px.line(df, x=x_col, y=y_col, title=title, color_discrete_sequence=["#1f77b4"])
+                fig = px.line(
+                    df,
+                    x=x_col,
+                    y=y_col,
+                    title=title,
+                    color_discrete_sequence=["#1f77b4"],
+                )
         except Exception as e:
             return go.Figure().add_annotation(
                 text=f"Error creating chart: {str(e)}",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                showarrow=False,
             )
-        
+
     fig.update_layout(
         height=400,
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    
+
     return fig
 
 def render_dynamic_charts_section(df: pd.DataFrame):
@@ -1270,7 +1523,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
             <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
         </div>
         """
-        
+
         st.session_state.chart_types_grid = """
         <div class="chart-type-grid">
             <div class="chart-type-card">
@@ -1296,47 +1549,63 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         </div>
         """
         st.session_state.chart_info_initialized = True
-    
+
     # Display the static chart info (won't re-render on refresh)
     st.markdown(st.session_state.chart_info_text, unsafe_allow_html=True)
     st.markdown(st.session_state.chart_types_grid, unsafe_allow_html=True)
-    
+
     try:
         available_columns = get_available_columns(df)
     except Exception as e:
         st.error(f"Error getting available columns: {e}")
         available_columns = []
-    
+
     if not available_columns:
-        st.warning("⏳ No numeric data available for creating charts. Connect and wait for data.")
+        st.warning(
+            "⏳ No numeric data available for creating charts. Connect and wait for data."
+        )
         return
-    
+
     col1, col2 = st.columns([1, 3])
     with col1:
-        if st.button("➕ Add Chart", key="add_chart_btn", help="Create a new custom chart"):
+        if st.button(
+            "➕ Add Chart",
+            key="add_chart_btn",
+            help="Create a new custom chart",
+        ):
             try:
                 new_chart = {
                     "id": str(uuid.uuid4()),
                     "title": "New Chart",
                     "chart_type": "line",
-                    "x_axis": "timestamp" if "timestamp" in df.columns else (available_columns[0] if available_columns else None),
-                    "y_axis": available_columns[0] if available_columns else None,
+                    "x_axis": "timestamp"
+                    if "timestamp" in df.columns
+                    else (
+                        available_columns[0] if available_columns else None
+                    ),
+                    "y_axis": available_columns[0]
+                    if available_columns
+                    else None,
                 }
                 st.session_state.dynamic_charts.append(new_chart)
                 st.rerun()
             except Exception as e:
                 st.error(f"Error adding chart: {e}")
-    
+
     with col2:
         if st.session_state.dynamic_charts:
-            st.success(f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active")
-    
+            st.success(
+                f"📈 {len(st.session_state.dynamic_charts)} custom chart(s) active"
+            )
+
     if st.session_state.dynamic_charts:
-        for i, chart_config in enumerate(list(st.session_state.dynamic_charts)): 
+        for i, chart_config in enumerate(list(st.session_state.dynamic_charts)):
             try:
                 with st.container(border=True):
-                    col1, col2, col3, col4, col5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
-                    
+                    col1, col2, col3, col4, col5 = st.columns(
+                        [2, 1.5, 1.5, 1.5, 0.5]
+                    )
+
                     with col1:
                         new_title = st.text_input(
                             "Title",
@@ -1344,110 +1613,175 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                             key=f"title_{chart_config['id']}",
                         )
                         if new_title != chart_config.get("title"):
-                            st.session_state.dynamic_charts[i]["title"] = new_title
-                    
+                            st.session_state.dynamic_charts[i][
+                                "title"
+                            ] = new_title
+
                     with col2:
                         new_type = st.selectbox(
                             "Type",
-                            options=["line", "scatter", "bar", "histogram", "heatmap"],
-                            index=["line", "scatter", "bar", "histogram", "heatmap"].index(chart_config.get("chart_type", "line")),
+                            options=[
+                                "line",
+                                "scatter",
+                                "bar",
+                                "histogram",
+                                "heatmap",
+                            ],
+                            index=[
+                                "line",
+                                "scatter",
+                                "bar",
+                                "histogram",
+                                "heatmap",
+                            ].index(
+                                chart_config.get("chart_type", "line")
+                            ),
                             key=f"type_{chart_config['id']}",
                         )
                         if new_type != chart_config.get("chart_type"):
-                            st.session_state.dynamic_charts[i]["chart_type"] = new_type
-                    
+                            st.session_state.dynamic_charts[i][
+                                "chart_type"
+                            ] = new_type
+
                     with col3:
-                        if chart_config.get("chart_type", "line") not in ["histogram", "heatmap"]:
-                            x_options = ["timestamp"] + available_columns if "timestamp" in df.columns else available_columns
+                        if chart_config.get("chart_type", "line") not in [
+                            "histogram",
+                            "heatmap",
+                        ]:
+                            x_options = (
+                                ["timestamp"] + available_columns
+                                if "timestamp" in df.columns
+                                else available_columns
+                            )
                             current_x = chart_config.get("x_axis")
                             if current_x not in x_options and x_options:
                                 current_x = x_options[0]
-                            
+
                             if x_options:
                                 new_x = st.selectbox(
                                     "X-Axis",
                                     options=x_options,
-                                    index=x_options.index(current_x) if current_x in x_options else 0,
+                                    index=x_options.index(current_x)
+                                    if current_x in x_options
+                                    else 0,
                                     key=f"x_{chart_config['id']}",
                                 )
                                 if new_x != chart_config.get("x_axis"):
-                                    st.session_state.dynamic_charts[i]["x_axis"] = new_x
+                                    st.session_state.dynamic_charts[i][
+                                        "x_axis"
+                                    ] = new_x
                             else:
                                 st.empty()
-                    
+
                     with col4:
                         if chart_config.get("chart_type", "line") != "heatmap":
                             if available_columns:
                                 current_y = chart_config.get("y_axis")
                                 if current_y not in available_columns:
                                     current_y = available_columns[0]
-                                
+
                                 new_y = st.selectbox(
                                     "Y-Axis",
                                     options=available_columns,
-                                    index=available_columns.index(current_y) if current_y in available_columns else 0,
+                                    index=available_columns.index(current_y)
+                                    if current_y in available_columns
+                                    else 0,
                                     key=f"y_{chart_config['id']}",
                                 )
                                 if new_y != chart_config.get("y_axis"):
-                                    st.session_state.dynamic_charts[i]["y_axis"] = new_y
+                                    st.session_state.dynamic_charts[i][
+                                        "y_axis"
+                                    ] = new_y
                             else:
                                 st.empty()
-                    
+
                     with col5:
-                        if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
+                        if st.button(
+                            "🗑️",
+                            key=f"delete_{chart_config['id']}",
+                            help="Delete chart",
+                        ):
                             try:
-                                idx_to_delete = next((j for j, cfg in enumerate(st.session_state.dynamic_charts) if cfg['id'] == chart_config['id']), -1)
+                                idx_to_delete = next(
+                                    (
+                                        j
+                                        for j, cfg in enumerate(
+                                            st.session_state.dynamic_charts
+                                        )
+                                        if cfg["id"] == chart_config["id"]
+                                    ),
+                                    -1,
+                                )
                                 if idx_to_delete != -1:
-                                    st.session_state.dynamic_charts.pop(idx_to_delete)
+                                    st.session_state.dynamic_charts.pop(
+                                        idx_to_delete
+                                    )
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error deleting chart: {e}")
-                    
+
                     try:
                         if chart_config.get("chart_type") == "heatmap":
                             fig = create_dynamic_chart(df, chart_config)
-                        elif chart_config.get("y_axis") and \
-                             (chart_config.get("chart_type") == "histogram" or chart_config.get("x_axis")):
-                             fig = create_dynamic_chart(df, chart_config)
+                        elif chart_config.get(
+                            "y_axis"
+                        ) and (
+                            chart_config.get("chart_type") == "histogram"
+                            or chart_config.get("x_axis")
+                        ):
+                            fig = create_dynamic_chart(df, chart_config)
                         else:
                             fig = None
-                            st.warning("Please select valid axes for the chosen chart type.")
+                            st.warning(
+                                "Please select valid axes for the chosen chart type."
+                            )
 
                         if fig:
-                            st.plotly_chart(fig, use_container_width=True, key=f"chart_plot_{chart_config['id']}")
-                        
+                            st.plotly_chart(
+                                fig,
+                                use_container_width=True,
+                                key=f"chart_plot_{chart_config['id']}",
+                            )
+
                     except Exception as e:
                         st.error(f"Error rendering chart: {e}")
-            
+
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
 
 def main():
     """Main dashboard function."""
-    st.markdown('<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>', unsafe_allow_html=True)
-    
+    st.markdown(
+        '<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>',
+        unsafe_allow_html=True,
+    )
+
     initialize_session_state()
-    
+
     # Sidebar for connection and data source selection
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
-        
+
         # Data source selection
         data_source_mode = st.radio(
             "📊 Data Source",
             options=["realtime_session", "historical"],
-            format_func=lambda x: "🔴 Real-time + Session Data" if x == "realtime_session" else "📚 Historical Data",
-            key="data_source_mode_radio"
+            format_func=lambda x: "🔴 Real-time + Session Data"
+            if x == "realtime_session"
+            else "📚 Historical Data",
+            key="data_source_mode_radio",
         )
-        
+
         if data_source_mode != st.session_state.data_source_mode:
             st.session_state.data_source_mode = data_source_mode
             st.session_state.telemetry_data = pd.DataFrame()
-            st.session_state.is_viewing_historical = (data_source_mode == "historical")
+            st.session_state.is_viewing_historical = (
+                data_source_mode == "historical"
+            )
             st.session_state.selected_session = None
             st.session_state.current_session_id = None
             st.rerun()
-        
+
         # Real-time mode controls
         if st.session_state.data_source_mode == "realtime_session":
             col1, col2 = st.columns(2)
@@ -1456,25 +1790,33 @@ def main():
                     if st.session_state.telemetry_manager:
                         st.session_state.telemetry_manager.disconnect()
                         time.sleep(0.5)
-                    
+
                     with st.spinner("Connecting..."):
-                        st.session_state.telemetry_manager = EnhancedTelemetryManager()
-                        
-                        supabase_connected = st.session_state.telemetry_manager.connect_supabase()
-                        
+                        st.session_state.telemetry_manager = (
+                            EnhancedTelemetryManager()
+                        )
+
+                        supabase_connected = (
+                            st.session_state.telemetry_manager.connect_supabase()
+                        )
+
                         realtime_connected = False
                         if ABLY_AVAILABLE:
-                            realtime_connected = st.session_state.telemetry_manager.connect_realtime()
-                        
+                            realtime_connected = (
+                                st.session_state.telemetry_manager.connect_realtime()
+                            )
+
                         if supabase_connected and realtime_connected:
                             st.success("✅ Connected!")
                         elif supabase_connected:
-                            st.warning("⚠️ Supabase only connected (Ably not available or failed)")
+                            st.warning(
+                                "⚠️ Supabase only connected (Ably not available or failed)"
+                            )
                         else:
                             st.error("❌ Failed to connect to any service!")
-                    
+
                     st.rerun()
-            
+
             with col2:
                 if st.button("🛑 Disconnect", use_container_width=True):
                     if st.session_state.telemetry_manager:
@@ -1482,16 +1824,22 @@ def main():
                         st.session_state.telemetry_manager = None
                     st.info("🛑 Disconnected")
                     st.rerun()
-            
+
             # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
                 stats = st.session_state.telemetry_manager.get_stats()
-                
+
                 if st.session_state.telemetry_manager.is_connected:
-                    st.markdown('<div class="status-indicator status-connected">✅ Real-time Connected</div>', unsafe_allow_html=True)
+                    st.markdown(
+                        '<div class="status-indicator status-connected">✅ Real-time Connected</div>',
+                        unsafe_allow_html=True,
+                    )
                 else:
-                    st.markdown('<div class="status-indicator status-disconnected">❌ Real-time Disconnected</div>', unsafe_allow_html=True)
-                
+                    st.markdown(
+                        '<div class="status-indicator status-disconnected">❌ Real-time Disconnected</div>',
+                        unsafe_allow_html=True,
+                    )
+
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric("📨 Messages", stats["messages_received"])
@@ -1499,153 +1847,197 @@ def main():
                 with col2:
                     st.metric("❌ Errors", stats["errors"])
                     if stats["last_message_time"]:
-                        time_since = (datetime.now() - stats["last_message_time"]).total_seconds()
+                        time_since = (
+                            datetime.now() - stats["last_message_time"]
+                        ).total_seconds()
                         st.metric("⏱️ Last Msg", f"{time_since:.0f}s ago")
                     else:
                         st.metric("⏱️ Last Msg", "Never")
-                
+
                 if stats["last_error"]:
                     st.error(f"⚠️ {stats['last_error'][:40]}...")
-            
+
             st.divider()
-            
+
             # Auto-refresh settings - Fixed to prevent dynamic import issues
             st.subheader("⚙️ Settings")
-            
+
             # Create unique key for the checkbox to avoid conflicts
             auto_refresh_key = f"auto_refresh_{id(st.session_state)}"
             new_auto_refresh = st.checkbox(
-                "🔄 Auto Refresh", 
-                value=st.session_state.auto_refresh, 
+                "🔄 Auto Refresh",
+                value=st.session_state.auto_refresh,
                 help="Automatically refresh data from real-time stream",
-                key=auto_refresh_key
+                key=auto_refresh_key,
             )
-            
+
             if new_auto_refresh != st.session_state.auto_refresh:
                 st.session_state.auto_refresh = new_auto_refresh
-            
+
             # Only show slider if auto_refresh is enabled and use fixed value approach
             if st.session_state.auto_refresh:
                 refresh_options = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-                current_index = refresh_options.index(3) if 3 in refresh_options else 2
-                
+                current_index = (
+                    refresh_options.index(3) if 3 in refresh_options else 2
+                )
+
                 refresh_interval = st.selectbox(
                     "Refresh Rate (seconds)",
                     options=refresh_options,
                     index=current_index,
-                    key=f"refresh_rate_{id(st.session_state)}"
+                    key=f"refresh_rate_{id(st.session_state)}",
                 )
             else:
                 refresh_interval = 3
-            
+
             st.session_state.refresh_interval = refresh_interval
-            
-        else: # Historical data mode controls
-            st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
-            
+
+        else:  # Historical data mode controls
+            st.markdown(
+                '<div class="status-indicator status-historical">📚 Historical Mode</div>',
+                unsafe_allow_html=True,
+            )
+
             if not st.session_state.telemetry_manager:
                 st.session_state.telemetry_manager = EnhancedTelemetryManager()
                 st.session_state.telemetry_manager.connect_supabase()
-            
+
             if st.button("🔄 Refresh Sessions", use_container_width=True):
                 with st.spinner("Loading sessions..."):
-                    st.session_state.historical_sessions = st.session_state.telemetry_manager.get_historical_sessions()
+                    st.session_state.historical_sessions = (
+                        st.session_state.telemetry_manager.get_historical_sessions()
+                    )
                 st.rerun()
-            
+
             # Session selection
             if st.session_state.historical_sessions:
                 session_options = []
                 for session in st.session_state.historical_sessions:
-                    session_options.append(f"{session['session_id'][:8]}... - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)")
-                
+                    session_options.append(
+                        f"{session['session_id'][:8]}... - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
+                    )
+
                 selected_session_idx = st.selectbox(
                     "📋 Select Session",
                     options=range(len(session_options)),
                     format_func=lambda x: session_options[x],
                     key="session_selector",
-                    index=0
+                    index=0,
                 )
-                
+
                 if selected_session_idx is not None:
-                    selected_session = st.session_state.historical_sessions[selected_session_idx]
-                    
-                    if st.session_state.selected_session is None or \
-                       st.session_state.selected_session['session_id'] != selected_session['session_id'] or \
-                       st.session_state.telemetry_data.empty:
+                    selected_session = st.session_state.historical_sessions[
+                        selected_session_idx
+                    ]
+
+                    if (
+                        st.session_state.selected_session is None
+                        or st.session_state.selected_session["session_id"]
+                        != selected_session["session_id"]
+                        or st.session_state.telemetry_data.empty
+                    ):
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
-                        
-                        if selected_session['record_count'] > 10000:
-                            st.info(f"📊 Loading {selected_session['record_count']:,} records... This may take a moment due to pagination.")
-                        
-                        with st.spinner(f"Loading data for session {selected_session['session_id'][:8]}..."):
-                            historical_df = st.session_state.telemetry_manager.get_historical_data(selected_session['session_id'])
+
+                        if selected_session["record_count"] > 10000:
+                            st.info(
+                                f"📊 Loading {selected_session['record_count']:,} records... This may take a moment due to pagination."
+                            )
+
+                        with st.spinner(
+                            f"Loading data for session {selected_session['session_id'][:8]}..."
+                        ):
+                            historical_df = st.session_state.telemetry_manager.get_historical_data(
+                                selected_session["session_id"]
+                            )
                             st.session_state.telemetry_data = historical_df
                             st.session_state.last_update = datetime.now()
-                        
+
                         if not historical_df.empty:
-                            st.success(f"✅ Loaded {len(historical_df):,} data points")
+                            st.success(
+                                f"✅ Loaded {len(historical_df):,} data points"
+                            )
                         st.rerun()
-                    
+
             else:
-                st.info("Click 'Refresh Sessions' to load available sessions from Supabase.")
-        
+                st.info(
+                    "Click 'Refresh Sessions' to load available sessions from Supabase."
+                )
+
         st.info(f"📡 Channel: {DASHBOARD_CHANNEL_NAME}")
         st.info(f"🔢 Max records per session: {MAX_DATAPOINTS_PER_SESSION:,}")
-    
+
     # Main content area
     df = st.session_state.telemetry_data.copy()
     new_messages_count = 0
-    
+
     # Data ingestion logic
     if st.session_state.data_source_mode == "realtime_session":
-        if st.session_state.telemetry_manager and st.session_state.telemetry_manager.is_connected:
-            new_messages = st.session_state.telemetry_manager.get_realtime_messages()
-            
+        if (
+            st.session_state.telemetry_manager
+            and st.session_state.telemetry_manager.is_connected
+        ):
+            new_messages = (
+                st.session_state.telemetry_manager.get_realtime_messages()
+            )
+
             current_session_data_from_supabase = pd.DataFrame()
-            if new_messages and 'session_id' in new_messages[0]:
-                current_session_id = new_messages[0]['session_id']
-                if st.session_state.current_session_id != current_session_id or \
-                   st.session_state.telemetry_data.empty:
+            if new_messages and "session_id" in new_messages[0]:
+                current_session_id = new_messages[0]["session_id"]
+                if (
+                    st.session_state.current_session_id != current_session_id
+                    or st.session_state.telemetry_data.empty
+                ):
                     st.session_state.current_session_id = current_session_id
-                    
-                    with st.spinner(f"Loading current session data for {current_session_id[:8]}..."):
-                        current_session_data_from_supabase = st.session_state.telemetry_manager.get_current_session_data(current_session_id)
-                    
+
+                    with st.spinner(
+                        f"Loading current session data for {current_session_id[:8]}..."
+                    ):
+                        current_session_data_from_supabase = st.session_state.telemetry_manager.get_current_session_data(
+                            current_session_id
+                        )
+
                     if not current_session_data_from_supabase.empty:
-                        st.success(f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session")
-                
+                        st.success(
+                            f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session"
+                        )
+
             if new_messages or not current_session_data_from_supabase.empty:
                 merged_data = merge_telemetry_data(
                     new_messages,
                     current_session_data_from_supabase,
-                    st.session_state.telemetry_data
+                    st.session_state.telemetry_data,
                 )
-                
+
                 if not merged_data.empty:
-                    new_messages_count = len(new_messages) if new_messages else 0
+                    new_messages_count = (
+                        len(new_messages) if new_messages else 0
+                    )
                     st.session_state.telemetry_data = merged_data
                     st.session_state.last_update = datetime.now()
-        
+
         st.session_state.is_viewing_historical = False
-    
+
     elif st.session_state.data_source_mode == "historical":
         st.session_state.is_viewing_historical = True
-        
+
     df = st.session_state.telemetry_data.copy()
 
     # Show historical notice if viewing historical data
-    if st.session_state.is_viewing_historical and st.session_state.selected_session:
+    if (
+        st.session_state.is_viewing_historical
+        and st.session_state.selected_session
+    ):
         st.markdown(
             '<div class="historical-notice">📚 Viewing Historical Data - No auto-refresh active</div>',
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
         render_session_info(st.session_state.selected_session)
-    
+
     # Empty state message
     if df.empty:
         st.warning("⏳ Waiting for telemetry data...")
-        
+
         col1, col2 = st.columns(2)
         with col1:
             if st.session_state.data_source_mode == "realtime_session":
@@ -1662,35 +2054,56 @@ def main():
                     "2. Select a session and its data will load automatically\n"
                     "3. Large datasets use pagination to load all data points"
                 )
-        
+
         with col2:
             with st.expander("🔍 Debug Information"):
                 debug_info = {
                     "Data Source Mode": st.session_state.data_source_mode,
                     "Is Viewing Historical": st.session_state.is_viewing_historical,
-                    "Selected Session ID": st.session_state.selected_session['session_id'][:8] + "..." if st.session_state.selected_session else None,
+                    "Selected Session ID": st.session_state.selected_session[
+                        "session_id"
+                    ][:8]
+                    + "..."
+                    if st.session_state.selected_session
+                    else None,
                     "Current Real-time Session ID": st.session_state.current_session_id,
-                    "Number of Historical Sessions": len(st.session_state.historical_sessions),
-                    "Telemetry Data Points (in memory)": len(st.session_state.telemetry_data),
+                    "Number of Historical Sessions": len(
+                        st.session_state.historical_sessions
+                    ),
+                    "Telemetry Data Points (in memory)": len(
+                        st.session_state.telemetry_data
+                    ),
                     "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
                     "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
                 }
-                
+
                 if st.session_state.telemetry_manager:
                     stats = st.session_state.telemetry_manager.get_stats()
-                    debug_info.update({
-                        "Ably Connected (Manager Status)": st.session_state.telemetry_manager.is_connected,
-                        "Messages Received (via Ably)": stats["messages_received"],
-                        "Connection Errors": stats["errors"],
-                        "Total Pagination Requests": stats["pagination_stats"]["total_requests"],
-                        "Total Rows Fetched": stats["pagination_stats"]["total_rows_fetched"],
-                        "Sessions Requiring Pagination": stats["pagination_stats"]["sessions_paginated"],
-                        "Largest Session Size": stats["pagination_stats"]["largest_session_size"],
-                    })
-                
+                    debug_info.update(
+                        {
+                            "Ably Connected (Manager Status)": st.session_state.telemetry_manager.is_connected,
+                            "Messages Received (via Ably)": stats[
+                                "messages_received"
+                            ],
+                            "Connection Errors": stats["errors"],
+                            "Total Pagination Requests": stats[
+                                "pagination_stats"
+                            ]["total_requests"],
+                            "Total Rows Fetched": stats["pagination_stats"][
+                                "total_rows_fetched"
+                            ],
+                            "Sessions Requiring Pagination": stats[
+                                "pagination_stats"
+                            ]["sessions_paginated"],
+                            "Largest Session Size": stats["pagination_stats"][
+                                "largest_session_size"
+                            ],
+                        }
+                    )
+
                 st.json(debug_info)
         return
-    
+
     # Status row for populated data
     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
     with col1:
@@ -1701,26 +2114,33 @@ def main():
     with col2:
         st.info(f"📊 **{len(df):,}** data points available")
     with col3:
-        st.info(f"⏰ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
+        st.info(
+            f"⏰ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**"
+        )
     with col4:
-        if st.session_state.data_source_mode == "realtime_session" and new_messages_count > 0:
+        if (
+            st.session_state.data_source_mode == "realtime_session"
+            and new_messages_count > 0
+        ):
             st.success(f"📨 +{new_messages_count}")
 
-    
     # Show pagination info if large dataset
     if len(df) > 10000:
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div class="pagination-info">
             <strong>📊 Large Dataset Loaded:</strong> {len(df):,} data points successfully retrieved using pagination
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     # Calculate KPIs
     kpis = calculate_kpis(df)
-    
+
     # Tabs for different visualizations - THIS IS THE ONLY PLACE TABS SHOULD BE RENDERED
     st.subheader("📈 Dashboard")
-    
+
     tab_names = [
         "📊 Overview",
         "🚗 Speed",
@@ -1733,64 +2153,66 @@ def main():
         "📃 Data",
     ]
     tabs = st.tabs(tab_names)
-    
+
     # Render content for each tab
     with tabs[0]:
         render_overview_tab(kpis)
-    
+
     with tabs[1]:
         render_kpi_header(kpis)
         fig = create_speed_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[2]:
         render_kpi_header(kpis)
         fig = create_power_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[3]:
         render_kpi_header(kpis)
         fig = create_imu_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[4]:
         render_kpi_header(kpis)
         fig = create_imu_detail_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[5]:
         render_kpi_header(kpis)
         fig = create_efficiency_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[6]:
         render_kpi_header(kpis)
         fig = create_gps_map_with_altitude(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
-    
+
     with tabs[7]:
         render_kpi_header(kpis)
         render_dynamic_charts_section(df)
-    
+
     with tabs[8]:
         render_kpi_header(kpis)
-        
+
         st.subheader("📃 Raw Telemetry Data")
-        
+
         if len(df) > 1000:
-            st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset.")
+            st.info(
+                f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset."
+            )
         else:
             st.info(f"ℹ️ Showing all {len(df):,} data points below.")
-        
+
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
-        
+
         col1, col2 = st.columns(2)
         with col1:
             csv = df.to_csv(index=False)
@@ -1801,7 +2223,7 @@ def main():
                 mime="text/csv",
                 use_container_width=True,
             )
-        
+
         with col2:
             if len(df) > 1000:
                 sample_df = df.sample(n=min(1000, len(df)), random_state=42)
@@ -1813,22 +2235,26 @@ def main():
                     mime="text/csv",
                     use_container_width=True,
                 )
-        
+
         with st.expander("📊 Dataset Statistics"):
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Total Rows", f"{len(df):,}")
                 st.metric("Columns", len(df.columns))
             with col2:
-                if 'timestamp' in df.columns and len(df) > 1:
+                if "timestamp" in df.columns and len(df) > 1:
                     try:
-                        timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+                        timestamp_series = pd.to_datetime(
+                            df["timestamp"], errors="coerce", utc=True
+                        )
                         timestamp_series = timestamp_series.dropna()
-                        
+
                         if len(timestamp_series) > 1:
-                            time_span = timestamp_series.max() - timestamp_series.min()
-                            st.metric("Time Span", str(time_span).split('.')[0])
-                            
+                            time_span = (
+                                timestamp_series.max() - timestamp_series.min()
+                            )
+                            st.metric("Time Span", str(time_span).split(".")[0])
+
                             if time_span.total_seconds() > 0:
                                 data_rate = len(df) / time_span.total_seconds()
                                 st.metric("Data Rate", f"{data_rate:.2f} Hz")
@@ -1841,13 +2267,13 @@ def main():
             with col3:
                 memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
                 st.metric("Memory Usage", f"{memory_usage:.2f} MB")
-                
-                if 'data_source' in df.columns:
-                    source_counts = df['data_source'].value_counts()
+
+                if "data_source" in df.columns:
+                    source_counts = df["data_source"].value_counts()
                     st.write("**Data Sources:**")
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
-    
+
     # Auto-refresh for real-time mode only
     if (
         st.session_state.data_source_mode == "realtime_session"
@@ -1864,7 +2290,7 @@ def main():
                 "🔄 To enable smooth auto-refresh install:\n"
                 "`pip install streamlit-autorefresh`"
             )
-            
+
     # Footer
     st.divider()
     st.markdown(
