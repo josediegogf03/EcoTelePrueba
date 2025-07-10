@@ -709,7 +709,8 @@ def initialize_session_state():
             "total_requests": 0,
             "total_rows": 0
         },
-        "refresh_interval": 3
+        "refresh_interval": 3,
+        "last_auto_refresh": datetime.now()
     }
     
     for key, value in defaults.items():
@@ -1352,6 +1353,17 @@ def main():
     
     initialize_session_state()
     
+    # Auto-refresh logic at the beginning to check if it should refresh
+    should_auto_refresh = (
+        st.session_state.data_source_mode == "realtime_session" and 
+        st.session_state.auto_refresh and 
+        st.session_state.telemetry_manager and 
+        st.session_state.telemetry_manager.is_connected
+    )
+    
+    # Check if enough time has passed for auto-refresh
+    time_since_last_refresh = (datetime.now() - st.session_state.last_auto_refresh).total_seconds()
+    
     # Sidebar for connection and data source selection
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
@@ -1592,6 +1604,9 @@ def main():
                     "Telemetry Data Points (in memory)": len(st.session_state.telemetry_data),
                     "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
                     "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
+                    "Auto Refresh Enabled": st.session_state.auto_refresh,
+                    "Should Auto Refresh Now": should_auto_refresh,
+                    "Time Since Last Refresh": f"{time_since_last_refresh:.1f}s",
                 }
                 
                 if st.session_state.telemetry_manager:
@@ -1607,6 +1622,13 @@ def main():
                     })
                 
                 st.json(debug_info)
+        
+        # Auto-refresh trigger even when no data
+        if should_auto_refresh and time_since_last_refresh >= st.session_state.refresh_interval:
+            st.session_state.last_auto_refresh = datetime.now()
+            time.sleep(0.1)  # Small delay to prevent rapid rerun loops
+            st.rerun()
+        
         return
     
     # Status row for populated data
@@ -1766,21 +1788,10 @@ def main():
                         st.write(f"• {source}: {count:,} rows")
     
     # Auto-refresh for real-time mode only - FIXED VERSION
-    if (st.session_state.data_source_mode == "realtime_session" and 
-        st.session_state.auto_refresh and 
-        st.session_state.telemetry_manager and 
-        st.session_state.telemetry_manager.is_connected):
-        
-        # Use st.empty() to create a placeholder for auto-refresh without time.sleep()
-        if "auto_refresh_counter" not in st.session_state:
-            st.session_state.auto_refresh_counter = 0
-        
-        st.session_state.auto_refresh_counter += 1
-        
-        # Only rerun after a certain number of iterations to simulate delay
-        if st.session_state.auto_refresh_counter >= st.session_state.refresh_interval:
-            st.session_state.auto_refresh_counter = 0
-            st.rerun()
+    if should_auto_refresh and time_since_last_refresh >= st.session_state.refresh_interval:
+        st.session_state.last_auto_refresh = datetime.now()
+        time.sleep(0.1)  # Small delay to prevent rapid rerun loops
+        st.rerun()
     
     # Footer
     st.divider()
