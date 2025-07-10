@@ -734,6 +734,7 @@ def initialize_session_state():
         "telemetry_data": pd.DataFrame(),
         "last_update": datetime.now(),
         "auto_refresh": True,
+        "refresh_interval": 3,
         "dynamic_charts": [],
         "data_source_mode": "realtime_session",
         "selected_session": None,
@@ -1469,19 +1470,26 @@ def main():
             
             st.divider()
             
-            # Auto-refresh settings
+            # Auto-refresh settings - FIXED
             st.subheader("⚙️ Settings")
-            new_auto_refresh = st.checkbox("🔄 Auto Refresh", value=st.session_state.auto_refresh, 
-                                            help="Automatically refresh data from real-time stream")
             
-            if new_auto_refresh != st.session_state.auto_refresh:
-                st.session_state.auto_refresh = new_auto_refresh
-            
-            refresh_interval = 3
-            if st.session_state.auto_refresh:
-                refresh_interval = st.slider("Refresh Rate (s)", 1, 10, 3)
-            
-            st.session_state.refresh_interval = refresh_interval
+            # Use session state for the checkbox
+            if st.checkbox("🔄 Auto Refresh", value=st.session_state.auto_refresh, 
+                          help="Automatically refresh data from real-time stream", 
+                          key="auto_refresh_checkbox"):
+                st.session_state.auto_refresh = True
+                # Only show slider when auto refresh is enabled
+                st.session_state.refresh_interval = st.slider(
+                    "Refresh Rate (s)", 
+                    min_value=1, 
+                    max_value=10, 
+                    value=st.session_state.refresh_interval, 
+                    key="refresh_interval_slider",
+                    help="How often to refresh the data in seconds"
+                )
+            else:
+                st.session_state.auto_refresh = False
+                st.session_state.refresh_interval = 3  # Default value
             
         else: # Historical data mode controls
             st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
@@ -1665,151 +1673,157 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
     
-    # Tabs for different visualizations
-    st.subheader("📈 Dashboard")
-    
-    tab_names = [
-        "📊 Overview",
-        "🚗 Speed",
-        "⚡ Power",
-        "🎮 IMU",
-        "🎮 IMU Detail",
-        "⚡ Efficiency",
-        "🛰️ GPS",
-        "📈 Custom",
-        "📃 Data",
-    ]
-    tabs = st.tabs(tab_names)
-    
-    # Render content for each tab
-    with tabs[0]:
-        render_overview_tab(kpis)
-    
-    with tabs[1]:
-        render_kpi_header(kpis)
-        fig = create_speed_chart(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[2]:
-        render_kpi_header(kpis)
-        fig = create_power_chart(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[3]:
-        render_kpi_header(kpis)
-        fig = create_imu_chart(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[4]:
-        render_kpi_header(kpis)
-        fig = create_imu_detail_chart(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[5]:
-        render_kpi_header(kpis)
-        fig = create_efficiency_chart(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[6]:
-        render_kpi_header(kpis)
-        fig = create_gps_map(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with tabs[7]:
-        render_kpi_header(kpis)
-        render_dynamic_charts_section(df)
-    
-    with tabs[8]:
-        render_kpi_header(kpis)
+    # Tabs for different visualizations - FIXED: Moved inside a container to prevent double rendering
+    with st.container():
+        st.subheader("📈 Dashboard")
         
-        st.subheader("📃 Raw Telemetry Data")
+        # Only create tabs once
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+            "📊 Overview",
+            "🚗 Speed", 
+            "⚡ Power",
+            "🎮 IMU",
+            "🎮 IMU Detail",
+            "⚡ Efficiency",
+            "🛰️ GPS",
+            "📈 Custom",
+            "📃 Data"
+        ])
         
-        # Show information about data size and pagination
-        if len(df) > 1000:
-            st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset.")
-        else:
-            st.info(f"ℹ️ Showing all {len(df):,} data points below.")
+        # Render content for each tab
+        with tab1:
+            render_overview_tab(kpis)
         
-        # Show sample of data
-        display_df = df.tail(100) if len(df) > 100 else df
-        st.dataframe(display_df, use_container_width=True, height=400)
+        with tab2:
+            render_kpi_header(kpis)
+            fig = create_speed_chart(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
         
-        # Download options
-        col1, col2 = st.columns(2)
-        with col1:
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label=f"📥 Download Full CSV ({len(df):,} rows)",
-                data=csv,
-                file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
+        with tab3:
+            render_kpi_header(kpis)
+            fig = create_power_chart(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
         
-        with col2:
+        with tab4:
+            render_kpi_header(kpis)
+            fig = create_imu_chart(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with tab5:
+            render_kpi_header(kpis)
+            fig = create_imu_detail_chart(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with tab6:
+            render_kpi_header(kpis)
+            fig = create_efficiency_chart(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with tab7:
+            render_kpi_header(kpis)
+            fig = create_gps_map(df)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with tab8:
+            render_kpi_header(kpis)
+            render_dynamic_charts_section(df)
+        
+        with tab9:
+            render_kpi_header(kpis)
+            
+            st.subheader("📃 Raw Telemetry Data")
+            
+            # Show information about data size and pagination
             if len(df) > 1000:
-                sample_df = df.sample(n=min(1000, len(df)), random_state=42)
-                sample_csv = sample_df.to_csv(index=False)
+                st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset.")
+            else:
+                st.info(f"ℹ️ Showing all {len(df):,} data points below.")
+            
+            # Show sample of data
+            display_df = df.tail(100) if len(df) > 100 else df
+            st.dataframe(display_df, use_container_width=True, height=400)
+            
+            # Download options
+            col1, col2 = st.columns(2)
+            with col1:
+                csv = df.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download Sample CSV (1000 rows)",
-                    data=sample_csv,
-                    file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    label=f"📥 Download Full CSV ({len(df):,} rows)",
+                    data=csv,
+                    file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
                     use_container_width=True,
                 )
-        
-        # Data statistics
-        with st.expander("📊 Dataset Statistics"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Rows", f"{len(df):,}")
-                st.metric("Columns", len(df.columns))
+            
             with col2:
-                if 'timestamp' in df.columns and len(df) > 1:
-                    # Handle timestamp conversion and calculations
-                    try:
-                        timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
-                        timestamp_series = timestamp_series.dropna()
-                        
-                        if len(timestamp_series) > 1:
-                            time_span = timestamp_series.max() - timestamp_series.min()
-                            st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
+                if len(df) > 1000:
+                    sample_df = df.sample(n=min(1000, len(df)), random_state=42)
+                    sample_csv = sample_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Sample CSV (1000 rows)",
+                        data=sample_csv,
+                        file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+            
+            # Data statistics
+            with st.expander("📊 Dataset Statistics"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Rows", f"{len(df):,}")
+                    st.metric("Columns", len(df.columns))
+                with col2:
+                    if 'timestamp' in df.columns and len(df) > 1:
+                        # Handle timestamp conversion and calculations
+                        try:
+                            timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+                            timestamp_series = timestamp_series.dropna()
                             
-                            # Calculate data rate
-                            if time_span.total_seconds() > 0:
-                                data_rate = len(df) / time_span.total_seconds()
-                                st.metric("Data Rate", f"{data_rate:.2f} Hz")
-                        else:
-                            st.metric("Time Span", "N/A")
-                            st.metric("Data Rate", "N/A")
-                    except Exception as e:
-                        st.metric("Time Span", "Error")
-                        st.metric("Data Rate", "Error")
-                        st.error(f"Error calculating time metrics: {e}")
-            with col3:
-                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024  # MB
-                st.metric("Memory Usage", f"{memory_usage:.2f} MB")
-                
-                if 'data_source' in df.columns:
-                    source_counts = df['data_source'].value_counts()
-                    st.write("**Data Sources:**")
-                    for source, count in source_counts.items():
-                        st.write(f"• {source}: {count:,} rows")
+                            if len(timestamp_series) > 1:
+                                time_span = timestamp_series.max() - timestamp_series.min()
+                                st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
+                                
+                                # Calculate data rate
+                                if time_span.total_seconds() > 0:
+                                    data_rate = len(df) / time_span.total_seconds()
+                                    st.metric("Data Rate", f"{data_rate:.2f} Hz")
+                            else:
+                                st.metric("Time Span", "N/A")
+                                st.metric("Data Rate", "N/A")
+                        except Exception as e:
+                            st.metric("Time Span", "Error")
+                            st.metric("Data Rate", "Error")
+                            st.error(f"Error calculating time metrics: {e}")
+                with col3:
+                    memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024  # MB
+                    st.metric("Memory Usage", f"{memory_usage:.2f} MB")
+                    
+                    if 'data_source' in df.columns:
+                        source_counts = df['data_source'].value_counts()
+                        st.write("**Data Sources:**")
+                        for source, count in source_counts.items():
+                            st.write(f"• {source}: {count:,} rows")
     
-    # Auto-refresh for real-time mode only
+    # Auto-refresh for real-time mode only - FIXED: Use st.empty() to prevent errors
     if (st.session_state.data_source_mode == "realtime_session" and 
         st.session_state.auto_refresh and 
         st.session_state.telemetry_manager and 
         st.session_state.telemetry_manager.is_connected):
         
-        time.sleep(st.session_state.get('refresh_interval', 3))
-        st.rerun()
+        # Use st.empty() placeholder for auto-refresh
+        refresh_placeholder = st.empty()
+        with refresh_placeholder.container():
+            st.info(f"🔄 Auto-refreshing every {st.session_state.refresh_interval} seconds...")
+            # Use time.sleep sparingly and with small intervals
+            time.sleep(min(st.session_state.refresh_interval, 5))
+            st.rerun()
     
     # Footer
     st.divider()
