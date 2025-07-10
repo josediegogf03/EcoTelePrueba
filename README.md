@@ -143,10 +143,7 @@ EcoTele/
 ---
 
 ## 🚧 Roadmap & Future Work
-
-- Offline buffering & retry logic  
-- Historical replay controls (playback, scrubbing)  
-- User authentication & multi-user data isolation  
+  
 - Real-sensor integration for powertrain & IMU  
 
 ---
