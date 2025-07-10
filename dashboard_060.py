@@ -1622,17 +1622,18 @@ def main():
     # Status row for populated data
     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
     with col1:
-        st.info(f"📊 **{len(df):,}** data points available")
-    with col2:
-        st.info(f"⏰ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
-    with col3:
-        if st.session_state.data_source_mode == "realtime_session" and new_messages_count > 0:
-            st.success(f"📨 +{new_messages_count}")
-    with col4:
         if st.session_state.is_viewing_historical:
             st.info("📚 Historical")
         else:
             st.info("🔴 Real-time")
+    with col2:
+        st.info(f"📊 **{len(df):,}** data points available")
+    with col3:
+        st.info(f"⏰ Last update: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
+    with col4:
+        if st.session_state.data_source_mode == "realtime_session" and new_messages_count > 0:
+            st.success(f"📨 +{new_messages_count}")
+
     
     # Show pagination info if large dataset
     if len(df) > 10000:
