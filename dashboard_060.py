@@ -793,30 +793,10 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def render_kpi_header(kpis: Dict[str, float]):
-    """Render KPI header with metrics."""
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-        st.metric("🔋 Energy", f"{kpis['total_energy_mj']:.2f} MJ")
-    
-    with col2:
-        st.metric("🚀 Max Speed", f"{kpis['max_speed_ms']:.1f} m/s")
-        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-    
-    with col3:
-        st.metric("🏃 Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s")
-        st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
-    
-    with col4:
-        st.metric("📈 Max Acc.", f"{kpis['max_acceleration']:.2f} m/s²")
-        st.metric("🎯 Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s")
-
-def render_overview_tab(kpis: Dict[str, float]):
-    """Render overview tab with KPIs."""
+def render_performance_overview(kpis: Dict[str, float]):
+    """Render the main performance overview section with all KPIs."""
     st.markdown("### 📊 Performance Overview")
-    st.markdown("Real-time key performance indicators for your Shell Eco-marathon vehicle")
+    st.markdown("Key performance indicators for your Shell Eco-marathon vehicle.")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -1636,14 +1616,15 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Calculate KPIs
+    # Calculate and render KPIs once, above the tabs
     kpis = calculate_kpis(df)
-    
-    # Tabs for different visualizations - THIS IS THE ONLY PLACE TABS SHOULD BE RENDERED
-    st.subheader("📈 Dashboard")
+    render_performance_overview(kpis)
+    st.divider()
+
+    # Tabs for different detailed visualizations
+    st.subheader("📈 Detailed Charts")
     
     tab_names = [
-        "📊 Overview",
         "🚗 Speed",
         "⚡ Power",
         "🎮 IMU",
@@ -1657,51 +1638,39 @@ def main():
     
     # Render content for each tab
     with tabs[0]:
-        render_overview_tab(kpis)
-    
-    with tabs[1]:
-        render_kpi_header(kpis)
         fig = create_speed_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[2]:
-        render_kpi_header(kpis)
+    with tabs[1]:
         fig = create_power_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[3]:
-        render_kpi_header(kpis)
+    with tabs[2]:
         fig = create_imu_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[4]:
-        render_kpi_header(kpis)
+    with tabs[3]:
         fig = create_imu_detail_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[5]:
-        render_kpi_header(kpis)
+    with tabs[4]:
         fig = create_efficiency_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[6]:
-        render_kpi_header(kpis)
+    with tabs[5]:
         fig = create_gps_map(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
-    with tabs[7]:
-        render_kpi_header(kpis)
+    with tabs[6]:
         render_dynamic_charts_section(df)
     
-    with tabs[8]:
-        render_kpi_header(kpis)
-        
+    with tabs[7]:
         st.subheader("📃 Raw Telemetry Data")
         
         if len(df) > 1000:
