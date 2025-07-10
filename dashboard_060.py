@@ -45,8 +45,8 @@ SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 SUPABASE_TABLE_NAME = "telemetry"
 
 # Pagination constants
-SUPABASE_MAX_ROWS_PER_REQUEST = 1000
-MAX_DATAPOINTS_PER_SESSION = 1000000
+SUPABASE_MAX_ROWS_PER_REQUEST = 1000  # PostgREST default limit
+MAX_DATAPOINTS_PER_SESSION = 1000000  # Maximum expected data points per session
 
 # Configures the Streamlit page
 st.set_page_config(
@@ -61,7 +61,7 @@ st.set_page_config(
     },
 )
 
-# CSS styling
+# CSS styling - Fixed transparent background and tab styling issues
 st.markdown("""
 <style>
     :root {
@@ -238,25 +238,28 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(31, 119, 180, 0.3);
     }
 
+    /* Fixed tab styling to prevent double rendering and grayed-out issues */
     .stTabs [data-baseweb="tab-list"] {
         position: sticky;
         top: 0;
         z-index: 50;
-        background: var(--bg-primary);
+        background: var(--bg-primary) !important;
         border-bottom: 2px solid var(--border-color);
         border-radius: 8px 8px 0 0;
         padding: 0.5rem;
+        box-shadow: 0 2px 8px var(--shadow-color);
     }
 
     .stTabs [data-baseweb="tab"] {
         border-radius: 6px;
         margin: 0 0.25rem;
         transition: all 0.2s ease;
+        background: var(--bg-primary) !important;
     }
 
-    .tab-content-wrapper {
-        min-height: 600px;
-        background: var(--bg-primary);
+    .stTabs [data-baseweb="tab-panel"] {
+        background: var(--bg-primary) !important;
+        padding: 1rem;
     }
 
     @media (max-width: 768px) {
@@ -420,6 +423,7 @@ class EnhancedTelemetryManager:
                 return
             
             with self._lock:
+                # Limit queue size to avoid excessive memory usage in Streamlit
                 if self.message_queue.qsize() > 500:
                     while self.message_queue.qsize() > 250:
                         try:
@@ -451,7 +455,10 @@ class EnhancedTelemetryManager:
         return messages
     
     def _paginated_fetch(self, session_id: str, data_source: str = 'supabase_current') -> pd.DataFrame:
-        """Fetch all data for a session using pagination."""
+        """
+        Fetch all data for a session using pagination to overcome the 1000 row limit.
+        Supports up to 1,000,000 data points per session.
+        """
         try:
             if not self.supabase_client:
                 self.logger.error("❌ Supabase client not initialized")
@@ -463,11 +470,14 @@ class EnhancedTelemetryManager:
             request_count = 0
             max_requests = math.ceil(MAX_DATAPOINTS_PER_SESSION / SUPABASE_MAX_ROWS_PER_REQUEST)
             
-            self.logger.info(f"🔄 Starting paginated fetch for session {session_id[:8]}...")
+            self.logger.info(f"🔄 Starting paginated fetch for session {session_id[:8]}... (max {max_requests} requests)")
             
             while offset < MAX_DATAPOINTS_PER_SESSION:
                 try:
+                    # Use range() for pagination - Supabase uses inclusive ranges
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
+                    
+                    self.logger.info(f"📄 Fetching page {request_count + 1}: rows {offset}-{range_end}")
                     
                     response = (self.supabase_client
                               .table(SUPABASE_TABLE_NAME)
@@ -480,23 +490,32 @@ class EnhancedTelemetryManager:
                     request_count += 1
                     
                     if not response.data:
+                        self.logger.info(f"✅ No more data found at offset {offset}, pagination complete")
                         break
                     
                     batch_size = len(response.data)
                     all_data.extend(response.data)
                     total_fetched += batch_size
                     
+                    self.logger.info(f"📊 Fetched {batch_size} rows (total: {total_fetched})")
+                    
+                    # If we got less than the maximum, we've reached the end
                     if batch_size < SUPABASE_MAX_ROWS_PER_REQUEST:
+                        self.logger.info(f"✅ Reached end of data (got {batch_size} < {SUPABASE_MAX_ROWS_PER_REQUEST})")
                         break
                     
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
+                    
+                    # Add a small delay to avoid overwhelming the API
                     time.sleep(0.1)
                     
                 except Exception as e:
                     self.logger.error(f"❌ Error in pagination request {request_count}: {e}")
+                    # Don't break completely, log the error and continue
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
                     continue
             
+            # Update pagination stats
             with self._lock:
                 self.stats["pagination_stats"]["total_requests"] += request_count
                 self.stats["pagination_stats"]["total_rows_fetched"] += total_fetched
@@ -506,11 +525,21 @@ class EnhancedTelemetryManager:
                 if request_count > 1:
                     self.stats["pagination_stats"]["sessions_paginated"] += 1
             
+            # Log pagination stats
+            self.logger.info(f"📄 Pagination Stats - Total Requests: {self.stats['pagination_stats']['total_requests']}, "
+                           f"Total Rows Fetched: {self.stats['pagination_stats']['total_rows_fetched']}, "
+                           f"Largest Session: {self.stats['pagination_stats']['largest_session_size']}, "
+                           f"Sessions Paginated: {self.stats['pagination_stats']['sessions_paginated']}")
+            
             if all_data:
                 df = pd.DataFrame(all_data)
                 df['data_source'] = data_source
+                
+                self.logger.info(f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}... using {request_count} requests")
+                
                 return df
             else:
+                self.logger.warning(f"⚠️ No data found for session {session_id}")
                 return pd.DataFrame()
                 
         except Exception as e:
@@ -522,18 +551,33 @@ class EnhancedTelemetryManager:
     
     def get_current_session_data(self, session_id: str) -> pd.DataFrame:
         """Get current session data from Supabase with pagination support."""
+        self.logger.info(f"🔄 Fetching current session data for {session_id[:8]}...")
         return self._paginated_fetch(session_id, 'supabase_current')
     
     def get_historical_sessions(self) -> List[Dict[str, Any]]:
         """Get list of historical sessions with pagination support."""
         try:
             if not self.supabase_client:
+                self.logger.error("❌ Supabase client not initialized")
                 return []
             
+            self.logger.info("🔄 Fetching historical sessions list...")
+            
+            # First, get a count of total records to understand pagination needs
+            count_response = (self.supabase_client
+                            .table(SUPABASE_TABLE_NAME)
+                            .select("session_id", count="exact")
+                            .execute())
+            
+            total_records = count_response.count if hasattr(count_response, 'count') else 0
+            self.logger.info(f"📊 Total records in database: {total_records}")
+            
+            # Get distinct session_ids with their min/max timestamps
+            # This query might still be limited, so we'll use pagination if needed
             all_records = []
             offset = 0
             
-            while True:
+            while offset < total_records:
                 try:
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
                     
@@ -555,12 +599,14 @@ class EnhancedTelemetryManager:
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
                     
                 except Exception as e:
-                    self.logger.error(f"❌ Error fetching session records: {e}")
+                    self.logger.error(f"❌ Error fetching session records at offset {offset}: {e}")
                     break
             
             if not all_records:
+                self.logger.warning("⚠️ No session records found")
                 return []
             
+            # Group by session_id and calculate session info
             sessions = {}
             for record in all_records:
                 session_id = record['session_id']
@@ -580,6 +626,7 @@ class EnhancedTelemetryManager:
                     if timestamp > sessions[session_id]['end_time']:
                         sessions[session_id]['end_time'] = timestamp
             
+            # Convert to list and calculate duration
             session_list = []
             for session_info in sessions.values():
                 try:
@@ -597,14 +644,21 @@ class EnhancedTelemetryManager:
                 except Exception as e:
                     self.logger.error(f"❌ Error processing session {session_info['session_id']}: {e}")
             
-            return sorted(session_list, key=lambda x: x['start_time'], reverse=True)
+            sorted_sessions = sorted(session_list, key=lambda x: x['start_time'], reverse=True)
+            
+            self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
+            return sorted_sessions
             
         except Exception as e:
             self.logger.error(f"❌ Error fetching historical sessions: {e}")
+            with self._lock:
+                self.stats["errors"] += 1
+                self.stats["last_error"] = str(e)
             return []
     
     def get_historical_data(self, session_id: str) -> pd.DataFrame:
         """Get historical data for a specific session with pagination support."""
+        self.logger.info(f"🔄 Fetching historical data for session {session_id[:8]}...")
         return self._paginated_fetch(session_id, 'supabase_historical')
     
     def disconnect(self):
@@ -642,26 +696,32 @@ def merge_telemetry_data(realtime_data: List[Dict],
     try:
         all_data = []
         
+        # Add real-time data
         if realtime_data:
             all_data.extend(realtime_data)
         
+        # Add Supabase data
         if not supabase_data.empty:
             all_data.extend(supabase_data.to_dict('records'))
         
+        # Add Streamlit history
         if not streamlit_history.empty:
             all_data.extend(streamlit_history.to_dict('records'))
         
         if not all_data:
             return pd.DataFrame()
         
+        # Convert to DataFrame
         df = pd.DataFrame(all_data)
         
+        # Ensure timestamp is a datetime object
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
             df.dropna(subset=['timestamp'], inplace=True)
         else:
             return df
         
+        # Remove duplicates
         dedup_columns = ['timestamp']
         if 'message_id' in df.columns:
             dedup_columns.append('message_id')
@@ -676,23 +736,24 @@ def merge_telemetry_data(realtime_data: List[Dict],
         return pd.DataFrame()
 
 def initialize_session_state():
-    """Initialize Streamlit session state with proper isolation."""
+    """Initialize Streamlit session state."""
     defaults = {
         "telemetry_manager": None,
         "telemetry_data": pd.DataFrame(),
         "last_update": datetime.now(),
         "auto_refresh": True,
-        "refresh_interval": 3,
         "dynamic_charts": [],
         "data_source_mode": "realtime_session",
         "selected_session": None,
         "historical_sessions": [],
         "current_session_id": None,
         "is_viewing_historical": False,
-        "data_loading": False,
-        "tab_state_initialized": False,
-        "render_counter": 0,
-        "ui_lock": False
+        "pagination_info": {
+            "is_loading": False,
+            "current_session": None,
+            "total_requests": 0,
+            "total_rows": 0
+        }
     }
     
     for key, value in defaults.items():
@@ -778,8 +839,8 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def render_kpi_header(kpis: Dict[str, float]):
-    """Render KPI header with metrics."""
+def render_kpi_metrics(kpis: Dict[str, float]):
+    """Render KPI metrics in columns - Used only in tabs to prevent double rendering."""
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -1279,6 +1340,8 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                 )
                                 if new_x != chart_config.get("x_axis"):
                                     st.session_state.dynamic_charts[i]["x_axis"] = new_x
+                            else:
+                                st.empty()
                     
                     with col4:
                         if chart_config.get("chart_type", "line") != "heatmap":
@@ -1295,6 +1358,8 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                 )
                                 if new_y != chart_config.get("y_axis"):
                                     st.session_state.dynamic_charts[i]["y_axis"] = new_y
+                            else:
+                                st.empty()
                     
                     with col5:
                         if st.button("🗑️", key=f"delete_{chart_config['id']}", help="Delete chart"):
@@ -1325,174 +1390,46 @@ def render_dynamic_charts_section(df: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
 
-def render_tab_content(tab_name: str, df: pd.DataFrame, kpis: Dict[str, float]):
-    """Render tab content with proper state isolation."""
-    try:
-        # Create a unique container for tab content to prevent double rendering
-        tab_container = st.container()
-        
-        with tab_container:
-            # Add wrapper div for tab content
-            st.markdown('<div class="tab-content-wrapper">', unsafe_allow_html=True)
-            
-            if tab_name == "📊 Overview":
-                render_overview_tab(kpis)
-            elif tab_name == "🚗 Speed":
-                render_kpi_header(kpis)
-                fig = create_speed_chart(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"speed_chart_{st.session_state.render_counter}")
-            elif tab_name == "⚡ Power":
-                render_kpi_header(kpis)
-                fig = create_power_chart(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"power_chart_{st.session_state.render_counter}")
-            elif tab_name == "🎮 IMU":
-                render_kpi_header(kpis)
-                fig = create_imu_chart(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"imu_chart_{st.session_state.render_counter}")
-            elif tab_name == "🎮 IMU Detail":
-                render_kpi_header(kpis)
-                fig = create_imu_detail_chart(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"imu_detail_chart_{st.session_state.render_counter}")
-            elif tab_name == "⚡ Efficiency":
-                render_kpi_header(kpis)
-                fig = create_efficiency_chart(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"efficiency_chart_{st.session_state.render_counter}")
-            elif tab_name == "🛰️ GPS":
-                render_kpi_header(kpis)
-                fig = create_gps_map(df)
-                st.plotly_chart(fig, use_container_width=True, key=f"gps_chart_{st.session_state.render_counter}")
-            elif tab_name == "📈 Custom":
-                render_kpi_header(kpis)
-                render_dynamic_charts_section(df)
-            elif tab_name == "📃 Data":
-                render_data_tab(df)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Error rendering tab {tab_name}: {e}")
-
-def render_data_tab(df: pd.DataFrame):
-    """Render data tab content."""
-    render_kpi_header(calculate_kpis(df))
-    
-    st.subheader("📃 Raw Telemetry Data")
-    
-    if len(df) > 1000:
-        st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing last 100 rows for performance.")
-    else:
-        st.info(f"ℹ️ Showing all {len(df):,} data points.")
-    
-    display_df = df.tail(100) if len(df) > 100 else df
-    st.dataframe(display_df, use_container_width=True, height=400)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label=f"📥 Download Full CSV ({len(df):,} rows)",
-            data=csv,
-            file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-    
-    with col2:
-        if len(df) > 1000:
-            sample_df = df.sample(n=min(1000, len(df)), random_state=42)
-            sample_csv = sample_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Sample CSV (1000 rows)",
-                data=sample_csv,
-                file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-    
-    # Data statistics
-    with st.expander("📊 Dataset Statistics"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Rows", f"{len(df):,}")
-            st.metric("Columns", len(df.columns))
-        with col2:
-            if 'timestamp' in df.columns and len(df) > 1:
-                try:
-                    timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
-                    timestamp_series = timestamp_series.dropna()
-                    
-                    if len(timestamp_series) > 1:
-                        time_span = timestamp_series.max() - timestamp_series.min()
-                        st.metric("Time Span", str(time_span).split('.')[0])
-                        
-                        if time_span.total_seconds() > 0:
-                            data_rate = len(df) / time_span.total_seconds()
-                            st.metric("Data Rate", f"{data_rate:.2f} Hz")
-                    else:
-                        st.metric("Time Span", "N/A")
-                        st.metric("Data Rate", "N/A")
-                except Exception as e:
-                    st.metric("Time Span", "Error")
-                    st.metric("Data Rate", "Error")
-        with col3:
-            memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
-            st.metric("Memory Usage", f"{memory_usage:.2f} MB")
-            
-            if 'data_source' in df.columns:
-                source_counts = df['data_source'].value_counts()
-                st.write("**Data Sources:**")
-                for source, count in source_counts.items():
-                    st.write(f"• {source}: {count:,} rows")
-
 def main():
-    """Main dashboard function with improved state management."""
+    """Main dashboard function."""
     st.markdown('<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>', unsafe_allow_html=True)
     
     initialize_session_state()
-    
-    # Prevent UI race conditions
-    if st.session_state.ui_lock:
-        st.info("⏳ Processing...")
-        return
     
     # Sidebar for connection and data source selection
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
         
-        # Data source selection with proper state isolation
+        # Data source selection
         data_source_mode = st.radio(
             "📊 Data Source",
             options=["realtime_session", "historical"],
             format_func=lambda x: "🔴 Real-time + Session Data" if x == "realtime_session" else "📚 Historical Data",
-            key="data_source_mode_radio",
-            index=0 if st.session_state.data_source_mode == "realtime_session" else 1
+            key="data_source_mode_radio"
         )
         
-        # Handle mode changes carefully to prevent double rendering
         if data_source_mode != st.session_state.data_source_mode:
-            st.session_state.ui_lock = True
             st.session_state.data_source_mode = data_source_mode
             st.session_state.telemetry_data = pd.DataFrame()
             st.session_state.is_viewing_historical = (data_source_mode == "historical")
             st.session_state.selected_session = None
             st.session_state.current_session_id = None
-            st.session_state.data_loading = False
-            st.session_state.render_counter += 1
-            st.session_state.ui_lock = False
             st.rerun()
         
         # Real-time mode controls
-        if data_source_mode == "realtime_session":
+        if st.session_state.data_source_mode == "realtime_session":
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("🔌 Connect", use_container_width=True):
-                    st.session_state.ui_lock = True
                     if st.session_state.telemetry_manager:
                         st.session_state.telemetry_manager.disconnect()
                         time.sleep(0.5)
                     
                     with st.spinner("Connecting..."):
                         st.session_state.telemetry_manager = EnhancedTelemetryManager()
+                        
                         supabase_connected = st.session_state.telemetry_manager.connect_supabase()
+                        
                         realtime_connected = False
                         if ABLY_AVAILABLE:
                             realtime_connected = st.session_state.telemetry_manager.connect_realtime()
@@ -1500,11 +1437,11 @@ def main():
                         if supabase_connected and realtime_connected:
                             st.success("✅ Connected!")
                         elif supabase_connected:
-                            st.warning("⚠️ Supabase only connected")
+                            st.warning("⚠️ Supabase only connected (Ably not available or failed)")
                         else:
-                            st.error("❌ Connection failed!")
+                            st.error("❌ Failed to connect to any service!")
                     
-                    st.session_state.ui_lock = False
+                    st.rerun()
             
             with col2:
                 if st.button("🛑 Disconnect", use_container_width=True):
@@ -1512,8 +1449,9 @@ def main():
                         st.session_state.telemetry_manager.disconnect()
                         st.session_state.telemetry_manager = None
                     st.info("🛑 Disconnected")
+                    st.rerun()
             
-            # Connection status
+            # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
                 stats = st.session_state.telemetry_manager.get_stats()
                 
@@ -1539,35 +1477,42 @@ def main():
             
             st.divider()
             
-            # Auto-refresh settings with stable state management
+            # Auto-refresh settings - Fixed to prevent TypeError
             st.subheader("⚙️ Settings")
             
-            # Use explicit value to prevent widget state conflicts
-            auto_refresh_value = st.session_state.get("auto_refresh", True)
-            new_auto_refresh = st.checkbox(
+            # Use session state to track auto refresh to prevent grayed-out state
+            if "auto_refresh_state" not in st.session_state:
+                st.session_state.auto_refresh_state = True
+            
+            auto_refresh = st.checkbox(
                 "🔄 Auto Refresh", 
-                value=auto_refresh_value,
-                key="auto_refresh_checkbox_stable",
-                help="Automatically refresh data from real-time stream"
+                value=st.session_state.auto_refresh_state,
+                help="Automatically refresh data from real-time stream",
+                key="auto_refresh_checkbox"
             )
             
-            if new_auto_refresh != st.session_state.auto_refresh:
-                st.session_state.auto_refresh = new_auto_refresh
+            if auto_refresh != st.session_state.auto_refresh:
+                st.session_state.auto_refresh = auto_refresh
+                st.session_state.auto_refresh_state = auto_refresh
+            
+            # Use session state for refresh interval to prevent issues
+            if "refresh_interval_state" not in st.session_state:
+                st.session_state.refresh_interval_state = 3
             
             if st.session_state.auto_refresh:
-                refresh_interval_value = st.session_state.get("refresh_interval", 3)
-                new_refresh_interval = st.slider(
+                refresh_interval = st.slider(
                     "Refresh Rate (s)", 
                     min_value=1, 
                     max_value=10, 
-                    value=refresh_interval_value,
-                    key="refresh_interval_slider_stable"
+                    value=st.session_state.refresh_interval_state,
+                    key="refresh_interval_slider"
                 )
-                
-                if new_refresh_interval != st.session_state.refresh_interval:
-                    st.session_state.refresh_interval = new_refresh_interval
+                st.session_state.refresh_interval = refresh_interval
+                st.session_state.refresh_interval_state = refresh_interval
+            else:
+                st.session_state.refresh_interval = 3
             
-        else:  # Historical data mode
+        else: # Historical data mode controls
             st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
             
             if not st.session_state.telemetry_manager:
@@ -1577,6 +1522,7 @@ def main():
             if st.button("🔄 Refresh Sessions", use_container_width=True):
                 with st.spinner("Loading sessions..."):
                     st.session_state.historical_sessions = st.session_state.telemetry_manager.get_historical_sessions()
+                st.rerun()
             
             # Session selection
             if st.session_state.historical_sessions:
@@ -1588,35 +1534,34 @@ def main():
                     "📋 Select Session",
                     options=range(len(session_options)),
                     format_func=lambda x: session_options[x],
-                    key="session_selector_stable",
+                    key="session_selector",
                     index=0
                 )
                 
                 if selected_session_idx is not None:
                     selected_session = st.session_state.historical_sessions[selected_session_idx]
                     
-                    if (st.session_state.selected_session is None or 
-                        st.session_state.selected_session['session_id'] != selected_session['session_id'] or 
-                        st.session_state.telemetry_data.empty):
-                        
+                    if st.session_state.selected_session is None or \
+                       st.session_state.selected_session['session_id'] != selected_session['session_id'] or \
+                       st.session_state.telemetry_data.empty:
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
-                        st.session_state.data_loading = True
                         
+                        # Show loading indicator for large datasets
                         if selected_session['record_count'] > 10000:
-                            st.info(f"📊 Loading {selected_session['record_count']:,} records...")
+                            st.info(f"📊 Loading {selected_session['record_count']:,} records... This may take a moment due to pagination.")
                         
-                        with st.spinner(f"Loading data..."):
+                        with st.spinner(f"Loading data for session {selected_session['session_id'][:8]}..."):
                             historical_df = st.session_state.telemetry_manager.get_historical_data(selected_session['session_id'])
                             st.session_state.telemetry_data = historical_df
                             st.session_state.last_update = datetime.now()
-                            st.session_state.data_loading = False
-                            st.session_state.render_counter += 1
                         
                         if not historical_df.empty:
                             st.success(f"✅ Loaded {len(historical_df):,} data points")
+                        st.rerun()
+                    
             else:
-                st.info("Click 'Refresh Sessions' to load available sessions.")
+                st.info("Click 'Refresh Sessions' to load available sessions from Supabase.")
         
         st.info(f"📡 Channel: {DASHBOARD_CHANNEL_NAME}")
         st.info(f"🔢 Max records per session: {MAX_DATAPOINTS_PER_SESSION:,}")
@@ -1625,24 +1570,27 @@ def main():
     df = st.session_state.telemetry_data.copy()
     new_messages_count = 0
     
-    # Data ingestion logic with proper state management
+    # Data ingestion logic
     if st.session_state.data_source_mode == "realtime_session":
         if st.session_state.telemetry_manager and st.session_state.telemetry_manager.is_connected:
             new_messages = st.session_state.telemetry_manager.get_realtime_messages()
             
             current_session_data_from_supabase = pd.DataFrame()
+            # If new messages are arriving, update current_session_id and fetch its historical part
             if new_messages and 'session_id' in new_messages[0]:
                 current_session_id = new_messages[0]['session_id']
-                if (st.session_state.current_session_id != current_session_id or 
-                    st.session_state.telemetry_data.empty):
+                if st.session_state.current_session_id != current_session_id or \
+                   st.session_state.telemetry_data.empty:
                     st.session_state.current_session_id = current_session_id
                     
-                    with st.spinner(f"Loading session data..."):
+                    # Show loading indicator for large current sessions
+                    with st.spinner(f"Loading current session data for {current_session_id[:8]}..."):
                         current_session_data_from_supabase = st.session_state.telemetry_manager.get_current_session_data(current_session_id)
                     
                     if not current_session_data_from_supabase.empty:
-                        st.success(f"✅ Loaded {len(current_session_data_from_supabase):,} historical points")
+                        st.success(f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session")
                 
+            # Merge new real-time data with existing and (optionally) full current session data
             if new_messages or not current_session_data_from_supabase.empty:
                 merged_data = merge_telemetry_data(
                     new_messages,
@@ -1654,13 +1602,15 @@ def main():
                     new_messages_count = len(new_messages) if new_messages else 0
                     st.session_state.telemetry_data = merged_data
                     st.session_state.last_update = datetime.now()
-                    st.session_state.render_counter += 1
         
         st.session_state.is_viewing_historical = False
     
+    elif st.session_state.data_source_mode == "historical":
+        st.session_state.is_viewing_historical = True
+        
     df = st.session_state.telemetry_data.copy()
 
-    # Show historical notice
+    # Show historical notice if viewing historical data
     if st.session_state.is_viewing_historical and st.session_state.selected_session:
         st.markdown(
             '<div class="historical-notice">📚 Viewing Historical Data - No auto-refresh active</div>',
@@ -1668,8 +1618,8 @@ def main():
         )
         render_session_info(st.session_state.selected_session)
     
-    # Empty state
-    if df.empty and not st.session_state.data_loading:
+    # Empty state message
+    if df.empty:
         st.warning("⏳ Waiting for telemetry data...")
         
         col1, col2 = st.columns(2)
@@ -1677,16 +1627,16 @@ def main():
             if st.session_state.data_source_mode == "realtime_session":
                 st.info(
                     "**Getting Started (Real-time):**\n"
-                    "1. Ensure your data bridge is running\n"
-                    "2. Click 'Connect' to start receiving data\n"
-                    "3. Large sessions use pagination automatically"
+                    "1. Ensure the bridge (your data sending script) is running\n"
+                    "2. Click 'Connect' in the sidebar to start receiving data\n"
+                    "3. Large sessions are automatically paginated for optimal performance"
                 )
             else:
                 st.info(
                     "**Getting Started (Historical):**\n"
-                    "1. Click 'Refresh Sessions' to load available sessions\n"
-                    "2. Select a session to load its data\n"
-                    "3. Large datasets use pagination automatically"
+                    "1. Click 'Refresh Sessions' in the sidebar to load available sessions\n"
+                    "2. Select a session and its data will load automatically\n"
+                    "3. Large datasets use pagination to load all data points"
                 )
         
         with col2:
@@ -1694,36 +1644,30 @@ def main():
                 debug_info = {
                     "Data Source Mode": st.session_state.data_source_mode,
                     "Is Viewing Historical": st.session_state.is_viewing_historical,
-                    "Selected Session": st.session_state.selected_session['session_id'][:8] + "..." if st.session_state.selected_session else None,
-                    "Current Session ID": st.session_state.current_session_id,
-                    "Historical Sessions": len(st.session_state.historical_sessions),
-                    "Data Points": len(st.session_state.telemetry_data),
-                    "Data Loading": st.session_state.data_loading,
-                    "Render Counter": st.session_state.render_counter,
-                    "UI Lock": st.session_state.ui_lock,
+                    "Selected Session ID": st.session_state.selected_session['session_id'][:8] + "..." if st.session_state.selected_session else None,
+                    "Current Real-time Session ID": st.session_state.current_session_id,
+                    "Number of Historical Sessions": len(st.session_state.historical_sessions),
+                    "Telemetry Data Points (in memory)": len(st.session_state.telemetry_data),
+                    "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
+                    "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
                 }
                 
                 if st.session_state.telemetry_manager:
                     stats = st.session_state.telemetry_manager.get_stats()
                     debug_info.update({
-                        "Ably Connected": st.session_state.telemetry_manager.is_connected,
-                        "Messages Received": stats["messages_received"],
+                        "Ably Connected (Manager Status)": st.session_state.telemetry_manager.is_connected,
+                        "Messages Received (via Ably)": stats["messages_received"],
                         "Connection Errors": stats["errors"],
                         "Total Pagination Requests": stats["pagination_stats"]["total_requests"],
                         "Total Rows Fetched": stats["pagination_stats"]["total_rows_fetched"],
-                        "Sessions Paginated": stats["pagination_stats"]["sessions_paginated"],
-                        "Largest Session": stats["pagination_stats"]["largest_session_size"],
+                        "Sessions Requiring Pagination": stats["pagination_stats"]["sessions_paginated"],
+                        "Largest Session Size": stats["pagination_stats"]["largest_session_size"],
                     })
                 
                 st.json(debug_info)
         return
     
-    # Show loading state
-    if st.session_state.data_loading:
-        st.info("⏳ Loading data...")
-        return
-    
-    # Status row
+    # Status row for populated data
     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
     with col1:
         st.info(f"📊 **{len(df):,}** data points available")
@@ -1733,26 +1677,28 @@ def main():
         if st.session_state.data_source_mode == "realtime_session" and new_messages_count > 0:
             st.success(f"📨 +{new_messages_count}")
     with col4:
+        # Show data source indicator
         if st.session_state.is_viewing_historical:
             st.info("📚 Historical")
         else:
             st.info("🔴 Real-time")
     
-    # Show pagination info for large datasets
+    # Show pagination info if large dataset
     if len(df) > 10000:
         st.markdown(f"""
         <div class="pagination-info">
-            <strong>📊 Large Dataset Loaded:</strong> {len(df):,} data points retrieved using pagination
+            <strong>📊 Large Dataset Loaded:</strong> {len(df):,} data points successfully retrieved using pagination
         </div>
         """, unsafe_allow_html=True)
     
     # Calculate KPIs
     kpis = calculate_kpis(df)
     
-    # Create tabs with proper state isolation
+    # Tabs for different visualizations - Fixed to prevent double rendering
     st.subheader("📈 Dashboard")
     
-    tab_names = [
+    # Single tab definition to prevent double rendering
+    tab_overview, tab_speed, tab_power, tab_imu, tab_imu_detail, tab_efficiency, tab_gps, tab_custom, tab_data = st.tabs([
         "📊 Overview",
         "🚗 Speed", 
         "⚡ Power",
@@ -1761,42 +1707,137 @@ def main():
         "⚡ Efficiency",
         "🛰️ GPS",
         "📈 Custom",
-        "📃 Data",
-    ]
+        "📃 Data"
+    ])
     
-    # Initialize tab state properly to prevent double rendering
-    if not st.session_state.tab_state_initialized:
-        st.session_state.active_tab_index = 0
-        st.session_state.tab_state_initialized = True
+    # Render content for each tab - without additional KPI headers to prevent double rendering
+    with tab_overview:
+        render_overview_tab(kpis)
     
-    # Use unique keys for tabs to prevent state conflicts
-    tab_key = f"dashboard_tabs_{st.session_state.render_counter}"
+    with tab_speed:
+        render_kpi_metrics(kpis)
+        fig = create_speed_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Create tabs with stable rendering
-    selected_tab = st.selectbox(
-        "Choose Dashboard Tab:",
-        options=tab_names,
-        index=st.session_state.active_tab_index,
-        key=f"tab_selector_{st.session_state.render_counter}",
-        label_visibility="collapsed"
-    )
+    with tab_power:
+        render_kpi_metrics(kpis)
+        fig = create_power_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Update active tab index
-    if selected_tab in tab_names:
-        st.session_state.active_tab_index = tab_names.index(selected_tab)
+    with tab_imu:
+        render_kpi_metrics(kpis)
+        fig = create_imu_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Render content for selected tab only
-    st.markdown("---")
-    render_tab_content(selected_tab, df, kpis)
+    with tab_imu_detail:
+        render_kpi_metrics(kpis)
+        fig = create_imu_detail_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Auto-refresh logic with proper state checking
+    with tab_efficiency:
+        render_kpi_metrics(kpis)
+        fig = create_efficiency_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with tab_gps:
+        render_kpi_metrics(kpis)
+        fig = create_gps_map(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with tab_custom:
+        render_kpi_metrics(kpis)
+        render_dynamic_charts_section(df)
+    
+    with tab_data:
+        render_kpi_metrics(kpis)
+        
+        st.subheader("📃 Raw Telemetry Data")
+        
+        # Show information about data size and pagination
+        if len(df) > 1000:
+            st.info(f"ℹ️ Dataset contains {len(df):,} total rows. Showing the last 100 rows below for performance. Download CSV for complete dataset.")
+        else:
+            st.info(f"ℹ️ Showing all {len(df):,} data points below.")
+        
+        # Show sample of data
+        display_df = df.tail(100) if len(df) > 100 else df
+        st.dataframe(display_df, use_container_width=True, height=400)
+        
+        # Download options
+        col1, col2 = st.columns(2)
+        with col1:
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label=f"📥 Download Full CSV ({len(df):,} rows)",
+                data=csv,
+                file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        
+        with col2:
+            if len(df) > 1000:
+                sample_df = df.sample(n=min(1000, len(df)), random_state=42)
+                sample_csv = sample_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Sample CSV (1000 rows)",
+                    data=sample_csv,
+                    file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+        
+        # Data statistics
+        with st.expander("📊 Dataset Statistics"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Rows", f"{len(df):,}")
+                st.metric("Columns", len(df.columns))
+            with col2:
+                if 'timestamp' in df.columns and len(df) > 1:
+                    # Handle timestamp conversion and calculations
+                    try:
+                        timestamp_series = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+                        timestamp_series = timestamp_series.dropna()
+                        
+                        if len(timestamp_series) > 1:
+                            time_span = timestamp_series.max() - timestamp_series.min()
+                            st.metric("Time Span", str(time_span).split('.')[0])  # Remove microseconds
+                            
+                            # Calculate data rate
+                            if time_span.total_seconds() > 0:
+                                data_rate = len(df) / time_span.total_seconds()
+                                st.metric("Data Rate", f"{data_rate:.2f} Hz")
+                        else:
+                            st.metric("Time Span", "N/A")
+                            st.metric("Data Rate", "N/A")
+                    except Exception as e:
+                        st.metric("Time Span", "Error")
+                        st.metric("Data Rate", "Error")
+                        st.error(f"Error calculating time metrics: {e}")
+            with col3:
+                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024  # MB
+                st.metric("Memory Usage", f"{memory_usage:.2f} MB")
+                
+                if 'data_source' in df.columns:
+                    source_counts = df['data_source'].value_counts()
+                    st.write("**Data Sources:**")
+                    for source, count in source_counts.items():
+                        st.write(f"• {source}: {count:,} rows")
+    
+    # Auto-refresh for real-time mode only - Fixed to prevent errors
     if (st.session_state.data_source_mode == "realtime_session" and 
         st.session_state.auto_refresh and 
         st.session_state.telemetry_manager and 
-        st.session_state.telemetry_manager.is_connected and
-        not st.session_state.ui_lock):
+        st.session_state.telemetry_manager.is_connected):
         
-        time.sleep(st.session_state.refresh_interval)
+        time.sleep(st.session_state.get('refresh_interval', 3))
         st.rerun()
     
     # Footer
