@@ -87,14 +87,15 @@ class TelemetryBridgeWithDB:
             "session_start_time": self.session_start_time.isoformat(),
         }
         
-        # Binary message parsing
-        self.BINARY_FORMAT = "<fffffI"
+        # Binary message parsing (updated for new structure)
+        self.BINARY_FORMAT = "<ffffffI"  # Updated format: speed, voltage, current, lat, lon, altitude, message_id
         self.BINARY_FIELD_NAMES = [
             'speed_ms',
             'voltage_v',
             'current_a',
             'latitude',
             'longitude',
+            'altitude',  # Added altitude field
             'message_id',
         ]
         self.BINARY_MESSAGE_SIZE = struct.calcsize(self.BINARY_FORMAT)
@@ -103,9 +104,9 @@ class TelemetryBridgeWithDB:
         self.cumulative_distance = 0.0
         self.cumulative_energy = 0.0
         self.simulation_time = 0
-        self.vehicle_heading = 0.0
         self.prev_speed = 0.0
         self.message_count = 0
+        self.base_altitude = 100.0  # Base altitude for simulation
         
         # Signal handling
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -195,20 +196,22 @@ class TelemetryBridgeWithDB:
         self.cumulative_energy += energy_delta
         self.cumulative_distance += distance_delta
         
-        # GPS simulation (circular track)
+        # GPS simulation (circular track with altitude variation)
         base_lat, base_lon = 40.7128, -74.0060
         lat_offset = 0.001 * math.sin(self.simulation_time * 0.05)
         lon_offset = 0.001 * math.cos(self.simulation_time * 0.05)
         latitude = base_lat + lat_offset + random.gauss(0, 0.0001)
         longitude = base_lon + lon_offset + random.gauss(0, 0.0001)
         
+        # Altitude simulation (varies with track elevation)
+        altitude_variation = 10.0 * math.sin(self.simulation_time * 0.03)  # ±10m variation
+        altitude = self.base_altitude + altitude_variation + random.gauss(0, 1.0)
+        
         # IMU simulation
         turning_rate = 2.0 * math.sin(self.simulation_time * 0.08)
         gyro_x = random.gauss(0, 0.5)
         gyro_y = random.gauss(0, 0.3)
         gyro_z = turning_rate + random.gauss(0, 0.8)
-        
-        self.vehicle_heading += gyro_z * MOCK_DATA_INTERVAL
         
         # Acceleration simulation
         speed_acceleration = (speed - self.prev_speed) / MOCK_DATA_INTERVAL
@@ -224,6 +227,9 @@ class TelemetryBridgeWithDB:
         accel_y += random.gauss(0, vibration_factor)
         accel_z += random.gauss(0, vibration_factor)
         
+        # Calculate total acceleration
+        total_acceleration = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
+        
         self.simulation_time += 1
         self.message_count += 1
         
@@ -237,14 +243,14 @@ class TelemetryBridgeWithDB:
             'distance_m': round(self.cumulative_distance, 2),
             'latitude': round(latitude, 6),
             'longitude': round(longitude, 6),
+            'altitude': round(altitude, 2),  # Added altitude field
             'gyro_x': round(gyro_x, 3),
             'gyro_y': round(gyro_y, 3),
             'gyro_z': round(gyro_z, 3),
             'accel_x': round(accel_x, 3),
             'accel_y': round(accel_y, 3),
             'accel_z': round(accel_z, 3),
-            'vehicle_heading': round(self.vehicle_heading % 360, 2),
-            'total_acceleration': round(math.sqrt(accel_x**2 + accel_y**2 + accel_z**2), 3),
+            'total_acceleration': round(total_acceleration, 3),
             'message_id': self.message_count,
             'uptime_seconds': self.simulation_time * MOCK_DATA_INTERVAL,
             'data_source': 'MOCK_GENERATOR',
@@ -314,13 +320,13 @@ class TelemetryBridgeWithDB:
             'distance_m': 0.0,
             'latitude': 0.0,
             'longitude': 0.0,
+            'altitude': 0.0,  # Added altitude field
             'gyro_x': 0.0,
             'gyro_y': 0.0,
             'gyro_z': 0.0,
             'accel_x': 0.0,
             'accel_y': 0.0,
             'accel_z': 0.0,
-            'vehicle_heading': 0.0,
             'total_acceleration': 0.0,
             'message_id': 0,
             'uptime_seconds': 0.0
@@ -392,7 +398,8 @@ class TelemetryBridgeWithDB:
             self.stats["last_message_time"] = datetime.now(timezone.utc)
             
             logger.debug(f"📊 ESP32 Data Processed - Speed: {normalized_data.get('speed_ms', 0):.2f} m/s, "
-                        f"Power: {normalized_data.get('power_w', 0):.2f} W")
+                        f"Power: {normalized_data.get('power_w', 0):.2f} W, "
+                        f"Altitude: {normalized_data.get('altitude', 0):.2f} m")
 
         except Exception as e:
             logger.error(f"❌ Error handling ESP32 message: {e}")
@@ -496,12 +503,16 @@ class TelemetryBridgeWithDB:
                     'distance_m': record['distance_m'],
                     'latitude': record['latitude'],
                     'longitude': record['longitude'],
+                    'altitude_m': record['altitude'],  # Map altitude to altitude_m for database
                     'gyro_x': record['gyro_x'],
                     'gyro_y': record['gyro_y'],
                     'gyro_z': record['gyro_z'],
                     'accel_x': record['accel_x'],
                     'accel_y': record['accel_y'],
                     'accel_z': record['accel_z'],
+                    'total_acceleration': record['total_acceleration'],
+                    'message_id': record['message_id'],
+                    'uptime_seconds': record['uptime_seconds'],
                 }
                 db_records.append(db_record)
             
