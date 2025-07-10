@@ -713,7 +713,8 @@ def initialize_session_state():
             "current_session": None,
             "total_requests": 0,
             "total_rows": 0
-        }
+        },
+        "chart_info_initialized": False
     }
     
     for key, value in defaults.items():
@@ -723,14 +724,15 @@ def initialize_session_state():
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
     default_kpis = {
-        "total_energy_mj": 0.0,
+        "current_speed_ms": 0.0,
+        "total_distance_km": 0.0,
         "max_speed_ms": 0.0,
         "avg_speed_ms": 0.0,
-        "total_distance_km": 0.0,
+        "total_energy_kwh": 0.0,
         "avg_power_w": 0.0,
-        "efficiency_km_per_mj": 0.0,
-        "max_acceleration": 0.0,
-        "avg_gyro_magnitude": 0.0,
+        "efficiency_km_per_kwh": 0.0,
+        "battery_voltage_v": 0.0,
+        "battery_percentage": 0.0,
     }
     
     if df.empty:
@@ -739,10 +741,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     try:
         numeric_cols = [
             "energy_j", "speed_ms", "distance_m", "power_w",
-            "total_acceleration", "gyro_x", "gyro_y", "gyro_z",
-            "voltage_v", "current_a",
-            "accel_x", "accel_y", "accel_z",
-            "latitude", "longitude"
+            "voltage_v", "current_a", "latitude", "longitude", "altitude"
         ]
         
         for col in numeric_cols:
@@ -751,47 +750,45 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         
         kpis = default_kpis.copy()
         
-        if "energy_j" in df.columns and not df["energy_j"].dropna().empty:
-            kpis["total_energy_mj"] = max(0, df["energy_j"].dropna().iloc[-1] / 1_000_000)
-        
+        # Current speed (latest value)
         if "speed_ms" in df.columns:
             speed_data = df["speed_ms"].dropna()
             if not speed_data.empty:
+                kpis["current_speed_ms"] = max(0, speed_data.iloc[-1])
                 kpis["max_speed_ms"] = max(0, speed_data.max())
                 kpis["avg_speed_ms"] = max(0, speed_data.mean())
         
+        # Distance
         if "distance_m" in df.columns and not df["distance_m"].dropna().empty:
             kpis["total_distance_km"] = max(0, df["distance_m"].dropna().iloc[-1] / 1000)
         
+        # Energy in kWh
+        if "energy_j" in df.columns and not df["energy_j"].dropna().empty:
+            kpis["total_energy_kwh"] = max(0, df["energy_j"].dropna().iloc[-1] / 3_600_000)  # Convert J to kWh
+        
+        # Power
         if "power_w" in df.columns:
             power_data = df["power_w"].dropna()
             if not power_data.empty:
                 kpis["avg_power_w"] = max(0, power_data.mean())
         
-        if kpis["total_energy_mj"] > 0:
-            kpis["efficiency_km_per_mj"] = kpis["total_distance_km"] / kpis["total_energy_mj"]
+        # Efficiency in km/kWh
+        if kpis["total_energy_kwh"] > 0:
+            kpis["efficiency_km_per_kwh"] = kpis["total_distance_km"] / kpis["total_energy_kwh"]
         
-        if all(col in df.columns for col in ["accel_x", "accel_y", "accel_z"]):
-            accel_x = df["accel_x"].dropna()
-            accel_y = df["accel_y"].dropna()
-            accel_z = df["accel_z"].dropna()
-            if not accel_x.empty and not accel_y.empty and not accel_z.empty:
-                total_acceleration_calculated = np.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
-                if not total_acceleration_calculated.empty:
-                    kpis["max_acceleration"] = max(0, total_acceleration_calculated.max())
-        elif "total_acceleration" in df.columns:
-            accel_data = df["total_acceleration"].dropna()
-            if not accel_data.empty:
-                kpis["max_acceleration"] = max(0, accel_data.max())
-
-        if all(col in df.columns for col in ["gyro_x", "gyro_y", "gyro_z"]):
-            gyro_data_df = df[["gyro_x", "gyro_y", "gyro_z"]].dropna()
-            if not gyro_data_df.empty:
-                gyro_magnitude = np.sqrt(
-                    gyro_data_df["gyro_x"] ** 2 + gyro_data_df["gyro_y"] ** 2 + gyro_data_df["gyro_z"] ** 2
-                )
-                if not gyro_magnitude.empty:
-                    kpis["avg_gyro_magnitude"] = max(0, gyro_magnitude.mean())
+        # Battery voltage (latest value)
+        if "voltage_v" in df.columns:
+            voltage_data = df["voltage_v"].dropna()
+            if not voltage_data.empty:
+                kpis["battery_voltage_v"] = max(0, voltage_data.iloc[-1])
+                # Simple battery percentage calculation (assuming 48V nominal)
+                nominal_voltage = 48.0
+                max_voltage = 55.0
+                min_voltage = 40.0
+                current_voltage = kpis["battery_voltage_v"]
+                if current_voltage > min_voltage:
+                    kpis["battery_percentage"] = min(100, max(0, 
+                        ((current_voltage - min_voltage) / (max_voltage - min_voltage)) * 100))
         
         return kpis
         
@@ -804,20 +801,22 @@ def render_kpi_header(kpis: Dict[str, float]):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
+        st.metric("🚀 Current Speed", f"{kpis['current_speed_ms']:.1f} m/s")
         st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-        st.metric("🔋 Energy", f"{kpis['total_energy_mj']:.2f} MJ")
     
     with col2:
-        st.metric("🚀 Max Speed", f"{kpis['max_speed_ms']:.1f} m/s")
-        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
+        st.metric("🏃 Max Speed", f"{kpis['max_speed_ms']:.1f} m/s")
+        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s")
     
     with col3:
-        st.metric("🏃 Avg Speed", f"{kpis['avg_speed_ms']:.1f} m/s")
-        st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_mj']:.2f} km/MJ")
+        st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
+        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
     
     with col4:
-        st.metric("📈 Max Acc.", f"{kpis['max_acceleration']:.2f} m/s²")
-        st.metric("🎯 Avg Gyro", f"{kpis['avg_gyro_magnitude']:.2f} °/s")
+        # Battery indicator with voltage and percentage
+        battery_display = f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        st.metric("🔋 Battery", battery_display)
+        st.metric("♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh")
 
 def render_overview_tab(kpis: Dict[str, float]):
     """Render overview tab with KPIs."""
@@ -828,21 +827,33 @@ def render_overview_tab(kpis: Dict[str, float]):
     
     with col1:
         st.metric(
+            label="🚀 Current Speed",
+            value=f"{kpis['current_speed_ms']:.1f} m/s",
+            help="Current vehicle speed"
+        )
+        st.metric(
             label="🛣️ Total Distance",
             value=f"{kpis['total_distance_km']:.2f} km",
             help="Distance traveled during the session"
         )
-        st.metric(
-            label="🔋 Energy Consumed",
-            value=f"{kpis['total_energy_mj']:.2f} MJ",
-            help="Total energy consumption"
-        )
     
     with col2:
         st.metric(
-            label="🚀 Maximum Speed",
+            label="🏃 Maximum Speed",
             value=f"{kpis['max_speed_ms']:.1f} m/s",
             help="Highest speed achieved"
+        )
+        st.metric(
+            label="⚡ Average Speed",
+            value=f"{kpis['avg_speed_ms']:.1f} m/s",
+            help="Mean speed throughout the session"
+        )
+    
+    with col3:
+        st.metric(
+            label="🔋 Energy Consumed",
+            value=f"{kpis['total_energy_kwh']:.2f} kWh",
+            help="Total energy consumption"
         )
         st.metric(
             label="💡 Average Power",
@@ -850,28 +861,17 @@ def render_overview_tab(kpis: Dict[str, float]):
             help="Mean power consumption"
         )
     
-    with col3:
+    with col4:
+        battery_display = f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
         st.metric(
-            label="🏃 Average Speed",
-            value=f"{kpis['avg_speed_ms']:.1f} m/s",
-            help="Mean speed throughout the session"
+            label="🔋 Battery Status",
+            value=battery_display,
+            help="Current battery voltage and estimated percentage"
         )
         st.metric(
             label="♻️ Efficiency",
-            value=f"{kpis['efficiency_km_per_mj']:.2f} km/MJ",
+            value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
             help="Energy efficiency ratio"
-        )
-    
-    with col4:
-        st.metric(
-            label="📈 Max Acceleration",
-            value=f"{kpis['max_acceleration']:.2f} m/s²",
-            help="Peak acceleration recorded"
-        )
-        st.metric(
-            label="🎯 Avg Gyro Magnitude",
-            value=f"{kpis['avg_gyro_magnitude']:.2f} °/s",
-            help="Average rotational movement"
         )
 
 def render_session_info(session_data: Dict[str, Any]):
@@ -1074,8 +1074,8 @@ def create_efficiency_chart(df: pd.DataFrame):
     
     return fig
 
-def create_gps_map(df: pd.DataFrame):
-    """Create GPS map."""
+def create_gps_map_with_altitude(df: pd.DataFrame):
+    """Create GPS map with altitude chart as subplot."""
     if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
         return go.Figure().add_annotation(
             text="No GPS data available",
@@ -1091,24 +1091,89 @@ def create_gps_map(df: pd.DataFrame):
             x=0.5, y=0.5, showarrow=False,
         )
     
+    # Create subplot with map on left and altitude on right
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.7, 0.3],
+        subplot_titles=("🛰️ Vehicle Track", "⛰️ Altitude Profile"),
+        specs=[[{"type": "scattermap"}, {"type": "scatter"}]]
+    )
+    
+    # Add map trace
     center_point = dict(
         lat=df_valid["latitude"].mean(),
         lon=df_valid["longitude"].mean()
     )
     
-    fig = px.scatter_map(
-        df_valid,
-        lat="latitude", lon="longitude",
-        color="speed_ms" if "speed_ms" in df_valid.columns else None,
-        size="power_w" if "power_w" in df_valid.columns else None,
-        hover_data=["speed_ms", "power_w", "voltage_v"] if all(col in df_valid.columns for col in ["speed_ms", "power_w", "voltage_v"]) else None,
-        map_style="open-street-map",
-        title="🛰️ Vehicle Track and Performance",
-        height=400,
-        zoom=15,
-        center=center_point,
-        color_continuous_scale="plasma",
+    fig.add_trace(
+        go.Scattermap(
+            lat=df_valid["latitude"],
+            lon=df_valid["longitude"],
+            mode="markers+lines",
+            marker=dict(
+                size=8,
+                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
+                colorscale="plasma",
+                showscale=True,
+                colorbar=dict(title="Speed (m/s)", x=0.65)
+            ),
+            line=dict(width=2, color="#1f77b4"),
+            hovertemplate="Lat: %{lat}<br>Lon: %{lon}<br>Speed: %{marker.color:.1f} m/s<extra></extra>",
+            name="Track"
+        ),
+        row=1, col=1
     )
+    
+    # Add altitude trace if available
+    if "altitude" in df.columns:
+        altitude_data = df.dropna(subset=["altitude"])
+        if not altitude_data.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=altitude_data["timestamp"],
+                    y=altitude_data["altitude"],
+                    mode="lines",
+                    line=dict(color="#2ca02c", width=2),
+                    name="Altitude",
+                    hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>"
+                ),
+                row=1, col=2
+            )
+    else:
+        # If no altitude data, show a message
+        fig.add_trace(
+            go.Scatter(
+                x=[0],
+                y=[0],
+                mode="text",
+                text=["No altitude data available"],
+                textposition="middle center",
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+    
+    # Update layout
+    fig.update_layout(
+        title_text="🛰️ GPS Tracking and Altitude Analysis",
+        height=500,
+        showlegend=False
+    )
+    
+    # Update map layout
+    fig.update_layout(
+        map=dict(
+            style="open-street-map",
+            center=center_point,
+            zoom=15,
+            bearing=0,
+            pitch=0
+        )
+    )
+    
+    # Update altitude plot layout
+    fig.update_xaxes(title_text="Time", row=1, col=2)
+    fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
     
     return fig
 
@@ -1196,38 +1261,45 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     return fig
 
 def render_dynamic_charts_section(df: pd.DataFrame):
-    """Render dynamic charts section."""
-    st.markdown("""
-    <div class="data-source-card">
-        <h3>🎯 Create Custom Charts</h3>
-        <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    """Render dynamic charts section with persistent chart info."""
+    # Initialize chart info only once to prevent re-rendering
+    if not st.session_state.chart_info_initialized:
+        st.session_state.chart_info_text = """
+        <div class="data-source-card">
+            <h3>🎯 Create Custom Charts</h3>
+            <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
+        </div>
+        """
+        
+        st.session_state.chart_types_grid = """
+        <div class="chart-type-grid">
+            <div class="chart-type-card">
+                <div class="chart-type-name">📈 Line Chart</div>
+                <div class="chart-type-desc">Great for time series data and trends</div>
+            </div>
+            <div class="chart-type-card">
+                <div class="chart-type-name">🔵 Scatter Plot</div>
+                <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
+            </div>
+            <div class="chart-type-card">
+                <div class="chart-type-name">📊 Bar Chart</div>
+                <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
+            </div>
+            <div class="chart-type-card">
+                <div class="chart-type-name">📉 Histogram</div>
+                <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
+            </div>
+            <div class="chart-type-card">
+                <div class="chart-type-name">🔥 Heatmap</div>
+                <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
+            </div>
+        </div>
+        """
+        st.session_state.chart_info_initialized = True
     
-    st.markdown("""
-    <div class="chart-type-grid">
-        <div class="chart-type-card">
-            <div class="chart-type-name">📈 Line Chart</div>
-            <div class="chart-type-desc">Great for time series data and trends</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">🔵 Scatter Plot</div>
-            <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">📊 Bar Chart</div>
-            <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">📉 Histogram</div>
-            <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
-        </div>
-        <div class="chart-type-card">
-            <div class="chart-type-name">🔥 Heatmap</div>
-            <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Display the static chart info (won't re-render on refresh)
+    st.markdown(st.session_state.chart_info_text, unsafe_allow_html=True)
+    st.markdown(st.session_state.chart_types_grid, unsafe_allow_html=True)
     
     try:
         available_columns = get_available_columns(df)
@@ -1698,7 +1770,7 @@ def main():
     
     with tabs[6]:
         render_kpi_header(kpis)
-        fig = create_gps_map(df)
+        fig = create_gps_map_with_altitude(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
     
