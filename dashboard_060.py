@@ -45,8 +45,8 @@ SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 SUPABASE_TABLE_NAME = "telemetry"
 
 # Pagination constants
-SUPABASE_MAX_ROWS_PER_REQUEST = 1000  # PostgREST default limit
-MAX_DATAPOINTS_PER_SESSION = 1000000  # Maximum expected data points per session
+SUPABASE_MAX_ROWS_PER_REQUEST = 1000
+MAX_DATAPOINTS_PER_SESSION = 1000000
 
 # Configures the Streamlit page
 st.set_page_config(
@@ -416,7 +416,6 @@ class EnhancedTelemetryManager:
                 return
             
             with self._lock:
-                # Limit queue size to avoid excessive memory usage in Streamlit
                 if self.message_queue.qsize() > 500:
                     while self.message_queue.qsize() > 250:
                         try:
@@ -448,10 +447,7 @@ class EnhancedTelemetryManager:
         return messages
     
     def _paginated_fetch(self, session_id: str, data_source: str = 'supabase_current') -> pd.DataFrame:
-        """
-        Fetch all data for a session using pagination to overcome the 1000 row limit.
-        Supports up to 1,000,000 data points per session.
-        """
+        """Fetch all data for a session using pagination to overcome the 1000 row limit."""
         try:
             if not self.supabase_client:
                 self.logger.error("❌ Supabase client not initialized")
@@ -467,7 +463,6 @@ class EnhancedTelemetryManager:
             
             while offset < MAX_DATAPOINTS_PER_SESSION:
                 try:
-                    # Use range() for pagination - Supabase uses inclusive ranges
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
                     
                     self.logger.info(f"📄 Fetching page {request_count + 1}: rows {offset}-{range_end}")
@@ -492,23 +487,18 @@ class EnhancedTelemetryManager:
                     
                     self.logger.info(f"📊 Fetched {batch_size} rows (total: {total_fetched})")
                     
-                    # If we got less than the maximum, we've reached the end
                     if batch_size < SUPABASE_MAX_ROWS_PER_REQUEST:
                         self.logger.info(f"✅ Reached end of data (got {batch_size} < {SUPABASE_MAX_ROWS_PER_REQUEST})")
                         break
                     
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
-                    
-                    # Add a small delay to avoid overwhelming the API
                     time.sleep(0.1)
                     
                 except Exception as e:
                     self.logger.error(f"❌ Error in pagination request {request_count}: {e}")
-                    # Don't break completely, log the error and continue
                     offset += SUPABASE_MAX_ROWS_PER_REQUEST
                     continue
             
-            # Update pagination stats
             with self._lock:
                 self.stats["pagination_stats"]["total_requests"] += request_count
                 self.stats["pagination_stats"]["total_rows_fetched"] += total_fetched
@@ -518,18 +508,10 @@ class EnhancedTelemetryManager:
                 if request_count > 1:
                     self.stats["pagination_stats"]["sessions_paginated"] += 1
             
-            # Log pagination stats
-            self.logger.info(f"📄 Pagination Stats - Total Requests: {self.stats['pagination_stats']['total_requests']}, "
-                           f"Total Rows Fetched: {self.stats['pagination_stats']['total_rows_fetched']}, "
-                           f"Largest Session: {self.stats['pagination_stats']['largest_session_size']}, "
-                           f"Sessions Paginated: {self.stats['pagination_stats']['sessions_paginated']}")
-            
             if all_data:
                 df = pd.DataFrame(all_data)
                 df['data_source'] = data_source
-                
                 self.logger.info(f"✅ Successfully fetched {len(df)} total rows for session {session_id[:8]}... using {request_count} requests")
-                
                 return df
             else:
                 self.logger.warning(f"⚠️ No data found for session {session_id}")
@@ -556,21 +538,10 @@ class EnhancedTelemetryManager:
             
             self.logger.info("🔄 Fetching historical sessions list...")
             
-            # First, get a count of total records to understand pagination needs
-            count_response = (self.supabase_client
-                            .table(SUPABASE_TABLE_NAME)
-                            .select("session_id", count="exact")
-                            .execute())
-            
-            total_records = count_response.count if hasattr(count_response, 'count') else 0
-            self.logger.info(f"📊 Total records in database: {total_records}")
-            
-            # Get distinct session_ids with their min/max timestamps
-            # This query might still be limited, so we'll use pagination if needed
             all_records = []
             offset = 0
             
-            while offset < total_records:
+            while True:
                 try:
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
                     
@@ -599,7 +570,6 @@ class EnhancedTelemetryManager:
                 self.logger.warning("⚠️ No session records found")
                 return []
             
-            # Group by session_id and calculate session info
             sessions = {}
             for record in all_records:
                 session_id = record['session_id']
@@ -619,7 +589,6 @@ class EnhancedTelemetryManager:
                     if timestamp > sessions[session_id]['end_time']:
                         sessions[session_id]['end_time'] = timestamp
             
-            # Convert to list and calculate duration
             session_list = []
             for session_info in sessions.values():
                 try:
@@ -638,7 +607,6 @@ class EnhancedTelemetryManager:
                     self.logger.error(f"❌ Error processing session {session_info['session_id']}: {e}")
             
             sorted_sessions = sorted(session_list, key=lambda x: x['start_time'], reverse=True)
-            
             self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
             return sorted_sessions
             
@@ -689,32 +657,26 @@ def merge_telemetry_data(realtime_data: List[Dict],
     try:
         all_data = []
         
-        # Add real-time data
         if realtime_data:
             all_data.extend(realtime_data)
         
-        # Add Supabase data
         if not supabase_data.empty:
             all_data.extend(supabase_data.to_dict('records'))
         
-        # Add Streamlit history
         if not streamlit_history.empty:
             all_data.extend(streamlit_history.to_dict('records'))
         
         if not all_data:
             return pd.DataFrame()
         
-        # Convert to DataFrame
         df = pd.DataFrame(all_data)
         
-        # Ensure timestamp is a datetime object
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
             df.dropna(subset=['timestamp'], inplace=True)
         else:
             return df
         
-        # Remove duplicates
         dedup_columns = ['timestamp']
         if 'message_id' in df.columns:
             dedup_columns.append('message_id')
@@ -747,7 +709,6 @@ def initialize_session_state():
             "total_requests": 0,
             "total_rows": 0
         },
-        # Add refresh interval to session state
         "refresh_interval": 3
     }
     
@@ -1472,26 +1433,30 @@ def main():
             
             st.divider()
             
-            # Auto-refresh settings
+            # Auto-refresh settings - FIXED VERSION
             st.subheader("⚙️ Settings")
             
-            # Use a callback to update session state properly
-            def update_auto_refresh():
-                st.session_state.auto_refresh = st.session_state.auto_refresh_checkbox
-
-            def update_refresh_interval():
-                st.session_state.refresh_interval = st.session_state.refresh_interval_slider
+            # Use session state for auto refresh checkbox
+            new_auto_refresh = st.checkbox(
+                "🔄 Auto Refresh", 
+                value=st.session_state.auto_refresh, 
+                help="Automatically refresh data from real-time stream",
+                key="auto_refresh_checkbox"
+            )
             
-            st.checkbox("🔄 Auto Refresh", 
-                       value=st.session_state.auto_refresh,
-                       help="Automatically refresh data from real-time stream",
-                       key="auto_refresh_checkbox",
-                       on_change=update_auto_refresh)
+            if new_auto_refresh != st.session_state.auto_refresh:
+                st.session_state.auto_refresh = new_auto_refresh
             
+            # Only show slider if auto refresh is enabled, and use session state
             if st.session_state.auto_refresh:
-                st.slider("Refresh Rate (s)", 1, 10, st.session_state.refresh_interval,
-                         key="refresh_interval_slider", 
-                         on_change=update_refresh_interval)
+                refresh_interval = st.slider(
+                    "Refresh Rate (s)", 
+                    min_value=1, 
+                    max_value=10, 
+                    value=st.session_state.refresh_interval,
+                    key="refresh_interval_slider"
+                )
+                st.session_state.refresh_interval = refresh_interval
             
         else: # Historical data mode controls
             st.markdown('<div class="status-indicator status-historical">📚 Historical Mode</div>', unsafe_allow_html=True)
@@ -1670,7 +1635,7 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
     
-    # Tabs for different visualizations
+    # Tabs for different visualizations - SINGLE INSTANCE ONLY
     st.subheader("📈 Dashboard")
     
     tab_names = [
@@ -1790,9 +1755,8 @@ def main():
                     except Exception as e:
                         st.metric("Time Span", "Error")
                         st.metric("Data Rate", "Error")
-                        st.error(f"Error calculating time metrics: {e}")
             with col3:
-                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024  # MB
+                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
                 st.metric("Memory Usage", f"{memory_usage:.2f} MB")
                 
                 if 'data_source' in df.columns:
@@ -1801,18 +1765,22 @@ def main():
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
     
-    # Fixed auto-refresh implementation using st.rerun instead of time.sleep
+    # Auto-refresh for real-time mode only - FIXED VERSION
     if (st.session_state.data_source_mode == "realtime_session" and 
         st.session_state.auto_refresh and 
         st.session_state.telemetry_manager and 
         st.session_state.telemetry_manager.is_connected):
         
-        # Use a placeholder and sleep in a way that doesn't block the UI
-        placeholder = st.empty()
-        with placeholder.container():
-            time.sleep(st.session_state.refresh_interval)
-        placeholder.empty()
-        st.rerun()
+        # Use st.empty() to create a placeholder for auto-refresh without time.sleep()
+        if "auto_refresh_counter" not in st.session_state:
+            st.session_state.auto_refresh_counter = 0
+        
+        st.session_state.auto_refresh_counter += 1
+        
+        # Only rerun after a certain number of iterations to simulate delay
+        if st.session_state.auto_refresh_counter >= st.session_state.refresh_interval:
+            st.session_state.auto_refresh_counter = 0
+            st.rerun()
     
     # Footer
     st.divider()
