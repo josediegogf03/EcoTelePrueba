@@ -1400,14 +1400,13 @@ def main():
             key="data_source_mode_radio"
         )
         
-        # Only update session state if mode actually changed
         if data_source_mode != st.session_state.data_source_mode:
             st.session_state.data_source_mode = data_source_mode
             st.session_state.telemetry_data = pd.DataFrame()
             st.session_state.is_viewing_historical = (data_source_mode == "historical")
             st.session_state.selected_session = None
             st.session_state.current_session_id = None
-            # Don't rerun here - let the natural flow handle it
+            st.rerun()
         
         # Real-time mode controls
         if st.session_state.data_source_mode == "realtime_session":
@@ -1434,7 +1433,7 @@ def main():
                         else:
                             st.error("❌ Failed to connect to any service!")
                     
-                    # Don't rerun immediately after connection
+                    st.rerun()
             
             with col2:
                 if st.button("🛑 Disconnect", use_container_width=True):
@@ -1442,7 +1441,7 @@ def main():
                         st.session_state.telemetry_manager.disconnect()
                         st.session_state.telemetry_manager = None
                     st.info("🛑 Disconnected")
-                    # Don't rerun after disconnect
+                    st.rerun()
             
             # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
@@ -1494,7 +1493,7 @@ def main():
             if st.button("🔄 Refresh Sessions", use_container_width=True):
                 with st.spinner("Loading sessions..."):
                     st.session_state.historical_sessions = st.session_state.telemetry_manager.get_historical_sessions()
-                # Don't rerun after refreshing sessions
+                st.rerun()
             
             # Session selection
             if st.session_state.historical_sessions:
@@ -1513,11 +1512,9 @@ def main():
                 if selected_session_idx is not None:
                     selected_session = st.session_state.historical_sessions[selected_session_idx]
                     
-                    # Only load data if session actually changed or data is empty
-                    if (st.session_state.selected_session is None or 
-                        st.session_state.selected_session['session_id'] != selected_session['session_id'] or 
-                        st.session_state.telemetry_data.empty):
-                        
+                    if st.session_state.selected_session is None or \
+                       st.session_state.selected_session['session_id'] != selected_session['session_id'] or \
+                       st.session_state.telemetry_data.empty:
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
                         
@@ -1532,7 +1529,7 @@ def main():
                         
                         if not historical_df.empty:
                             st.success(f"✅ Loaded {len(historical_df):,} data points")
-                        # Don't rerun after loading historical data
+                        st.rerun()
                     
             else:
                 st.info("Click 'Refresh Sessions' to load available sessions from Supabase.")
@@ -1543,23 +1540,18 @@ def main():
     # Main content area
     df = st.session_state.telemetry_data.copy()
     new_messages_count = 0
-    should_update_data = False
     
-    # Data ingestion logic - only update if there's actually new data
+    # Data ingestion logic
     if st.session_state.data_source_mode == "realtime_session":
         if st.session_state.telemetry_manager and st.session_state.telemetry_manager.is_connected:
             new_messages = st.session_state.telemetry_manager.get_realtime_messages()
             
             current_session_data_from_supabase = pd.DataFrame()
-            
             # If new messages are arriving, update current_session_id and fetch its historical part
             if new_messages and 'session_id' in new_messages[0]:
                 current_session_id = new_messages[0]['session_id']
-                
-                # Only fetch session data if session changed or we have no data
-                if (st.session_state.current_session_id != current_session_id or 
-                    st.session_state.telemetry_data.empty):
-                    
+                if st.session_state.current_session_id != current_session_id or \
+                   st.session_state.telemetry_data.empty:
                     st.session_state.current_session_id = current_session_id
                     
                     # Show loading indicator for large current sessions
@@ -1568,14 +1560,9 @@ def main():
                     
                     if not current_session_data_from_supabase.empty:
                         st.success(f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session")
-                    
-                    should_update_data = True
-                elif new_messages:
-                    # Just new real-time messages for existing session
-                    should_update_data = True
                 
-            # Only merge and update if we have new data
-            if should_update_data and (new_messages or not current_session_data_from_supabase.empty):
+            # Merge new real-time data with existing and (optionally) full current session data
+            if new_messages or not current_session_data_from_supabase.empty:
                 merged_data = merge_telemetry_data(
                     new_messages,
                     current_session_data_from_supabase,
@@ -1592,7 +1579,6 @@ def main():
     elif st.session_state.data_source_mode == "historical":
         st.session_state.is_viewing_historical = True
         
-    # Get the updated dataframe
     df = st.session_state.telemetry_data.copy()
 
     # Show historical notice if viewing historical data
@@ -1650,16 +1636,6 @@ def main():
                     })
                 
                 st.json(debug_info)
-        
-        # Auto-refresh for real-time mode only (even when empty)
-        if (st.session_state.data_source_mode == "realtime_session" and 
-            st.session_state.auto_refresh and 
-            st.session_state.telemetry_manager and 
-            st.session_state.telemetry_manager.is_connected):
-            
-            time.sleep(st.session_state.get('refresh_interval', 3))
-            st.rerun()
-        
         return
     
     # Status row for populated data
@@ -1826,7 +1802,7 @@ def main():
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
     
-    # Auto-refresh for real-time mode only - moved to the very end
+    # Auto-refresh for real-time mode only
     if (st.session_state.data_source_mode == "realtime_session" and 
         st.session_state.auto_refresh and 
         st.session_state.telemetry_manager and 
@@ -1843,5 +1819,6 @@ def main():
         "</div>",
         unsafe_allow_html=True,
     )
+
 if __name__ == "__main__":
     main()
