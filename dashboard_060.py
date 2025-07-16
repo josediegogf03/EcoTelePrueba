@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import json
 import time
@@ -20,6 +20,7 @@ import math
 
 try:
     from streamlit_autorefresh import st_autorefresh
+
     AUTOREFRESH_AVAILABLE = True
 except ImportError:
     AUTOREFRESH_AVAILABLE = False
@@ -27,6 +28,7 @@ except ImportError:
 # Handles imports with error checking
 try:
     from ably import AblyRealtime, AblyRest
+
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
@@ -35,6 +37,7 @@ except ImportError:
 
 try:
     from supabase import create_client, Client
+
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -294,7 +297,9 @@ def setup_terminal_logging():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
+
 setup_terminal_logging()
+
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
@@ -711,6 +716,7 @@ class EnhancedTelemetryManager:
         with self._lock:
             return self.stats.copy()
 
+
 def merge_telemetry_data(
     realtime_data: List[Dict],
     supabase_data: pd.DataFrame,
@@ -755,6 +761,7 @@ def merge_telemetry_data(
         st.error(f"Error merging telemetry data: {e}")
         return pd.DataFrame()
 
+
 def initialize_session_state():
     """Initialize Streamlit session state."""
     defaults = {
@@ -780,6 +787,7 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
@@ -889,6 +897,117 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
+
+# MODIFICATION START: New function to analyze data quality
+def analyze_data_quality(
+    df: pd.DataFrame, lookback_period: int = 10
+) -> List[str]:
+    """
+    Analyzes the quality of recent telemetry data to detect potential issues.
+
+    Args:
+        df (pd.DataFrame): The telemetry data.
+        lookback_period (int): The number of recent data points to analyze.
+
+    Returns:
+        List[str]: A list of warning messages.
+    """
+    notifications = []
+    if df.empty or len(df) < 2:
+        return notifications
+
+    # --- 1. Data Staleness Check ---
+    if "timestamp" in df.columns:
+        # Ensure timestamp is datetime and timezone-aware
+        df_copy = df.copy()
+        df_copy["timestamp"] = pd.to_datetime(
+            df_copy["timestamp"], errors="coerce", utc=True
+        )
+        df_copy.dropna(subset=["timestamp"], inplace=True)
+
+        if len(df_copy) > 1:
+            time_diffs = df_copy["timestamp"].diff().dt.total_seconds().dropna()
+            if not time_diffs.empty:
+                # Use median for robustness against outliers
+                detected_rate = time_diffs.median()
+                # Set a minimum sensible rate to avoid issues with very slow data
+                effective_rate = max(detected_rate, 0.5)
+
+                last_update_time = df_copy["timestamp"].max()
+                time_since_last = (
+                    datetime.now(timezone.utc) - last_update_time
+                ).total_seconds()
+
+                # Notify if no data for 3 intervals or at least 5 seconds
+                if time_since_last > max(effective_rate * 3, 5):
+                    notifications.append(
+                        f"🚨 **Data Feed Stalled:** No new data received for {time_since_last:.0f} seconds. "
+                        f"The expected update rate is ~{effective_rate:.1f}s. Please check the bridge connection."
+                    )
+                    # If data is stale, other checks might be misleading, so return early.
+                    return notifications
+
+    # --- 2. Sensor-Specific and Bridge Failure Checks ---
+    if len(df) < lookback_period:
+        return notifications  # Not enough data for sensor checks
+
+    recent_df = df.tail(lookback_period)
+
+    # Define key sensor columns to check (excluding identifiers, time, and GPS)
+    sensor_cols = [
+        "voltage_v",
+        "current_a",
+        "power_w",
+        "energy_j",
+        "gyro_x",
+        "gyro_y",
+        "gyro_z",
+        "accel_x",
+        "accel_y",
+        "accel_z",
+    ]
+
+    # Filter to only columns that actually exist in the dataframe
+    available_sensor_cols = [
+        col for col in sensor_cols if col in recent_df.columns
+    ]
+
+    if not available_sensor_cols:
+        return notifications  # No sensor columns to check
+
+    zero_sensors = []
+    for col in available_sensor_cols:
+        # Check if the column exists and is numeric before analysis
+        if pd.api.types.is_numeric_dtype(recent_df[col]):
+            # Check if all recent, non-null values are exactly zero
+            if (
+                (recent_df[col].dropna() == 0).all()
+                and not recent_df[col].dropna().empty
+            ):
+                zero_sensors.append(col)
+
+    # --- 3. Formulate Notifications ---
+    if len(zero_sensors) == len(available_sensor_cols) and len(
+        zero_sensors
+    ) > 0:
+        # If ALL available sensors are reporting zero, it's a critical failure.
+        notifications.append(
+            "‼️ **Critical Alert: Total Data Loss!** All sensors are reporting zero. "
+            "This likely indicates a complete failure of the data bridge or vehicle's main computer."
+        )
+    elif len(zero_sensors) > 0:
+        # If only some sensors are zero, list them.
+        sensor_list = ", ".join(f"'{s}'" for s in zero_sensors)
+        notifications.append(
+            f"⚠️ **Sensor Anomaly Detected:** The following sensor(s) are consistently reporting zero and may be unreliable or failing: {sensor_list}."
+        )
+
+    return notifications
+
+
+# MODIFICATION END
+
+
 def render_kpi_header(kpis: Dict[str, float]):
     """Render KPI header with metrics."""
     col1, col2, col3, col4 = st.columns(4)
@@ -918,6 +1037,7 @@ def render_kpi_header(kpis: Dict[str, float]):
         st.metric(
             "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
         )
+
 
 def render_overview_tab(kpis: Dict[str, float]):
     """Render overview tab with KPIs."""
@@ -983,6 +1103,7 @@ def render_overview_tab(kpis: Dict[str, float]):
             help="Energy efficiency ratio",
         )
 
+
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
     st.markdown(
@@ -997,6 +1118,7 @@ def render_session_info(session_data: Dict[str, Any]):
     """,
         unsafe_allow_html=True,
     )
+
 
 def create_speed_chart(df: pd.DataFrame):
     """Create speed chart."""
@@ -1028,6 +1150,7 @@ def create_speed_chart(df: pd.DataFrame):
     )
 
     return fig
+
 
 def create_power_chart(df: pd.DataFrame):
     """Create power chart."""
@@ -1091,6 +1214,7 @@ def create_power_chart(df: pd.DataFrame):
     )
 
     return fig
+
 
 def create_imu_chart(df: pd.DataFrame):
     """Create IMU chart."""
@@ -1159,6 +1283,7 @@ def create_imu_chart(df: pd.DataFrame):
 
     return fig
 
+
 def create_imu_detail_chart(df: pd.DataFrame):
     """Create detailed IMU chart."""
     if df.empty or not all(
@@ -1199,7 +1324,9 @@ def create_imu_detail_chart(df: pd.DataFrame):
     gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
     accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
 
-    for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
+    for i, (axis, color) in enumerate(
+        zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)
+    ):
         fig.add_trace(
             go.Scatter(
                 x=df["timestamp"],
@@ -1236,9 +1363,12 @@ def create_imu_detail_chart(df: pd.DataFrame):
 
     return fig
 
+
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency chart."""
-    if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
+    if df.empty or not all(
+        col in df.columns for col in ["speed_ms", "power_w"]
+    ):
         return go.Figure().add_annotation(
             text="No efficiency data available",
             xref="paper",
@@ -1266,10 +1396,9 @@ def create_efficiency_chart(df: pd.DataFrame):
 
     return fig
 
-# MODIFICATION START: Updated the GPS map creation function
+
 def create_gps_map_with_altitude(df: pd.DataFrame):
     """Create GPS map with altitude chart as subplot."""
-    # Check if essential columns exist
     if df.empty or not all(
         col in df.columns for col in ["latitude", "longitude"]
     ):
@@ -1282,20 +1411,29 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    # Filter out invalid (0,0) coordinates and drop any remaining NaNs
-    df_valid = df[(df["latitude"] != 0) & (df["longitude"] != 0)].dropna(
-        subset=["latitude", "longitude"]
-    )
-
-    # If no valid data points are left, show a message about GPS signal
+    df_valid = df.dropna(subset=["latitude", "longitude"])
     if df_valid.empty:
         return go.Figure().add_annotation(
-            text="🛰️ GPS signal is weak or unavailable. Waiting for valid coordinates...",
+            text="No valid GPS coordinates",
             xref="paper",
             yref="paper",
             x=0.5,
             y=0.5,
             showarrow=False,
+        )
+
+    # MODIFICATION START: Check for all-zero GPS coordinates
+    if (df_valid["latitude"] == 0).all() and (
+        df_valid["longitude"] == 0
+    ).all():
+        return go.Figure().add_annotation(
+            text="🛰️ GPS Signal Not Acquired. Receiving invalid (0,0) coordinates.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(size=16),
         )
     # MODIFICATION END
 
@@ -1386,6 +1524,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
 
     return fig
 
+
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
     if df.empty:
@@ -1395,6 +1534,7 @@ def get_available_columns(df: pd.DataFrame) -> List[str]:
     exclude_cols = ["message_id", "uptime_seconds"]
 
     return [col for col in numeric_columns if col not in exclude_cols]
+
 
 def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     """Create dynamic chart based on configuration."""
@@ -1520,6 +1660,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     )
 
     return fig
+
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render dynamic charts section with persistent chart info."""
@@ -1756,6 +1897,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
+
 
 def main():
     """Main dashboard function."""
@@ -2112,6 +2254,14 @@ def main():
                 st.json(debug_info)
         return
 
+    # MODIFICATION START: Analyze data quality and display notifications
+    # Only run analysis for real-time mode to avoid false alarms on historical data
+    if st.session_state.data_source_mode == "realtime_session":
+        quality_notifications = analyze_data_quality(df)
+        for msg in quality_notifications:
+            st.warning(msg)
+    # MODIFICATION END
+
     # Status row for populated data
     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
     with col1:
@@ -2203,7 +2353,6 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
     with tabs[7]:
-        
         render_kpi_header(kpis)
         render_dynamic_charts_section(df)
 
@@ -2213,9 +2362,13 @@ def main():
         st.subheader("📃 Raw Telemetry Data")
 
         if len(df) > 1000:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+            st.info(
+                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
+            )
         else:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+            st.info(
+                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
+            )
 
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
@@ -2306,6 +2459,7 @@ def main():
         "</div>",
         unsafe_allow_html=True,
     )
+
 
 if __name__ == "__main__":
     main()
