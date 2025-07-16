@@ -20,7 +20,6 @@ import math
 
 try:
     from streamlit_autorefresh import st_autorefresh
-
     AUTOREFRESH_AVAILABLE = True
 except ImportError:
     AUTOREFRESH_AVAILABLE = False
@@ -28,7 +27,6 @@ except ImportError:
 # Handles imports with error checking
 try:
     from ably import AblyRealtime, AblyRest
-
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
@@ -37,7 +35,6 @@ except ImportError:
 
 try:
     from supabase import create_client, Client
-
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -297,9 +294,7 @@ def setup_terminal_logging():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-
 setup_terminal_logging()
-
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
@@ -716,7 +711,6 @@ class EnhancedTelemetryManager:
         with self._lock:
             return self.stats.copy()
 
-
 def merge_telemetry_data(
     realtime_data: List[Dict],
     supabase_data: pd.DataFrame,
@@ -761,7 +755,6 @@ def merge_telemetry_data(
         st.error(f"Error merging telemetry data: {e}")
         return pd.DataFrame()
 
-
 def initialize_session_state():
     """Initialize Streamlit session state."""
     defaults = {
@@ -782,12 +775,12 @@ def initialize_session_state():
             "total_rows": 0,
         },
         "chart_info_initialized": False,
+        "data_quality_notifications": [],
     }
 
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
@@ -897,117 +890,6 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-
-# MODIFICATION START: New function to analyze data quality
-def analyze_data_quality(
-    df: pd.DataFrame, lookback_period: int = 10
-) -> List[str]:
-    """
-    Analyzes the quality of recent telemetry data to detect potential issues.
-
-    Args:
-        df (pd.DataFrame): The telemetry data.
-        lookback_period (int): The number of recent data points to analyze.
-
-    Returns:
-        List[str]: A list of warning messages.
-    """
-    notifications = []
-    if df.empty or len(df) < 2:
-        return notifications
-
-    # --- 1. Data Staleness Check ---
-    if "timestamp" in df.columns:
-        # Ensure timestamp is datetime and timezone-aware
-        df_copy = df.copy()
-        df_copy["timestamp"] = pd.to_datetime(
-            df_copy["timestamp"], errors="coerce", utc=True
-        )
-        df_copy.dropna(subset=["timestamp"], inplace=True)
-
-        if len(df_copy) > 1:
-            time_diffs = df_copy["timestamp"].diff().dt.total_seconds().dropna()
-            if not time_diffs.empty:
-                # Use median for robustness against outliers
-                detected_rate = time_diffs.median()
-                # Set a minimum sensible rate to avoid issues with very slow data
-                effective_rate = max(detected_rate, 0.5)
-
-                last_update_time = df_copy["timestamp"].max()
-                time_since_last = (
-                    datetime.now(timezone.utc) - last_update_time
-                ).total_seconds()
-
-                # Notify if no data for 3 intervals or at least 5 seconds
-                if time_since_last > max(effective_rate * 3, 5):
-                    notifications.append(
-                        f"🚨 **Data Feed Stalled:** No new data received for {time_since_last:.0f} seconds. "
-                        f"The expected update rate is ~{effective_rate:.1f}s. Please check the bridge connection."
-                    )
-                    # If data is stale, other checks might be misleading, so return early.
-                    return notifications
-
-    # --- 2. Sensor-Specific and Bridge Failure Checks ---
-    if len(df) < lookback_period:
-        return notifications  # Not enough data for sensor checks
-
-    recent_df = df.tail(lookback_period)
-
-    # Define key sensor columns to check (excluding identifiers, time, and GPS)
-    sensor_cols = [
-        "voltage_v",
-        "current_a",
-        "power_w",
-        "energy_j",
-        "gyro_x",
-        "gyro_y",
-        "gyro_z",
-        "accel_x",
-        "accel_y",
-        "accel_z",
-    ]
-
-    # Filter to only columns that actually exist in the dataframe
-    available_sensor_cols = [
-        col for col in sensor_cols if col in recent_df.columns
-    ]
-
-    if not available_sensor_cols:
-        return notifications  # No sensor columns to check
-
-    zero_sensors = []
-    for col in available_sensor_cols:
-        # Check if the column exists and is numeric before analysis
-        if pd.api.types.is_numeric_dtype(recent_df[col]):
-            # Check if all recent, non-null values are exactly zero
-            if (
-                (recent_df[col].dropna() == 0).all()
-                and not recent_df[col].dropna().empty
-            ):
-                zero_sensors.append(col)
-
-    # --- 3. Formulate Notifications ---
-    if len(zero_sensors) == len(available_sensor_cols) and len(
-        zero_sensors
-    ) > 0:
-        # If ALL available sensors are reporting zero, it's a critical failure.
-        notifications.append(
-            "‼️ **Critical Alert: Total Data Loss!** All sensors are reporting zero. "
-            "This likely indicates a complete failure of the data bridge or vehicle's main computer."
-        )
-    elif len(zero_sensors) > 0:
-        # If only some sensors are zero, list them.
-        sensor_list = ", ".join(f"'{s}'" for s in zero_sensors)
-        notifications.append(
-            f"⚠️ **Sensor Anomaly Detected:** The following sensor(s) are consistently reporting zero and may be unreliable or failing: {sensor_list}."
-        )
-
-    return notifications
-
-
-# MODIFICATION END
-
-
 def render_kpi_header(kpis: Dict[str, float]):
     """Render KPI header with metrics."""
     col1, col2, col3, col4 = st.columns(4)
@@ -1037,7 +919,6 @@ def render_kpi_header(kpis: Dict[str, float]):
         st.metric(
             "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
         )
-
 
 def render_overview_tab(kpis: Dict[str, float]):
     """Render overview tab with KPIs."""
@@ -1103,7 +984,6 @@ def render_overview_tab(kpis: Dict[str, float]):
             help="Energy efficiency ratio",
         )
 
-
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
     st.markdown(
@@ -1119,6 +999,97 @@ def render_session_info(session_data: Dict[str, Any]):
         unsafe_allow_html=True,
     )
 
+def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
+    """
+    Analyzes telemetry data for anomalies and updates notifications in session state.
+    """
+    if df.empty or len(df) < 10:
+        st.session_state.data_quality_notifications = []
+        return
+
+    notifications = []
+    logger = logging.getLogger("TelemetryDashboard")
+
+    # --- 1. Check for stale data in real-time mode ---
+    if is_realtime:
+        try:
+            # Timestamps are already UTC-aware from merge function
+            last_timestamp = df["timestamp"].iloc[-1]
+            now_utc = datetime.now(timezone.utc)
+            time_since_last = (now_utc - last_timestamp).total_seconds()
+
+            # Detect refresh rate from the last 20 points
+            if len(df) > 2:
+                time_diffs = df["timestamp"].diff().dt.total_seconds().dropna()
+                avg_rate = time_diffs.tail(20).mean()
+                if pd.isna(avg_rate) or avg_rate <= 0:
+                    avg_rate = 1.0  # Default if calculation fails
+            else:
+                avg_rate = 1.0  # Default for very few data points
+
+            # Threshold is 5x the average rate, but at least 5 seconds
+            threshold = max(5.0, avg_rate * 5)
+
+            if time_since_last > threshold:
+                notifications.append(
+                    f"🚨 **Data Stream Stalled:** No new data received for {int(time_since_last)}s. "
+                    f"The data bridge might be disconnected. (Expected update every ~{avg_rate:.1f}s)"
+                )
+        except Exception as e:
+            logger.warning(f"Could not perform stale data check: {e}")
+
+    # --- 2. Check individual sensor data for being static/zero ---
+    recent_df = df.tail(15)
+    sensors_to_check = [
+        "latitude",
+        "longitude",
+        "altitude",
+        "voltage_v",
+        "current_a",
+        "gyro_x",
+        "gyro_y",
+        "gyro_z",
+        "accel_x",
+        "accel_y",
+        "accel_z",
+    ]
+    failing_sensors = []
+    all_sensors_failing = True
+
+    for col in sensors_to_check:
+        if col in recent_df.columns:
+            sensor_data = recent_df[col].dropna()
+            is_failing = False
+            if len(sensor_data) < 5:  # Not enough recent data to be sure
+                all_sensors_failing = False
+                continue
+
+            # Check if all recent values are zero or static
+            if sensor_data.abs().max() < 1e-6 or sensor_data.std() < 1e-6:
+                is_failing = True
+
+            if is_failing:
+                failing_sensors.append(col)
+            else:
+                all_sensors_failing = False
+        else:
+            all_sensors_failing = False # A missing sensor is not a failing one in this context
+
+    # --- 3. Formulate notifications based on findings ---
+    if all_sensors_failing and len(failing_sensors) > 3:
+        notifications.append(
+            "🚨 **Critical Alert:** Multiple sensors (including "
+            f"{', '.join(failing_sensors[:3])}...) are reporting static or zero values. "
+            "This could indicate a major issue with the data bridge or power."
+        )
+    elif failing_sensors:
+        sensor_list = ", ".join(failing_sensors)
+        notifications.append(
+            f"⚠️ **Sensor Anomaly:** The following sensor(s) may be unreliable, "
+            f"showing static or zero values: **{sensor_list}**."
+        )
+
+    st.session_state.data_quality_notifications = notifications
 
 def create_speed_chart(df: pd.DataFrame):
     """Create speed chart."""
@@ -1150,7 +1121,6 @@ def create_speed_chart(df: pd.DataFrame):
     )
 
     return fig
-
 
 def create_power_chart(df: pd.DataFrame):
     """Create power chart."""
@@ -1214,7 +1184,6 @@ def create_power_chart(df: pd.DataFrame):
     )
 
     return fig
-
 
 def create_imu_chart(df: pd.DataFrame):
     """Create IMU chart."""
@@ -1283,7 +1252,6 @@ def create_imu_chart(df: pd.DataFrame):
 
     return fig
 
-
 def create_imu_detail_chart(df: pd.DataFrame):
     """Create detailed IMU chart."""
     if df.empty or not all(
@@ -1324,9 +1292,7 @@ def create_imu_detail_chart(df: pd.DataFrame):
     gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
     accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
 
-    for i, (axis, color) in enumerate(
-        zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)
-    ):
+    for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
         fig.add_trace(
             go.Scatter(
                 x=df["timestamp"],
@@ -1363,12 +1329,9 @@ def create_imu_detail_chart(df: pd.DataFrame):
 
     return fig
 
-
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency chart."""
-    if df.empty or not all(
-        col in df.columns for col in ["speed_ms", "power_w"]
-    ):
+    if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
         return go.Figure().add_annotation(
             text="No efficiency data available",
             xref="paper",
@@ -1396,9 +1359,8 @@ def create_efficiency_chart(df: pd.DataFrame):
 
     return fig
 
-
 def create_gps_map_with_altitude(df: pd.DataFrame):
-    """Create GPS map with altitude chart as subplot."""
+    """Create GPS map with altitude chart, filtering invalid points."""
     if df.empty or not all(
         col in df.columns for col in ["latitude", "longitude"]
     ):
@@ -1411,31 +1373,26 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    df_valid = df.dropna(subset=["latitude", "longitude"])
-    if df_valid.empty:
-        return go.Figure().add_annotation(
-            text="No valid GPS coordinates",
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            showarrow=False,
+    # Filter out points where GPS coordinates are (0, 0)
+    initial_rows = len(df)
+    df_filtered = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
+    filtered_rows = len(df_filtered)
+
+    if initial_rows > 0 and filtered_rows < initial_rows:
+        st.warning(
+            f"🛰️ **GPS Signal Issue:** Excluded {initial_rows - filtered_rows} data points with invalid (0,0) coordinates."
         )
 
-    # MODIFICATION START: Check for all-zero GPS coordinates
-    if (df_valid["latitude"] == 0).all() and (
-        df_valid["longitude"] == 0
-    ).all():
+    df_valid = df_filtered.dropna(subset=["latitude", "longitude"])
+    if df_valid.empty:
         return go.Figure().add_annotation(
-            text="🛰️ GPS Signal Not Acquired. Receiving invalid (0,0) coordinates.",
+            text="No valid GPS coordinates found after filtering",
             xref="paper",
             yref="paper",
             x=0.5,
             y=0.5,
             showarrow=False,
-            font=dict(size=16),
         )
-    # MODIFICATION END
 
     # Create subplot with map on left and altitude on right
     fig = make_subplots(
@@ -1473,9 +1430,18 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Add altitude trace if available
+    # Add altitude trace if available, filtering out 0 values
     if "altitude" in df.columns:
         altitude_data = df.dropna(subset=["altitude"])
+        initial_alt_rows = len(altitude_data)
+        altitude_data = altitude_data[altitude_data["altitude"] != 0]
+        filtered_alt_rows = len(altitude_data)
+
+        if initial_alt_rows > 0 and filtered_alt_rows < initial_alt_rows:
+            st.warning(
+                f"⛰️ **Altitude Sensor Issue:** Excluded {initial_alt_rows - filtered_alt_rows} data points with 0 altitude."
+            )
+
         if not altitude_data.empty:
             fig.add_trace(
                 go.Scatter(
@@ -1489,8 +1455,22 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 row=1,
                 col=2,
             )
+        else:
+            # If no valid altitude data, show a message
+            fig.add_trace(
+                go.Scatter(
+                    x=[0],
+                    y=[0],
+                    mode="text",
+                    text=["No valid altitude data"],
+                    textposition="middle center",
+                    showlegend=False,
+                ),
+                row=1,
+                col=2,
+            )
     else:
-        # If no altitude data, show a message
+        # If no altitude column, show a message
         fig.add_trace(
             go.Scatter(
                 x=[0],
@@ -1524,7 +1504,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
 
     return fig
 
-
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
     if df.empty:
@@ -1534,7 +1513,6 @@ def get_available_columns(df: pd.DataFrame) -> List[str]:
     exclude_cols = ["message_id", "uptime_seconds"]
 
     return [col for col in numeric_columns if col not in exclude_cols]
-
 
 def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     """Create dynamic chart based on configuration."""
@@ -1660,7 +1638,6 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     )
 
     return fig
-
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render dynamic charts section with persistent chart info."""
@@ -1897,7 +1874,6 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
-
 
 def main():
     """Main dashboard function."""
@@ -2254,13 +2230,18 @@ def main():
                 st.json(debug_info)
         return
 
-    # MODIFICATION START: Analyze data quality and display notifications
-    # Only run analysis for real-time mode to avoid false alarms on historical data
-    if st.session_state.data_source_mode == "realtime_session":
-        quality_notifications = analyze_data_quality(df)
-        for msg in quality_notifications:
-            st.warning(msg)
-    # MODIFICATION END
+    # --- Data Quality Analysis and Notifications ---
+    analyze_data_quality(
+        df,
+        is_realtime=(st.session_state.data_source_mode == "realtime_session"),
+    )
+    if st.session_state.data_quality_notifications:
+        for msg in st.session_state.data_quality_notifications:
+            if "🚨" in msg:
+                st.error(msg, icon="🚨")
+            else:
+                st.warning(msg, icon="⚠️")
+    # --- End Data Quality Section ---
 
     # Status row for populated data
     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
@@ -2353,6 +2334,7 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
 
     with tabs[7]:
+        
         render_kpi_header(kpis)
         render_dynamic_charts_section(df)
 
@@ -2362,13 +2344,9 @@ def main():
         st.subheader("📃 Raw Telemetry Data")
 
         if len(df) > 1000:
-            st.info(
-                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
-            )
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
         else:
-            st.info(
-                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
-            )
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
 
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
@@ -2459,7 +2437,6 @@ def main():
         "</div>",
         unsafe_allow_html=True,
     )
-
 
 if __name__ == "__main__":
     main()
