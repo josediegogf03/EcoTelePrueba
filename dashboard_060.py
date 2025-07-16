@@ -1266,8 +1266,10 @@ def create_efficiency_chart(df: pd.DataFrame):
 
     return fig
 
+# MODIFICATION START: Updated the GPS map creation function
 def create_gps_map_with_altitude(df: pd.DataFrame):
     """Create GPS map with altitude chart as subplot."""
+    # Check if essential columns exist
     if df.empty or not all(
         col in df.columns for col in ["latitude", "longitude"]
     ):
@@ -1280,16 +1282,22 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    df_valid = df.dropna(subset=["latitude", "longitude"])
+    # Filter out invalid (0,0) coordinates and drop any remaining NaNs
+    df_valid = df[(df["latitude"] != 0) & (df["longitude"] != 0)].dropna(
+        subset=["latitude", "longitude"]
+    )
+
+    # If no valid data points are left, show a message about GPS signal
     if df_valid.empty:
         return go.Figure().add_annotation(
-            text="No valid GPS coordinates",
+            text="🛰️ GPS signal is weak or unavailable. Waiting for valid coordinates...",
             xref="paper",
             yref="paper",
             x=0.5,
             y=0.5,
             showarrow=False,
         )
+    # MODIFICATION END
 
     # Create subplot with map on left and altitude on right
     fig = make_subplots(
