@@ -73,245 +73,183 @@ st.set_page_config(
     },
 )
 
-# CSS styling (visual refresh: gradients, blur cards, soft shadows, compact KPI tiles)
+# Tailwind-inspired modern CSS (no Tailwind dependency; utility-like classes)
 st.markdown(
     """
 <style>
+  :root {
+    --primary: #2563eb;
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --primary-700: #1d4ed8;
+    --accent: #22d3ee;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-500: #64748b;
+    --slate-700: #334155;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --bg: #ffffff;
+    --bg-elev: #ffffffcc;
+    --bg-glass: rgba(255,255,255,0.5);
+    --shadow: 0 10px 25px rgba(2,6,23,0.08);
+    --shadow-strong: 0 25px 50px rgba(2,6,23,0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
     :root {
-        --primary-color: #4f8cc9;
-        --success-color: #2ca02c;
-        --warning-color: #ff7f0e;
-        --error-color: #d62728;
-        --text-primary: #1c1f26;
-        --text-secondary: #6e7a8a;
-        --bg-primary: #0e1117;
-        --bg-secondary: #121826;
-        --card-bg: rgba(255, 255, 255, 0.06);
-        --border-color: rgba(255,255,255,0.12);
-        --shadow-strong: 0 10px 30px rgba(0,0,0,0.45);
-        --shadow-soft: 0 8px 22px rgba(0,0,0,0.25);
-        --accent-1: linear-gradient(135deg, #4f8cc958 0%, #8e54e958 100%);
-        --accent-2: linear-gradient(135deg, #1f403758 0%, #99f2c858 100%);
+      --text: #e5e7eb;
+      --text-muted: #94a3b8;
+      --bg: #0b1020;
+      --bg-elev: #0f172acc;
+      --bg-glass: rgba(15, 23, 42, 0.45);
+      --slate-50: #0b1020;
+      --slate-100: #111827;
+      --slate-200: #1f2937;
+      --slate-300: #334155;
+      --slate-500: #94a3b8;
+      --slate-700: #cbd5e1;
+      --shadow: 0 10px 25px rgba(0,0,0,0.35);
+      --shadow-strong: 0 25px 50px rgba(0,0,0,0.55);
     }
+  }
 
-    @media (prefers-color-scheme: light) {
-        :root {
-            --text-primary: #1a1d21;
-            --text-secondary: #5d6675;
-            --bg-primary: #f7f9fc;
-            --bg-secondary: #ffffff;
-            --card-bg: rgba(255, 255, 255, 0.9);
-            --border-color: #e5e9f0;
-            --shadow-strong: 0 12px 24px rgba(0,0,0,0.08);
-            --shadow-soft: 0 8px 16px rgba(0,0,0,0.08);
-        }
-    }
+  html, body, .stApp {
+    background: radial-gradient(1200px 600px at 10% -20%, rgba(37, 99, 235, 0.15), transparent 60%),
+                radial-gradient(900px 500px at 110% 10%, rgba(34, 211, 238, 0.12), transparent 50%),
+                linear-gradient(180deg, var(--slate-50), var(--bg));
+  }
 
-    .main-header {
-        font-size: 2.2rem;
-        color: #ffffff;
-        text-align: center;
-        margin: 0 0 1rem 0;
-        font-weight: 800;
-        letter-spacing: 0.5px;
-        background: linear-gradient(90deg, #4f8cc9, #8e54e9);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        text-shadow: 0 2px 18px rgba(79, 140, 201, 0.25);
-    }
+  /* Hero header */
+  .hero {
+    position: relative;
+    padding: 1.8rem 1.2rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(34, 211, 238, 0.10)),
+                linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--slate-200);
+    overflow: hidden;
+  }
 
-    .glass-card {
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        padding: 1.25rem;
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        box-shadow: var(--shadow-soft);
-        transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    }
-    .glass-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-strong);
-        border-color: rgba(255,255,255,0.22);
-    }
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(400px 200px at 90% -10%, rgba(59,130,246,0.18), transparent 60%),
+                radial-gradient(300px 150px at -10% 110%, rgba(34,211,238,0.18), transparent 60%);
+    pointer-events: none;
+  }
 
-    .section-title {
-        font-weight: 700;
-        color: var(--text-primary);
-        font-size: 1.15rem;
-        margin-bottom: 0.75rem;
-    }
+  .hero-title {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: 0.2px;
+    margin: 0 0 0.25rem 0;
+  }
 
-    .status-indicator {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.65rem 0.85rem;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        font-weight: 700;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-        box-shadow: var(--shadow-soft);
-        border: 1px solid var(--border-color);
-        background: var(--card-bg);
-        backdrop-filter: blur(6px);
-    }
-    .status-connected {
-        background: linear-gradient(135deg, #1f7a1f40 0%, #28a74540 100%);
-        color: #a8f1a8;
-        border-color: rgba(40,167,69,0.35);
-    }
-    .status-disconnected {
-        background: linear-gradient(135deg, #7a1f1f40 0%, #dc354540 100%);
-        color: #f5a3a3;
-        border-color: rgba(220,53,69,0.35);
-    }
-    .status-historical {
-        background: linear-gradient(135deg, #3b3d4040 0%, #6c757d40 100%);
-        color: #d6d9dd;
-        border-color: rgba(108,117,125,0.35);
-    }
+  .hero-subtitle {
+    color: var(--text-muted);
+    font-size: 0.97rem;
+    margin: 0;
+  }
 
-    .data-source-card {
-        border-radius: 14px;
-        padding: 1.1rem 1.25rem;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-soft);
-        background: var(--card-bg);
-        backdrop-filter: blur(6px);
-    }
+  /* Status chip */
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    background: var(--bg-elev);
+    border: 1px solid var(--slate-200);
+    box-shadow: var(--shadow);
+  }
+  .chip-online { color: #065f46; background: linear-gradient(180deg,#ecfdf5,#d1fae5); border-color:#a7f3d0 }
+  .chip-offline { color: #7f1d1d; background: linear-gradient(180deg,#fef2f2,#fee2e2); border-color:#fecaca }
+  .chip-historical { color: #1f2937; background: linear-gradient(180deg,#f3f4f6,#e5e7eb); border-color:#d1d5db }
 
-    .session-info {
-        border-radius: 14px;
-        padding: 1.25rem;
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-soft);
-    }
-    .session-info h3 {
-        color: #b9d7ff;
-        margin-bottom: 0.75rem;
-        font-size: 1.1rem;
-        font-weight: 800;
-        letter-spacing: 0.4px;
-    }
-    .session-info p {
-        margin: 0.25rem 0;
-        color: #dce7ff;
-        font-size: 0.95rem;
-    }
+  /* Card */
+  .card {
+    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
+    border: 1px solid var(--slate-200);
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: var(--shadow);
+  }
 
-    .historical-notice, .pagination-info {
-        color: #f9f9fb;
-        padding: 0.9rem 1rem;
-        border-radius: 10px;
-        margin: 0.75rem 0 0.25rem 0;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(6px);
-        background: var(--accent-1);
-        font-weight: 700;
-        text-align: center;
-    }
+  .card-hover:hover {
+    box-shadow: var(--shadow-strong);
+    transform: translateY(-1px);
+    transition: all 180ms ease;
+  }
 
-    .pagination-info {
-        background: var(--accent-2);
-        color: #d9fff2;
-    }
+  .card-title {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+  }
+  .muted { color: var(--text-muted) }
 
-    .chart-type-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.9rem;
-        margin: 1.1rem 0;
-    }
-    .chart-type-card {
-        background: var(--card-bg);
-        border-radius: 12px;
-        padding: 1rem;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-soft);
-    }
-    .chart-type-name {
-        font-weight: 750;
-        color: #cbd6ff;
-        font-size: 1rem;
-        margin-bottom: 0.25rem;
-    }
-    .chart-type-desc {
-        color: #aeb7cc;
-        font-size: 0.88rem;
-        line-height: 1.45;
-    }
+  /* KPI grid, mini cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
 
-    .stButton > button {
-        border-radius: 10px;
-        border: 1px solid #4f8cc9;
-        background: linear-gradient(135deg, #4f8cc9, #8e54e9);
-        color: white;
-        font-weight: 700;
-        transition: all 0.2s ease;
-    }
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #8e54e9, #4f8cc9);
-        transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba(79, 140, 201, 0.35);
-    }
+  /* Tabs adjustments */
+  .stTabs [data-baseweb="tab-list"] {
+    border-bottom: 1px solid var(--slate-200);
+    background: transparent;
+  }
+  .stTabs [data-baseweb="tab"] {
+    border-radius: 10px;
+  }
 
-    .stTabs [data-baseweb="tab-list"] {
-        top: 0;
-        z-index: 50;
-        background: transparent;
-        border-bottom: 1px solid var(--border-color);
-        border-radius: 10px 10px 0 0;
-        padding: 0.35rem;
-        backdrop-filter: blur(4px);
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        margin: 0 0.2rem;
-    }
+  /* Chart containers */
+  .chart-card {
+    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
+    border: 1px solid var(--slate-200);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 0.8rem;
+  }
 
-    .kpi-tile {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        padding: 0.85rem 1rem;
-        border-radius: 12px;
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow-soft);
-    }
-    .kpi-label {
-        color: #b8c7e6;
-        font-weight: 700;
-        font-size: 0.9rem;
-        margin-bottom: 0.15rem;
-    }
-    .kpi-value {
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 1.15rem;
-    }
+  /* Data quality messages styled by Streamlit natively */
 
-    body, .block-container {
-        background: radial-gradient(1200px 800px at 10% -10%, #192235 30%, #0e1117 70%);
-    }
-
-    @media (max-width: 768px) {
-        .main-header { font-size: 1.75rem; }
-        .chart-type-grid { grid-template-columns: 1fr; }
-    }
+  /* Sidebar polish */
+  section[data-testid="stSidebar"] .block-container {
+    padding-top: 1rem;
+  }
+  .sidebar-card {
+    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
+    border: 1px solid var(--slate-200);
+    border-radius: 14px;
+    padding: 0.8rem;
+    box-shadow: var(--shadow);
+  }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Logger setup
+# Logger setup (unchanged)
 def setup_terminal_logging():
     """Configures logging for terminal output."""
     logger = logging.getLogger("TelemetryDashboard")
@@ -325,9 +263,7 @@ def setup_terminal_logging():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-
 setup_terminal_logging()
-
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
@@ -744,7 +680,6 @@ class EnhancedTelemetryManager:
         with self._lock:
             return self.stats.copy()
 
-
 def merge_telemetry_data(
     realtime_data: List[Dict],
     supabase_data: pd.DataFrame,
@@ -789,7 +724,6 @@ def merge_telemetry_data(
         st.error(f"Error merging telemetry data: {e}")
         return pd.DataFrame()
 
-
 def initialize_session_state():
     """Initialize Streamlit session state."""
     defaults = {
@@ -816,7 +750,6 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
@@ -857,6 +790,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
 
         kpis = default_kpis.copy()
 
+        # Current speed (latest value)
         if "speed_ms" in df.columns:
             speed_data = df["speed_ms"].dropna()
             if not speed_data.empty:
@@ -864,30 +798,36 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
                 kpis["max_speed_ms"] = max(0, speed_data.max())
                 kpis["avg_speed_ms"] = max(0, speed_data.mean())
 
+        # Convert speeds to km/h
         kpis["current_speed_kmh"] = kpis["current_speed_ms"] * 3.6
         kpis["max_speed_kmh"] = kpis["max_speed_ms"] * 3.6
         kpis["avg_speed_kmh"] = kpis["avg_speed_ms"] * 3.6
 
+        # Distance
         if "distance_m" in df.columns and not df["distance_m"].dropna().empty:
             kpis["total_distance_km"] = max(
                 0, df["distance_m"].dropna().iloc[-1] / 1000
             )
 
+        # Energy in kWh
         if "energy_j" in df.columns and not df["energy_j"].dropna().empty:
             kpis["total_energy_kwh"] = max(
                 0, df["energy_j"].dropna().iloc[-1] / 3_600_000
-            )
+            )  # Convert J to kWh
 
+        # Power
         if "power_w" in df.columns:
             power_data = df["power_w"].dropna()
             if not power_data.empty:
                 kpis["avg_power_w"] = max(0, power_data.mean())
 
+        # Efficiency in km/kWh
         if kpis["total_energy_kwh"] > 0:
             kpis["efficiency_km_per_kwh"] = (
                 kpis["total_distance_km"] / kpis["total_energy_kwh"]
             )
 
+        # Battery voltage (latest value)
         if "voltage_v" in df.columns:
             voltage_data = df["voltage_v"].dropna()
             if not voltage_data.empty:
@@ -915,164 +855,133 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-
-def _indicator_gauge(
-    title: str,
-    value: float,
-    suffix: str = "",
-    vmin: float = 0,
-    vmax: float = 100,
-    threshold: Optional[float] = None,
-    color: str = "#4f8cc9",
-    height: int = 200,
-) -> go.Figure:
-    """Small angular gauge for compact KPI visualization."""
-    gauge = {
-        "axis": {"range": [vmin, vmax], "tickwidth": 1, "tickcolor": "#8ea2c2"},
-        "bar": {"color": color},
-        "bgcolor": "rgba(0,0,0,0)",
-        "borderwidth": 1,
-        "bordercolor": "#4A5568",  # FIX: Use a valid 6-digit hex color
-        "steps": [
-            {"range": [vmin, (vmin + vmax) * 0.5], "color": "rgba(79,140,201,0.15)"},
-            {"range": [(vmin + vmax) * 0.5, vmax], "color": "rgba(142,84,233,0.12)"},
-        ],
-    }
-    if threshold is not None:
-        gauge["threshold"] = {
-            "line": {"color": "red", "width": 3},
-            "thickness": 0.75,
-            "value": threshold,
-        }
-
-    fig = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=value,
-            title={"text": title, "font": {"size": 12, "color": "#cbd6ff"}},
-            number={"suffix": suffix, "font": {"size": 18, "color": "#ffffff"}},
-            gauge=gauge,
-            domain={"x": [0, 1], "y": [0, 1]},
-        )
-    )
-    fig.update_layout(
-        margin=dict(l=10, r=10, t=30, b=10),
-        height=height,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-    )
-    return fig
-
-
 def render_kpi_header(kpis: Dict[str, float]):
-    """Render KPI header with metrics and compact gauges."""
-    with st.container():
-        c1, c2, c3, c4, c5 = st.columns([1.1, 1.1, 1.05, 1.05, 1.05])
-        with c1:
-            st.markdown('<div class="kpi-tile">', unsafe_allow_html=True)
-            st.metric("🚀 Current Speed", f"{kpis['current_speed_kmh']:.1f} km/h")
-            fig = _indicator_gauge(
-                "Speed",
-                kpis["current_speed_kmh"],
-                " km/h",
-                vmin=0,
-                vmax=max(50.0, kpis["max_speed_kmh"] * 1.2 if kpis["max_speed_kmh"] > 0 else 50),
-                threshold=kpis["avg_speed_kmh"] if kpis["avg_speed_kmh"] > 0 else None,
-                color="#4f8cc9",
-                height=140,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_speed_header")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with c2:
-            st.markdown('<div class="kpi-tile">', unsafe_allow_html=True)
-            st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-            fig = _indicator_gauge(
-                "Distance",
-                kpis["total_distance_km"],
-                " km",
-                vmin=0,
-                vmax=max(1.0, kpis["total_distance_km"] * 1.2 if kpis["total_distance_km"] > 0 else 1),
-                color="#2ca02c",
-                height=140,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_distance_header")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with c3:
-            st.markdown('<div class="kpi-tile">', unsafe_allow_html=True)
-            st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
-            fig = _indicator_gauge(
-                "Energy",
-                kpis["total_energy_kwh"],
-                " kWh",
-                vmin=0,
-                vmax=max(0.5, kpis["total_energy_kwh"] * 1.2 if kpis["total_energy_kwh"] > 0 else 0.5),
-                color="#ff7f0e",
-                height=140,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_energy_header")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with c4:
-            st.markdown('<div class="kpi-tile">', unsafe_allow_html=True)
-            st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-            fig = _indicator_gauge(
-                "Power",
-                kpis["avg_power_w"],
-                " W",
-                vmin=0,
-                vmax=max(100.0, kpis["avg_power_w"] * 2.0 if kpis["avg_power_w"] > 0 else 100),
-                color="#e67e22",
-                height=140,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_power_header")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with c5:
-            st.markdown('<div class="kpi-tile">', unsafe_allow_html=True)
-            battery_display = (
-                f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
-            )
-            st.metric("🔋 Battery", battery_display)
-            fig = _indicator_gauge(
-                "Voltage",
-                kpis["battery_voltage_v"],
-                " V",
-                vmin=36,
-                vmax=56,
-                threshold=48,
-                color="#9b59b6",
-                height=140,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_batt_header")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_overview_tab(kpis: Dict[str, float]):
-    """Render overview tab with KPIs."""
-    st.markdown(
-        '<div class="section-title">📊 Performance Overview</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="data-source-card">Real-time key performance indicators for your Shell Eco-marathon vehicle</div>',
-        unsafe_allow_html=True,
-    )
-
+    """Render KPI header with metrics."""
     col1, col2, col3, col4 = st.columns(4)
 
+    with col1:
+        st.metric("🚀 Current Speed", f"{kpis['current_speed_kmh']:.1f} km/h")
+        st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
+
+    with col2:
+        st.metric("🏃 Max Speed", f"{kpis['max_speed_kmh']:.1f} km/h")
+        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_kmh']:.1f} km/h")
+
+    with col3:
+        st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
+        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
+
+    with col4:
+        battery_display = (
+            f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
+        )
+        st.metric("🔋 Battery", battery_display)
+        st.metric(
+            "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
+        )
+
+def render_overview_tab(kpis: Dict[str, float]):
+    """Render overview tab with KPIs + mini gauges."""
+    st.markdown(
+        '<div class="card card-hover"><div class="card-title">📊 Performance Overview</div>'
+        '<div class="muted">Real-time key performance indicators for your Shell Eco-marathon vehicle</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    # Mini-gauges row (small graphs)
+    gcol1, gcol2, gcol3, gcol4 = st.columns(4)
+
+    def gauge_indicator(title, value, suffix, min_val, max_val, color, key):
+        fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=value,
+                number={"suffix": f" {suffix}", "font": {"size": 18}},
+                title={"text": title, "font": {"size": 14}},
+                gauge={
+                    "axis": {"range": [min_val, max_val]},
+                    "bar": {"color": color},
+                    "bgcolor": "rgba(0,0,0,0)",
+                    "borderwidth": 0,
+                    "steps": [
+                        {"range": [min_val, (min_val + max_val) * 0.33], "color": "rgba(203,213,225,0.3)"},
+                        {"range": [(min_val + max_val) * 0.33, (min_val + max_val) * 0.66], "color": "rgba(148,163,184,0.3)"},
+                        {"range": [(min_val + max_val) * 0.66, max_val], "color": "rgba(59,130,246,0.3)"},
+                    ],
+                },
+            )
+        )
+        fig.update_layout(
+            height=180,
+            margin=dict(l=10, r=10, t=40, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig, use_container_width=True, key=key)
+
+    with gcol1:
+        gauge_indicator(
+            "Speed",
+            kpis["current_speed_kmh"],
+            "km/h",
+            0,
+            max(60, kpis["max_speed_kmh"] * 1.1 if kpis["max_speed_kmh"] > 0 else 60),
+            "#3b82f6",
+            key="gauge_speed",
+        )
+    with gcol2:
+        gauge_indicator(
+            "Battery Voltage",
+            kpis["battery_voltage_v"],
+            "V",
+            30,
+            60,
+            "#10b981",
+            key="gauge_voltage",
+        )
+    with gcol3:
+        gauge_indicator(
+            "Avg Power",
+            kpis["avg_power_w"],
+            "W",
+            0,
+            max(500, kpis["avg_power_w"] * 2 if kpis["avg_power_w"] > 0 else 500),
+            "#f59e0b",
+            key="gauge_avg_power",
+        )
+    with gcol4:
+        gauge_indicator(
+            "Efficiency",
+            kpis["efficiency_km_per_kwh"],
+            "km/kWh",
+            0,
+            max(100, kpis["efficiency_km_per_kwh"] * 2 if kpis["efficiency_km_per_kwh"] > 0 else 100),
+            "#22d3ee",
+            key="gauge_efficiency",
+        )
+
+    # Original metrics (kept for functionality parity)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(
             label="🚀 Current Speed",
             value=f"{kpis['current_speed_kmh']:.1f} km/h",
             help="Current vehicle speed",
         )
-    with col2:
         st.metric(
             label="🛣️ Total Distance",
             value=f"{kpis['total_distance_km']:.2f} km",
             help="Distance traveled during the session",
+        )
+    with col2:
+        st.metric(
+            label="🏃 Maximum Speed",
+            value=f"{kpis['max_speed_kmh']:.1f} km/h",
+            help="Highest speed achieved",
+        )
+        st.metric(
+            label="⚡ Average Speed",
+            value=f"{kpis['avg_speed_kmh']:.1f} km/h",
+            help="Mean speed throughout the session",
         )
     with col3:
         st.metric(
@@ -1080,35 +989,12 @@ def render_overview_tab(kpis: Dict[str, float]):
             value=f"{kpis['total_energy_kwh']:.2f} kWh",
             help="Total energy consumption",
         )
-    with col4:
         st.metric(
             label="💡 Average Power",
             value=f"{kpis['avg_power_w']:.1f} W",
             help="Mean power consumption",
         )
-
-    col5, col6, col7 = st.columns(3)
-    with col5:
-        st.metric(
-            label="🏃 Maximum Speed",
-            value=f"{kpis['max_speed_kmh']:.1f} km/h",
-            help="Highest speed achieved",
-        )
-    with col6:
-        st.metric(
-            label="⚡ Average Speed",
-            value=f"{kpis['avg_speed_kmh']:.1f} km/h",
-            help="Mean speed throughout the session",
-        )
-    with col7:
-        st.metric(
-            label="♻️ Efficiency",
-            value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
-            help="Energy efficiency ratio",
-        )
-
-    b1, b2 = st.columns(2)
-    with b1:
+    with col4:
         battery_display = (
             f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
         )
@@ -1117,65 +1003,29 @@ def render_overview_tab(kpis: Dict[str, float]):
             value=battery_display,
             help="Current battery voltage and estimated percentage",
         )
-    with b2:
-        # small gauges row for overview
-        g1, g2, g3 = st.columns(3)
-        with g1:
-            fig = _indicator_gauge(
-                "Speed",
-                kpis["current_speed_kmh"],
-                " km/h",
-                vmin=0,
-                vmax=max(50.0, kpis["max_speed_kmh"] * 1.2 if kpis["max_speed_kmh"] > 0 else 50),
-                threshold=kpis["avg_speed_kmh"] if kpis["avg_speed_kmh"] > 0 else None,
-                color="#4f8cc9",
-                height=160,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_speed_overview")
-        with g2:
-            fig = _indicator_gauge(
-                "Power",
-                kpis["avg_power_w"],
-                " W",
-                vmin=0,
-                vmax=max(100.0, kpis["avg_power_w"] * 2.0 if kpis["avg_power_w"] > 0 else 100),
-                color="#e67e22",
-                height=160,
-            )
-            st.plotly_chart(fig, use_container_width=True, key="gauge_power_overview")
-        with g3:
-            fig = _indicator_gauge(
-                "Efficiency",
-                kpis["efficiency_km_per_kwh"],
-                " km/kWh",
-                vmin=0,
-                vmax=max(
-                    5.0,
-                    kpis["efficiency_km_per_kwh"] * 1.5 if kpis["efficiency_km_per_kwh"] > 0 else 5.0,
-                ),
-                color="#2ca02c",
-                height=160,
-            )
-            st.plotly_chart(
-                fig, use_container_width=True, key="gauge_efficiency_overview"
-            )
-
+        st.metric(
+            label="♻️ Efficiency",
+            value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
+            help="Energy efficiency ratio",
+        )
 
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
     st.markdown(
         f"""
-    <div class="session-info">
-        <h3>📊 Session Information</h3>
-        <p>📋 <strong>Session:</strong> {session_data['session_id'][:8]}...</p>
-        <p>📅 <strong>Start:</strong> {session_data['start_time'].strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <p>⏱️ <strong>Duration:</strong> {session_data['duration']}</p>
-        <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
+    <div class="card card-hover">
+        <div class="card-title">📊 Session Information</div>
+        <div class="muted">Overview of the selected session</div>
+        <div style="margin-top: 0.6rem;">
+            <div><strong>📋 Session:</strong> {session_data['session_id'][:8]}...</div>
+            <div><strong>📅 Start:</strong> {session_data['start_time'].strftime('%Y-%m-%d %H:%M:%S')}</div>
+            <div><strong>⏱️ Duration:</strong> {session_data['duration']}</div>
+            <div><strong>📊 Records:</strong> {session_data['record_count']:,}</div>
+        </div>
     </div>
     """,
         unsafe_allow_html=True,
     )
-
 
 def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
     """
@@ -1264,7 +1114,6 @@ def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
 
     st.session_state.data_quality_notifications = notifications
 
-
 def create_speed_chart(df: pd.DataFrame):
     """Create speed chart."""
     if df.empty or "speed_ms" not in df.columns:
@@ -1295,7 +1144,6 @@ def create_speed_chart(df: pd.DataFrame):
     )
 
     return fig
-
 
 def create_power_chart(df: pd.DataFrame):
     """Create power chart."""
@@ -1359,7 +1207,6 @@ def create_power_chart(df: pd.DataFrame):
     )
 
     return fig
-
 
 def create_imu_chart(df: pd.DataFrame):
     """Create IMU chart."""
@@ -1427,7 +1274,6 @@ def create_imu_chart(df: pd.DataFrame):
     )
 
     return fig
-
 
 def create_imu_detail_chart(df: pd.DataFrame):
     """Create detailed IMU chart."""
@@ -1506,7 +1352,6 @@ def create_imu_detail_chart(df: pd.DataFrame):
 
     return fig
 
-
 def create_efficiency_chart(df: pd.DataFrame):
     """Create efficiency chart."""
     if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
@@ -1537,7 +1382,6 @@ def create_efficiency_chart(df: pd.DataFrame):
 
     return fig
 
-
 def create_gps_map_with_altitude(df: pd.DataFrame):
     """Create GPS map with altitude chart, filtering invalid points."""
     if df.empty or not all(
@@ -1552,7 +1396,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    # Filter out points where GPS coordinates are (0, 0)
     initial_rows = len(df)
     df_filtered = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
     filtered_rows = len(df_filtered)
@@ -1573,7 +1416,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    # Create subplot with map on left and altitude on right
     fig = make_subplots(
         rows=1,
         cols=2,
@@ -1582,7 +1424,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         specs=[[{"type": "scattermap"}, {"type": "scatter"}]],
     )
 
-    # Add map trace
     center_point = dict(
         lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
@@ -1609,7 +1450,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Add altitude trace if available, filtering out 0 values
     if "altitude" in df.columns:
         altitude_data = df.dropna(subset=["altitude"])
         initial_alt_rows = len(altitude_data)
@@ -1666,16 +1506,17 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         height=500,
         showlegend=False,
     )
+
     fig.update_layout(
         map=dict(
             style="open-street-map", center=center_point, zoom=15, bearing=0, pitch=0
         )
     )
+
     fig.update_xaxes(title_text="Time", row=1, col=2)
     fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
 
     return fig
-
 
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
@@ -1686,7 +1527,6 @@ def get_available_columns(df: pd.DataFrame) -> List[str]:
     exclude_cols = ["message_id", "uptime_seconds"]
 
     return [col for col in numeric_columns if col not in exclude_cols]
-
 
 def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
     """Create dynamic chart based on configuration."""
@@ -1813,45 +1653,47 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
 
     return fig
 
-
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render dynamic charts section with persistent chart info."""
-    # Initialize chart info only once to prevent re-rendering
     if not st.session_state.chart_info_initialized:
         st.session_state.chart_info_text = """
-        <div class="data-source-card">
-            <h3>🎯 Create Custom Charts</h3>
-            <p>Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</p>
+        <div class="card">
+            <div class="card-title">🎯 Create Custom Charts</div>
+            <div class="muted">Click <strong>"Add Chart"</strong> to create custom visualizations with your preferred variables and chart types.</div>
         </div>
         """
 
         st.session_state.chart_types_grid = """
-        <div class="chart-type-grid">
-            <div class="chart-type-card">
-                <div class="chart-type-name">📈 Line Chart</div>
-                <div class="chart-type-desc">Great for time series data and trends</div>
+        <div class="card" style="margin-top: 0.6rem;">
+            <div class="muted">
+                <strong>Chart Types</strong>
             </div>
-            <div class="chart-type-card">
-                <div class="chart-type-name">🔵 Scatter Plot</div>
-                <div class="chart-type-desc">Perfect for correlation analysis between variables</div>
-            </div>
-            <div class="chart-type-card">
-                <div class="chart-type-name">📊 Bar Chart</div>
-                <div class="chart-type-desc">Good for comparing recent values and discrete data</div>
-            </div>
-            <div class="chart-type-card">
-                <div class="chart-type-name">📉 Histogram</div>
-                <div class="chart-type-desc">Shows data distribution and frequency patterns</div>
-            </div>
-            <div class="chart-type-card">
-                <div class="chart-type-name">🔥 Heatmap</div>
-                <div class="chart-type-desc">Visualizes correlations between all numeric variables</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;margin-top:0.6rem;">
+                <div class="card card-hover">
+                    <div><strong>📈 Line</strong></div>
+                    <div class="muted">Time series & trends</div>
+                </div>
+                <div class="card card-hover">
+                    <div><strong>🔵 Scatter</strong></div>
+                    <div class="muted">Correlation analysis</div>
+                </div>
+                <div class="card card-hover">
+                    <div><strong>📊 Bar</strong></div>
+                    <div class="muted">Recent values comparison</div>
+                </div>
+                <div class="card card-hover">
+                    <div><strong>📉 Histogram</strong></div>
+                    <div class="muted">Distribution & frequency</div>
+                </div>
+                <div class="card card-hover">
+                    <div><strong>🔥 Heatmap</strong></div>
+                    <div class="muted">Correlations across variables</div>
+                </div>
             </div>
         </div>
         """
         st.session_state.chart_info_initialized = True
 
-    # Display the static chart info (won't re-render on refresh)
     st.markdown(st.session_state.chart_info_text, unsafe_allow_html=True)
     st.markdown(st.session_state.chart_types_grid, unsafe_allow_html=True)
 
@@ -2022,40 +1864,37 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                 st.error(f"Error deleting chart: {e}")
 
                     try:
+                        fig = None
                         if chart_config.get("chart_type") == "heatmap":
                             fig = create_dynamic_chart(df, chart_config)
-                        elif chart_config.get(
-                            "y_axis"
-                        ) and (
+                        elif chart_config.get("y_axis") and (
                             chart_config.get("chart_type") == "histogram"
                             or chart_config.get("x_axis")
                         ):
                             fig = create_dynamic_chart(df, chart_config)
                         else:
-                            fig = None
                             st.warning(
                                 "Please select valid axes for the chosen chart type."
                             )
 
                         if fig:
-                            # Unique key per chart config
+                            # unique key by chart id
                             st.plotly_chart(
                                 fig,
                                 use_container_width=True,
                                 key=f"chart_plot_{chart_config['id']}",
                             )
-
                     except Exception as e:
                         st.error(f"Error rendering chart: {e}")
 
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
 
-
 def main():
     """Main dashboard function."""
     st.markdown(
-        '<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>',
+        '<div class="hero"><div class="hero-title">🏎️ Shell Eco-marathon Telemetry Dashboard</div>'
+        '<p class="hero-subtitle">Real-time and historical telemetry with modern visualization</p></div>',
         unsafe_allow_html=True,
     )
 
@@ -2065,27 +1904,28 @@ def main():
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
 
-        # Data source selection
-        data_source_mode = st.radio(
-            "📊 Data Source",
-            options=["realtime_session", "historical"],
-            format_func=lambda x: "🔴 Real-time + Session Data"
-            if x == "realtime_session"
-            else "📚 Historical Data",
-            key="data_source_mode_radio",
-        )
-
-        if data_source_mode != st.session_state.data_source_mode:
-            st.session_state.data_source_mode = data_source_mode
-            st.session_state.telemetry_data = pd.DataFrame()
-            st.session_state.is_viewing_historical = (
-                data_source_mode == "historical"
+        with st.container():
+            st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
+            data_source_mode = st.radio(
+                "📊 Data Source",
+                options=["realtime_session", "historical"],
+                format_func=lambda x: "🔴 Real-time + Session Data"
+                if x == "realtime_session"
+                else "📚 Historical Data",
+                key="data_source_mode_radio",
             )
-            st.session_state.selected_session = None
-            st.session_state.current_session_id = None
-            st.rerun()
 
-        # Real-time mode controls
+            if data_source_mode != st.session_state.data_source_mode:
+                st.session_state.data_source_mode = data_source_mode
+                st.session_state.telemetry_data = pd.DataFrame()
+                st.session_state.is_viewing_historical = (
+                    data_source_mode == "historical"
+                )
+                st.session_state.selected_session = None
+                st.session_state.current_session_id = None
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
         if st.session_state.data_source_mode == "realtime_session":
             col1, col2 = st.columns(2)
             with col1:
@@ -2128,18 +1968,17 @@ def main():
                     st.info("🛑 Disconnected")
                     st.rerun()
 
-            # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
                 stats = st.session_state.telemetry_manager.get_stats()
 
                 if st.session_state.telemetry_manager.is_connected:
                     st.markdown(
-                        '<div class="status-indicator status-connected">✅ Real-time Connected</div>',
+                        '<span class="status-chip chip-online">✅ Real-time Connected</span>',
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
-                        '<div class="status-indicator status-disconnected">❌ Real-time Disconnected</div>',
+                        '<span class="status-chip chip-offline">❌ Real-time Disconnected</span>',
                         unsafe_allow_html=True,
                     )
 
@@ -2162,7 +2001,6 @@ def main():
 
             st.divider()
 
-            # Auto-refresh settings
             st.subheader("⚙️ Settings")
 
             auto_refresh_key = f"auto_refresh_{id(st.session_state)}"
@@ -2172,7 +2010,6 @@ def main():
                 help="Automatically refresh data from real-time stream",
                 key=auto_refresh_key,
             )
-
             if new_auto_refresh != st.session_state.auto_refresh:
                 st.session_state.auto_refresh = new_auto_refresh
 
@@ -2193,9 +2030,9 @@ def main():
 
             st.session_state.refresh_interval = refresh_interval
 
-        else:  # Historical data mode controls
+        else:
             st.markdown(
-                '<div class="status-indicator status-historical">📚 Historical Mode</div>',
+                '<span class="status-chip chip-historical">📚 Historical Mode</span>',
                 unsafe_allow_html=True,
             )
 
@@ -2271,7 +2108,6 @@ def main():
     df = st.session_state.telemetry_data.copy()
     new_messages_count = 0
 
-    # Data ingestion logic
     if st.session_state.data_source_mode == "realtime_session":
         if (
             st.session_state.telemetry_manager
@@ -2323,18 +2159,16 @@ def main():
 
     df = st.session_state.telemetry_data.copy()
 
-    # Show historical notice if viewing historical data
     if (
         st.session_state.is_viewing_historical
         and st.session_state.selected_session
     ):
         st.markdown(
-            '<div class="historical-notice">📚 Viewing Historical Data - No auto-refresh active</div>',
+            '<div class="card card-hover" style="margin-top:0.8rem;"><span class="status-chip chip-historical">📚 Viewing Historical Data - No auto-refresh active</span></div>',
             unsafe_allow_html=True,
         )
         render_session_info(st.session_state.selected_session)
 
-    # Empty state message
     if df.empty:
         st.warning("⏳ Waiting for telemetry data...")
 
@@ -2404,7 +2238,7 @@ def main():
                 st.json(debug_info)
         return
 
-    # --- Data Quality Analysis and Notifications ---
+    # Data quality and notifications
     analyze_data_quality(
         df,
         is_realtime=(st.session_state.data_source_mode == "realtime_session"),
@@ -2415,31 +2249,32 @@ def main():
                 st.error(msg, icon="🚨")
             else:
                 st.warning(msg, icon="⚠️")
-    # --- End Data Quality Section ---
 
-    # Status row for populated data
-    with st.container():
-        c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-        with c1:
-            st.info("📚 Historical" if st.session_state.is_viewing_historical else "🔴 Real-time")
-        with c2:
-            st.info(f"📊 {len(df):,} data points available")
-        with c3:
-            st.info(
-                f"⏰ Last update: {st.session_state.last_update.strftime('%H:%M:%S')}"
-            )
-        with c4:
-            if (
-                st.session_state.data_source_mode == "realtime_session"
-                and new_messages_count > 0
-            ):
-                st.success(f"📨 +{new_messages_count}")
+    # Status row
+    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+    with col1:
+        if st.session_state.is_viewing_historical:
+            st.info("📚 Historical")
+        else:
+            st.info("🔴 Real-time")
+    with col2:
+        st.info(f"📊 {len(df):,} data points available")
+    with col3:
+        st.info(
+            f"⏰ Last update: {st.session_state.last_update.strftime('%H:%M:%S')}"
+        )
+    with col4:
+        if (
+            st.session_state.data_source_mode == "realtime_session"
+            and new_messages_count > 0
+        ):
+            st.success(f"📨 +{new_messages_count}")
 
-    # Show pagination info if large dataset
+    # Pagination info card
     if len(df) > 10000:
         st.markdown(
             f"""
-        <div class="pagination-info">
+        <div class="card">
             <strong>📊 Large Dataset Loaded:</strong> {len(df):,} data points successfully retrieved using pagination
         </div>
         """,
@@ -2449,9 +2284,8 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
 
-    # Tabs for different visualizations
+    # Tabs for dashboard
     st.subheader("📈 Dashboard")
-
     tab_names = [
         "📊 Overview",
         "🚗 Speed",
@@ -2465,7 +2299,7 @@ def main():
     ]
     tabs = st.tabs(tab_names)
 
-    # Render content for each tab
+    # Render content with unique keys for charts
     with tabs[0]:
         render_overview_tab(kpis)
 
@@ -2473,19 +2307,19 @@ def main():
         render_kpi_header(kpis)
         fig = create_speed_chart(df)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, key="plot_speed_timeseries")
+            st.plotly_chart(fig, use_container_width=True, key="plot_speed")
 
     with tabs[2]:
         render_kpi_header(kpis)
         fig = create_power_chart(df)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, key="plot_power_panel")
+            st.plotly_chart(fig, use_container_width=True, key="plot_power")
 
     with tabs[3]:
         render_kpi_header(kpis)
         fig = create_imu_chart(df)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, key="plot_imu_summary")
+            st.plotly_chart(fig, use_container_width=True, key="plot_imu")
 
     with tabs[4]:
         render_kpi_header(kpis)
@@ -2503,7 +2337,7 @@ def main():
         render_kpi_header(kpis)
         fig = create_gps_map_with_altitude(df)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, key="plot_gps_altitude")
+            st.plotly_chart(fig, use_container_width=True, key="plot_gps_alt")
 
     with tabs[7]:
         render_kpi_header(kpis)
@@ -2531,7 +2365,7 @@ def main():
                 file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
                 use_container_width=True,
-                key="btn_download_full_csv",
+                key="download_full_csv",
             )
 
         with col2:
@@ -2544,7 +2378,7 @@ def main():
                     file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv",
                     use_container_width=True,
-                    key="btn_download_sample_csv",
+                    key="download_sample_csv",
                 )
 
         with st.expander("📊 Dataset Statistics"):
@@ -2591,7 +2425,6 @@ def main():
         and st.session_state.auto_refresh
     ):
         if AUTOREFRESH_AVAILABLE:
-            # refresh_interval is in seconds; st_autorefresh expects milliseconds:
             st_autorefresh(
                 interval=st.session_state.refresh_interval * 1000,
                 key="auto_refresh",
@@ -2605,7 +2438,7 @@ def main():
     # Footer
     st.divider()
     st.markdown(
-        "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
+        "<div style='text-align: center; color: var(--text-muted); padding: 1rem;'>"
         "<p>Shell Eco-marathon Telemetry Dashboard</p>"
         "</div>",
         unsafe_allow_html=True,
