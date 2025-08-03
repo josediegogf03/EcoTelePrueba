@@ -2009,7 +2009,6 @@ def build_power_gauge(avg_power_w: float) -> go.Figure:
     )
     return fig
 
-```python
 def render_gauges_strip(kpis: Dict[str, float]):
     """Render a row of gauges for quick-glance KPIs."""
     st.markdown('<div class="gauges-row">', unsafe_allow_html=True)
@@ -2621,4 +2620,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
+
