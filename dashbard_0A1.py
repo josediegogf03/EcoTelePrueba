@@ -86,19 +86,17 @@ st.markdown(
     --success: #10b981;
     --warning: #f59e0b;
     --error: #ef4444;
-    --slate-50: #f8fafc;
-    --slate-100: #f1f5f9;
-    --slate-200: #e2e8f0;
-    --slate-300: #cbd5e1;
-    --slate-500: #64748b;
-    --slate-700: #334155;
+
+    /* neutrals for light */
     --text: #0f172a;
     --text-muted: #475569;
     --bg: #ffffff;
-    --bg-elev: #ffffffcc;
-    --bg-glass: rgba(255,255,255,0.5);
-    --shadow: 0 10px 25px rgba(2,6,23,0.08);
-    --shadow-strong: 0 25px 50px rgba(2,6,23,0.15);
+    --bg-elev: #ffffff;
+    --glass: rgba(255,255,255,0.6);
+    --border: #e5e7eb;
+
+    --shadow: 0 6px 16px rgba(2,6,23,0.08);
+    --shadow-strong: 0 18px 36px rgba(2,6,23,0.14);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -106,58 +104,38 @@ st.markdown(
       --text: #e5e7eb;
       --text-muted: #94a3b8;
       --bg: #0b1020;
-      --bg-elev: #0f172acc;
-      --bg-glass: rgba(15, 23, 42, 0.45);
-      --slate-50: #0b1020;
-      --slate-100: #111827;
-      --slate-200: #1f2937;
-      --slate-300: #334155;
-      --slate-500: #94a3b8;
-      --slate-700: #cbd5e1;
-      --shadow: 0 10px 25px rgba(0,0,0,0.35);
-      --shadow-strong: 0 25px 50px rgba(0,0,0,0.55);
+      --bg-elev: #0f172a;
+      --glass: rgba(15, 23, 42, 0.55);
+      --border: #25314a;
+
+      --shadow: 0 6px 16px rgba(0,0,0,0.35);
+      --shadow-strong: 0 18px 36px rgba(0,0,0,0.55);
     }
   }
 
+  /* Clean app background (no gradients) */
   html, body, .stApp {
-    background: radial-gradient(1200px 600px at 10% -20%, rgba(37, 99, 235, 0.15), transparent 60%),
-                radial-gradient(900px 500px at 110% 10%, rgba(34, 211, 238, 0.12), transparent 50%),
-                linear-gradient(180deg, var(--slate-50), var(--bg));
+    background: var(--bg);
   }
 
-  /* Hero header */
+  /* Hero header without background gradients */
   .hero {
     position: relative;
-    padding: 1.8rem 1.2rem;
-    border-radius: 16px;
-    background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(34, 211, 238, 0.10)),
-                linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
-    backdrop-filter: blur(8px);
+    padding: 1.2rem 1rem;
+    border-radius: 14px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
     box-shadow: var(--shadow);
-    border: 1px solid var(--slate-200);
-    overflow: hidden;
   }
-
-  .hero::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(400px 200px at 90% -10%, rgba(59,130,246,0.18), transparent 60%),
-                radial-gradient(300px 150px at -10% 110%, rgba(34,211,238,0.18), transparent 60%);
-    pointer-events: none;
-  }
-
   .hero-title {
-    font-size: 1.9rem;
+    font-size: 1.6rem;
     font-weight: 800;
     color: var(--text);
-    letter-spacing: 0.2px;
     margin: 0 0 0.25rem 0;
   }
-
   .hero-subtitle {
     color: var(--text-muted);
-    font-size: 0.97rem;
+    font-size: 0.95rem;
     margin: 0;
   }
 
@@ -171,36 +149,35 @@ st.markdown(
     font-weight: 600;
     font-size: 0.85rem;
     background: var(--bg-elev);
-    border: 1px solid var(--slate-200);
+    border: 1px solid var(--border);
     box-shadow: var(--shadow);
   }
-  .chip-online { color: #065f46; background: linear-gradient(180deg,#ecfdf5,#d1fae5); border-color:#a7f3d0 }
-  .chip-offline { color: #7f1d1d; background: linear-gradient(180deg,#fef2f2,#fee2e2); border-color:#fecaca }
-  .chip-historical { color: #1f2937; background: linear-gradient(180deg,#f3f4f6,#e5e7eb); border-color:#d1d5db }
+  .chip-online { color: #065f46; background: #ecfdf5; border-color:#a7f3d0 }
+  .chip-offline { color: #7f1d1d; background: #fef2f2; border-color:#fecaca }
+  .chip-historical { color: var(--text-muted); background: #f3f4f6; border-color:#e5e7eb }
+  @media (prefers-color-scheme: dark) {
+    .chip-online { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.35); color: #a7f3d0; }
+    .chip-offline { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #fecaca; }
+    .chip-historical { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.35); }
+  }
 
-  /* Card */
+  /* Generic card */
   .card {
-    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
-    border: 1px solid var(--slate-200);
-    border-radius: 16px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 14px;
     padding: 1rem;
     box-shadow: var(--shadow);
   }
-
   .card-hover:hover {
     box-shadow: var(--shadow-strong);
     transform: translateY(-1px);
     transition: all 180ms ease;
   }
-
-  .card-title {
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 0.35rem;
-  }
+  .card-title { font-weight: 700; color: var(--text); margin-bottom: 0.35rem; }
   .muted { color: var(--text-muted) }
 
-  /* KPI grid, mini cards */
+  /* KPI grid */
   .kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(220px, 1fr));
@@ -213,9 +190,9 @@ st.markdown(
     .kpi-grid { grid-template-columns: 1fr; }
   }
 
-  /* Tabs adjustments */
+  /* Tabs */
   .stTabs [data-baseweb="tab-list"] {
-    border-bottom: 1px solid var(--slate-200);
+    border-bottom: 1px solid var(--border);
     background: transparent;
   }
   .stTabs [data-baseweb="tab"] {
@@ -224,23 +201,24 @@ st.markdown(
 
   /* Chart containers */
   .chart-card {
-    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
-    border: 1px solid var(--slate-200);
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow);
     padding: 0.8rem;
   }
 
-  /* Data quality messages styled by Streamlit natively */
-
-  /* Sidebar polish */
+  /* Sidebar: clean container and cards */
+  section[data-testid="stSidebar"] > div {
+    background: var(--bg);
+  }
   section[data-testid="stSidebar"] .block-container {
     padding-top: 1rem;
   }
   .sidebar-card {
-    background: linear-gradient(180deg, var(--bg-glass), var(--bg-elev));
-    border: 1px solid var(--slate-200);
-    border-radius: 14px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 0.8rem;
     box-shadow: var(--shadow);
   }
@@ -248,7 +226,6 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
 # Logger setup (unchanged)
 def setup_terminal_logging():
     """Configures logging for terminal output."""
@@ -1902,29 +1879,26 @@ def main():
 
     # Sidebar for connection and data source selection
     with st.sidebar:
+        st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
         st.header("🔧 Connection & Data Source")
 
-        with st.container():
-            st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-            data_source_mode = st.radio(
-                "📊 Data Source",
-                options=["realtime_session", "historical"],
-                format_func=lambda x: "🔴 Real-time + Session Data"
-                if x == "realtime_session"
-                else "📚 Historical Data",
-                key="data_source_mode_radio",
-            )
+        data_source_mode = st.radio(
+            "📊 Data Source",
+            options=["realtime_session", "historical"],
+            format_func=lambda x: "🔴 Real-time + Session Data"
+            if x == "realtime_session"
+            else "📚 Historical Data",
+            key="data_source_mode_radio",
+        )
 
-            if data_source_mode != st.session_state.data_source_mode:
-                st.session_state.data_source_mode = data_source_mode
-                st.session_state.telemetry_data = pd.DataFrame()
-                st.session_state.is_viewing_historical = (
-                    data_source_mode == "historical"
-                )
-                st.session_state.selected_session = None
-                st.session_state.current_session_id = None
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+        if data_source_mode != st.session_state.data_source_mode:
+            st.session_state.data_source_mode = data_source_mode
+            st.session_state.telemetry_data = pd.DataFrame()
+            st.session_state.is_viewing_historical = (data_source_mode == "historical")
+            st.session_state.selected_session = None
+            st.session_state.current_session_id = None
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if st.session_state.data_source_mode == "realtime_session":
             col1, col2 = st.columns(2)
