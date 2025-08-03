@@ -73,7 +73,7 @@ st.set_page_config(
     },
 )
 
-# CSS styling (visual refresh)
+# CSS styling (visual refresh: gradients, blur cards, soft shadows, compact KPI tiles)
 st.markdown(
     """
 <style>
@@ -90,8 +90,8 @@ st.markdown(
         --border-color: rgba(255,255,255,0.12);
         --shadow-strong: 0 10px 30px rgba(0,0,0,0.45);
         --shadow-soft: 0 8px 22px rgba(0,0,0,0.25);
-        --accent-1: linear-gradient(135deg, rgba(79,140,201,0.35) 0%, rgba(142,84,233,0.35) 100%);
-        --accent-2: linear-gradient(135deg, rgba(31,64,55,0.35) 0%, rgba(153,242,200,0.35) 100%);
+        --accent-1: linear-gradient(135deg, #4f8cc958 0%, #8e54e958 100%);
+        --accent-2: linear-gradient(135deg, #1f403758 0%, #99f2c858 100%);
     }
 
     @media (prefers-color-scheme: light) {
@@ -160,17 +160,17 @@ st.markdown(
         backdrop-filter: blur(6px);
     }
     .status-connected {
-        background: linear-gradient(135deg, rgba(31,122,31,0.25) 0%, rgba(40,167,69,0.25) 100%);
+        background: linear-gradient(135deg, #1f7a1f40 0%, #28a74540 100%);
         color: #a8f1a8;
         border-color: rgba(40,167,69,0.35);
     }
     .status-disconnected {
-        background: linear-gradient(135deg, rgba(122,31,31,0.25) 0%, rgba(220,53,69,0.25) 100%);
+        background: linear-gradient(135deg, #7a1f1f40 0%, #dc354540 100%);
         color: #f5a3a3;
         border-color: rgba(220,53,69,0.35);
     }
     .status-historical {
-        background: linear-gradient(135deg, rgba(59,61,64,0.25) 0%, rgba(108,117,125,0.25) 100%);
+        background: linear-gradient(135deg, #3b3d4040 0%, #6c757d40 100%);
         color: #d6d9dd;
         border-color: rgba(108,117,125,0.35);
     }
@@ -335,7 +335,7 @@ class EnhancedTelemetryManager:
     def __init__(self):
         self.realtime_subscriber = None
         self.supabase_client = None
-               self.is_connected = False
+        self.is_connected = False
         self.message_queue = queue.Queue()
         self.connection_thread = None
         self.stats = {
@@ -926,39 +926,24 @@ def _indicator_gauge(
     color: str = "#4f8cc9",
     height: int = 200,
 ) -> go.Figure:
-    """Small angular gauge for compact KPI visualization.
-    Uses valid rgba colors to satisfy Plotly validators.
-    """
-    # Sanitize numeric
-    try:
-        value = 0.0 if value is None or np.isnan(value) else float(value)
-    except Exception:
-        value = 0.0
-    if vmax <= vmin:
-        vmax = vmin + 1.0
-
+    """Small angular gauge for compact KPI visualization."""
     gauge = {
-        "axis": {"range": [vmin, vmax], "tickwidth": 1, "tickcolor": "rgba(142,162,194,1)"},
+        "axis": {"range": [vmin, vmax], "tickwidth": 1, "tickcolor": "#8ea2c2"},
         "bar": {"color": color},
         "bgcolor": "rgba(0,0,0,0)",
         "borderwidth": 1,
-        # REPLACED invalid hex-with-alpha with rgba()
-        "bordercolor": "rgba(136,136,136,0.2)",
+        "bordercolor": "#4A5568",  # FIX: Use a valid 6-digit hex color
         "steps": [
             {"range": [vmin, (vmin + vmax) * 0.5], "color": "rgba(79,140,201,0.15)"},
             {"range": [(vmin + vmax) * 0.5, vmax], "color": "rgba(142,84,233,0.12)"},
         ],
     }
     if threshold is not None:
-        try:
-            threshold_val = float(threshold)
-            gauge["threshold"] = {
-                "line": {"color": "rgba(255,0,0,1)", "width": 3},
-                "thickness": 0.75,
-                "value": threshold_val,
-            }
-        except Exception:
-            pass
+        gauge["threshold"] = {
+            "line": {"color": "red", "width": 3},
+            "thickness": 0.75,
+            "value": threshold,
+        }
 
     fig = go.Figure(
         go.Indicator(
@@ -1065,7 +1050,7 @@ def render_kpi_header(kpis: Dict[str, float]):
 
 
 def render_overview_tab(kpis: Dict[str, float]):
-    """Render overview tab with compact gauges and metrics."""
+    """Render overview tab with KPIs."""
     st.markdown(
         '<div class="section-title">📊 Performance Overview</div>',
         unsafe_allow_html=True,
@@ -1133,6 +1118,7 @@ def render_overview_tab(kpis: Dict[str, float]):
             help="Current battery voltage and estimated percentage",
         )
     with b2:
+        # small gauges row for overview
         g1, g2, g3 = st.columns(3)
         with g1:
             fig = _indicator_gauge(
@@ -1192,7 +1178,9 @@ def render_session_info(session_data: Dict[str, Any]):
 
 
 def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
-    """Analyzes telemetry data and updates notifications."""
+    """
+    Analyzes telemetry data for anomalies and updates notifications in session state.
+    """
     if df.empty or len(df) < 10:
         st.session_state.data_quality_notifications = []
         return
@@ -1200,6 +1188,7 @@ def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
     notifications = []
     logger = logging.getLogger("TelemetryDashboard")
 
+    # --- 1. Check for stale data in real-time mode ---
     if is_realtime:
         try:
             last_timestamp = df["timestamp"].iloc[-1]
@@ -1224,6 +1213,7 @@ def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
         except Exception as e:
             logger.warning(f"Could not perform stale data check: {e}")
 
+    # --- 2. Check individual sensor data for being static/zero ---
     recent_df = df.tail(15)
     sensors_to_check = [
         "latitude",
@@ -1562,6 +1552,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
+    # Filter out points where GPS coordinates are (0, 0)
     initial_rows = len(df)
     df_filtered = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
     filtered_rows = len(df_filtered)
@@ -1582,6 +1573,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
+    # Create subplot with map on left and altitude on right
     fig = make_subplots(
         rows=1,
         cols=2,
@@ -1590,6 +1582,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         specs=[[{"type": "scattermap"}, {"type": "scatter"}]],
     )
 
+    # Add map trace
     center_point = dict(
         lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
@@ -1616,6 +1609,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
+    # Add altitude trace if available, filtering out 0 values
     if "altitude" in df.columns:
         altitude_data = df.dropna(subset=["altitude"])
         initial_alt_rows = len(altitude_data)
@@ -1822,6 +1816,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render dynamic charts section with persistent chart info."""
+    # Initialize chart info only once to prevent re-rendering
     if not st.session_state.chart_info_initialized:
         st.session_state.chart_info_text = """
         <div class="data-source-card">
@@ -1856,6 +1851,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         """
         st.session_state.chart_info_initialized = True
 
+    # Display the static chart info (won't re-render on refresh)
     st.markdown(st.session_state.chart_info_text, unsafe_allow_html=True)
     st.markdown(st.session_state.chart_types_grid, unsafe_allow_html=True)
 
@@ -2042,6 +2038,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                             )
 
                         if fig:
+                            # Unique key per chart config
                             st.plotly_chart(
                                 fig,
                                 use_container_width=True,
@@ -2064,9 +2061,11 @@ def main():
 
     initialize_session_state()
 
+    # Sidebar for connection and data source selection
     with st.sidebar:
         st.header("🔧 Connection & Data Source")
 
+        # Data source selection
         data_source_mode = st.radio(
             "📊 Data Source",
             options=["realtime_session", "historical"],
@@ -2086,6 +2085,7 @@ def main():
             st.session_state.current_session_id = None
             st.rerun()
 
+        # Real-time mode controls
         if st.session_state.data_source_mode == "realtime_session":
             col1, col2 = st.columns(2)
             with col1:
@@ -2098,9 +2098,11 @@ def main():
                         st.session_state.telemetry_manager = (
                             EnhancedTelemetryManager()
                         )
+
                         supabase_connected = (
                             st.session_state.telemetry_manager.connect_supabase()
                         )
+
                         realtime_connected = False
                         if ABLY_AVAILABLE:
                             realtime_connected = (
@@ -2115,6 +2117,7 @@ def main():
                             )
                         else:
                             st.error("❌ Failed to connect to any service!")
+
                     st.rerun()
 
             with col2:
@@ -2125,8 +2128,10 @@ def main():
                     st.info("🛑 Disconnected")
                     st.rerun()
 
+            # Connection status display for real-time mode
             if st.session_state.telemetry_manager:
                 stats = st.session_state.telemetry_manager.get_stats()
+
                 if st.session_state.telemetry_manager.is_connected:
                     st.markdown(
                         '<div class="status-indicator status-connected">✅ Real-time Connected</div>',
@@ -2156,7 +2161,10 @@ def main():
                     st.error(f"⚠️ {stats['last_error'][:40]}...")
 
             st.divider()
+
+            # Auto-refresh settings
             st.subheader("⚙️ Settings")
+
             auto_refresh_key = f"auto_refresh_{id(st.session_state)}"
             new_auto_refresh = st.checkbox(
                 "🔄 Auto Refresh",
@@ -2173,6 +2181,7 @@ def main():
                 current_index = (
                     refresh_options.index(3) if 3 in refresh_options else 2
                 )
+
                 refresh_interval = st.selectbox(
                     "Refresh Rate (seconds)",
                     options=refresh_options,
@@ -2181,13 +2190,15 @@ def main():
                 )
             else:
                 refresh_interval = 3
+
             st.session_state.refresh_interval = refresh_interval
 
-        else:  # Historical data mode
+        else:  # Historical data mode controls
             st.markdown(
                 '<div class="status-indicator status-historical">📚 Historical Mode</div>',
                 unsafe_allow_html=True,
             )
+
             if not st.session_state.telemetry_manager:
                 st.session_state.telemetry_manager = EnhancedTelemetryManager()
                 st.session_state.telemetry_manager.connect_supabase()
@@ -2200,10 +2211,12 @@ def main():
                 st.rerun()
 
             if st.session_state.historical_sessions:
-                session_options = [
-                    f"{s['session_id'][:8]}... - {s['start_time'].strftime('%Y-%m-%d %H:%M')} ({s['record_count']:,} records)"
-                    for s in st.session_state.historical_sessions
-                ]
+                session_options = []
+                for session in st.session_state.historical_sessions:
+                    session_options.append(
+                        f"{session['session_id'][:8]}... - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
+                    )
+
                 selected_session_idx = st.selectbox(
                     "📋 Select Session",
                     options=range(len(session_options)),
@@ -2216,6 +2229,7 @@ def main():
                     selected_session = st.session_state.historical_sessions[
                         selected_session_idx
                     ]
+
                     if (
                         st.session_state.selected_session is None
                         or st.session_state.selected_session["session_id"]
@@ -2224,10 +2238,12 @@ def main():
                     ):
                         st.session_state.selected_session = selected_session
                         st.session_state.is_viewing_historical = True
+
                         if selected_session["record_count"] > 10000:
                             st.info(
                                 f"📊 Loading {selected_session['record_count']:,} records... This may take a moment due to pagination."
                             )
+
                         with st.spinner(
                             f"Loading data for session {selected_session['session_id'][:8]}..."
                         ):
@@ -2236,11 +2252,13 @@ def main():
                             )
                             st.session_state.telemetry_data = historical_df
                             st.session_state.last_update = datetime.now()
+
                         if not historical_df.empty:
                             st.success(
                                 f"✅ Loaded {len(historical_df):,} data points"
                             )
                         st.rerun()
+
             else:
                 st.info(
                     "Click 'Refresh Sessions' to load available sessions from Supabase."
@@ -2249,9 +2267,11 @@ def main():
         st.info(f"📡 Channel: {DASHBOARD_CHANNEL_NAME}")
         st.info(f"🔢 Max records per session: {MAX_DATAPOINTS_PER_SESSION:,}")
 
+    # Main content area
     df = st.session_state.telemetry_data.copy()
     new_messages_count = 0
 
+    # Data ingestion logic
     if st.session_state.data_source_mode == "realtime_session":
         if (
             st.session_state.telemetry_manager
@@ -2260,6 +2280,7 @@ def main():
             new_messages = (
                 st.session_state.telemetry_manager.get_realtime_messages()
             )
+
             current_session_data_from_supabase = pd.DataFrame()
             if new_messages and "session_id" in new_messages[0]:
                 current_session_id = new_messages[0]["session_id"]
@@ -2268,12 +2289,14 @@ def main():
                     or st.session_state.telemetry_data.empty
                 ):
                     st.session_state.current_session_id = current_session_id
+
                     with st.spinner(
                         f"Loading current session data for {current_session_id[:8]}..."
                     ):
                         current_session_data_from_supabase = st.session_state.telemetry_manager.get_current_session_data(
                             current_session_id
                         )
+
                     if not current_session_data_from_supabase.empty:
                         st.success(
                             f"✅ Loaded {len(current_session_data_from_supabase):,} historical points for current session"
@@ -2285,18 +2308,22 @@ def main():
                     current_session_data_from_supabase,
                     st.session_state.telemetry_data,
                 )
+
                 if not merged_data.empty:
                     new_messages_count = (
                         len(new_messages) if new_messages else 0
                     )
                     st.session_state.telemetry_data = merged_data
                     st.session_state.last_update = datetime.now()
+
         st.session_state.is_viewing_historical = False
+
     elif st.session_state.data_source_mode == "historical":
         st.session_state.is_viewing_historical = True
 
     df = st.session_state.telemetry_data.copy()
 
+    # Show historical notice if viewing historical data
     if (
         st.session_state.is_viewing_historical
         and st.session_state.selected_session
@@ -2307,8 +2334,10 @@ def main():
         )
         render_session_info(st.session_state.selected_session)
 
+    # Empty state message
     if df.empty:
         st.warning("⏳ Waiting for telemetry data...")
+
         col1, col2 = st.columns(2)
         with col1:
             if st.session_state.data_source_mode == "realtime_session":
@@ -2325,6 +2354,7 @@ def main():
                     "2. Select a session and its data will load automatically\n"
                     "3. Large datasets use pagination to load all data points"
                 )
+
         with col2:
             with st.expander("🔍 Debug Information"):
                 debug_info = {
@@ -2343,13 +2373,38 @@ def main():
                     "Telemetry Data Points (in memory)": len(
                         st.session_state.telemetry_data
                     ),
+                    "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
+                    "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
                 }
+
                 if st.session_state.telemetry_manager:
                     stats = st.session_state.telemetry_manager.get_stats()
-                    debug_info.update(stats)
+                    debug_info.update(
+                        {
+                            "Ably Connected (Manager Status)": st.session_state.telemetry_manager.is_connected,
+                            "Messages Received (via Ably)": stats[
+                                "messages_received"
+                            ],
+                            "Connection Errors": stats["errors"],
+                            "Total Pagination Requests": stats[
+                                "pagination_stats"
+                            ]["total_requests"],
+                            "Total Rows Fetched": stats["pagination_stats"][
+                                "total_rows_fetched"
+                            ],
+                            "Sessions Requiring Pagination": stats[
+                                "pagination_stats"
+                            ]["sessions_paginated"],
+                            "Largest Session Size": stats["pagination_stats"][
+                                "largest_session_size"
+                            ],
+                        }
+                    )
+
                 st.json(debug_info)
         return
 
+    # --- Data Quality Analysis and Notifications ---
     analyze_data_quality(
         df,
         is_realtime=(st.session_state.data_source_mode == "realtime_session"),
@@ -2360,7 +2415,9 @@ def main():
                 st.error(msg, icon="🚨")
             else:
                 st.warning(msg, icon="⚠️")
+    # --- End Data Quality Section ---
 
+    # Status row for populated data
     with st.container():
         c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
         with c1:
@@ -2378,6 +2435,7 @@ def main():
             ):
                 st.success(f"📨 +{new_messages_count}")
 
+    # Show pagination info if large dataset
     if len(df) > 10000:
         st.markdown(
             f"""
@@ -2388,55 +2446,82 @@ def main():
             unsafe_allow_html=True,
         )
 
+    # Calculate KPIs
     kpis = calculate_kpis(df)
+
+    # Tabs for different visualizations
     st.subheader("📈 Dashboard")
+
     tab_names = [
-        "📊 Overview", "🚗 Speed", "⚡ Power", "🎮 IMU", "🎮 IMU Detail",
-        "⚡ Efficiency", "🛰️ GPS", "📈 Custom", "📃 Data",
+        "📊 Overview",
+        "🚗 Speed",
+        "⚡ Power",
+        "🎮 IMU",
+        "🎮 IMU Detail",
+        "⚡ Efficiency",
+        "🛰️ GPS",
+        "📈 Custom",
+        "📃 Data",
     ]
     tabs = st.tabs(tab_names)
 
+    # Render content for each tab
     with tabs[0]:
         render_overview_tab(kpis)
+
     with tabs[1]:
         render_kpi_header(kpis)
         fig = create_speed_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_speed_timeseries")
+
     with tabs[2]:
         render_kpi_header(kpis)
         fig = create_power_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_power_panel")
+
     with tabs[3]:
         render_kpi_header(kpis)
         fig = create_imu_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_imu_summary")
+
     with tabs[4]:
         render_kpi_header(kpis)
         fig = create_imu_detail_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_imu_detail")
+
     with tabs[5]:
         render_kpi_header(kpis)
         fig = create_efficiency_chart(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_efficiency")
+
     with tabs[6]:
         render_kpi_header(kpis)
         fig = create_gps_map_with_altitude(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True, key="plot_gps_altitude")
+
     with tabs[7]:
         render_kpi_header(kpis)
         render_dynamic_charts_section(df)
+
     with tabs[8]:
         render_kpi_header(kpis)
+
         st.subheader("📃 Raw Telemetry Data")
-        st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+
+        if len(df) > 1000:
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+        else:
+            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
+
         col1, col2 = st.columns(2)
         with col1:
             csv = df.to_csv(index=False)
@@ -2448,6 +2533,7 @@ def main():
                 use_container_width=True,
                 key="btn_download_full_csv",
             )
+
         with col2:
             if len(df) > 1000:
                 sample_df = df.sample(n=min(1000, len(df)), random_state=42)
@@ -2460,6 +2546,7 @@ def main():
                     use_container_width=True,
                     key="btn_download_sample_csv",
                 )
+
         with st.expander("📊 Dataset Statistics"):
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -2468,33 +2555,43 @@ def main():
             with col2:
                 if "timestamp" in df.columns and len(df) > 1:
                     try:
-                        ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True).dropna()
-                        if len(ts) > 1:
-                            time_span = ts.max() - ts.min()
+                        timestamp_series = pd.to_datetime(
+                            df["timestamp"], errors="coerce", utc=True
+                        )
+                        timestamp_series = timestamp_series.dropna()
+
+                        if len(timestamp_series) > 1:
+                            time_span = (
+                                timestamp_series.max() - timestamp_series.min()
+                            )
                             st.metric("Time Span", str(time_span).split(".")[0])
+
                             if time_span.total_seconds() > 0:
                                 data_rate = len(df) / time_span.total_seconds()
                                 st.metric("Data Rate", f"{data_rate:.2f} Hz")
                         else:
                             st.metric("Time Span", "N/A")
                             st.metric("Data Rate", "N/A")
-                    except Exception:
+                    except Exception as e:
                         st.metric("Time Span", "Error")
                         st.metric("Data Rate", "Error")
             with col3:
                 memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
                 st.metric("Memory Usage", f"{memory_usage:.2f} MB")
+
                 if "data_source" in df.columns:
                     source_counts = df["data_source"].value_counts()
                     st.write("**Data Sources:**")
                     for source, count in source_counts.items():
                         st.write(f"• {source}: {count:,} rows")
 
+    # Auto-refresh for real-time mode only
     if (
         st.session_state.data_source_mode == "realtime_session"
         and st.session_state.auto_refresh
     ):
         if AUTOREFRESH_AVAILABLE:
+            # refresh_interval is in seconds; st_autorefresh expects milliseconds:
             st_autorefresh(
                 interval=st.session_state.refresh_interval * 1000,
                 key="auto_refresh",
@@ -2505,6 +2602,7 @@ def main():
                 "`pip install streamlit-autorefresh`"
             )
 
+    # Footer
     st.divider()
     st.markdown(
         "<div style='text-align: center; color: var(--text-secondary); padding: 1rem;'>"
