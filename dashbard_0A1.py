@@ -1,10 +1,4 @@
-# app.py
-# Visual refresh version: layout/UI only, functionality preserved.
-# - Adds Plotly gauge widgets (small graphs) with unique keys
-# - Modern CSS with radial bottom gradient (transparent), rounded cards, blur
-# - Light/dark friendly via color-scheme and prefers-color-scheme
-# - Ensures no StreamlitDuplicateElementId by passing unique keys everywhere
-# - Updated Live Gauges: smaller, in same row, external titles, showing in overview tab
+
 
 import streamlit as st
 import pandas as pd
@@ -875,36 +869,79 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def create_small_gauge(value: float, max_val: float,
-                       title: str, color: str, suffix: str = "") -> go.Figure:
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=value,
-        title={"text": ""},
-        number={"suffix": suffix, "font": {"size": 14}},
-        gauge={
-            "axis": {"range": [0, max_val], "showticklabels": False},
-            "bar": {"color": color, "thickness": 0.7},
-            # "bgcolor": "",    ← removed
-            "borderwidth": 0,
-            "steps": [
-                {
-                    "range": [0, max_val * 0.6],
-                    "color": f"rgba{(*mcolors.to_rgb(color), 0.1)}"
-                },
-                {
-                    "range": [max_val * 0.6, max_val],
-                    "color": f"rgba{(*mcolors.to_rgb(color), 0.2)}"
-                }
-            ],
+import matplotlib.colors as mcolors
+import plotly.graph_objects as go
+from typing import Optional
+
+def create_small_gauge(
+    value: float,
+    max_val: Optional[float],
+    title: str,
+    color: str,
+    suffix: str = "",
+    avg_ref: Optional[float] = None,
+    thresh_val: Optional[float] = None,
+) -> go.Figure:
+    """
+    Plotly Indicator gauge with:
+      • number INSIDE the dial
+      • optional delta against avg_ref (mean)
+      • threshold line at thresh_val (e.g. max)
+      • adaptive max_val if None
+    """
+    # 1. Auto-compute max if not given
+    if max_val is None or max_val <= 0:
+        max_val = value * 1.2 if value > 0 else 1.0
+
+    # 2. Prepare gauge steps with light alphas
+    rgb = mcolors.to_rgb(color)
+    steps = [
+        {"range": [0, max_val * 0.6], "color": f"rgba{(*rgb, 0.1)}"},
+        {"range": [max_val * 0.6, max_val], "color": f"rgba{(*rgb, 0.25)}"},
+    ]
+
+    # 3. Build gauge dict
+    gauge = {
+        "axis": {
+            "range": [0, max_val],
+            "ticks": "inside",
+            "showticklabels": False,
+        },
+        "bar": {"color": color, "thickness": 0.35},
+        "steps": steps,
+    }
+
+    # 4. Add a threshold line if requested
+    if thresh_val is not None:
+        gauge["threshold"] = {
+            "line": {"color": "firebrick", "width": 3},
+            "thickness": 0.8,
+            "value": thresh_val,
         }
-    ))
+
+    # 5. Assemble the indicator trace
+    mode = "gauge+number" + ("+delta" if avg_ref is not None else "")
+    delta_cfg = (
+        {"reference": avg_ref, "position": "top", "increasing": {"color": color}}
+        if avg_ref is not None
+        else None
+    )
+
+    fig = go.Figure(
+        go.Indicator(
+            mode=mode,
+            value=value,
+            number={"suffix": suffix, "font": {"size": 16}},
+            delta=delta_cfg,
+            gauge=gauge,
+            domain={"x": [0, 1], "y": [0, 1]},
+        )
+    )
+
     fig.update_layout(
-        height=120,
-        margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=140,
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12),
     )
     return fig
 
@@ -1003,8 +1040,6 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
     
     # Show live gauges if requested
     if show_gauges:
-        st.markdown(" ")
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         render_live_gauges(kpis, unique_ns)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -2326,6 +2361,7 @@ def main():
         render_overview_tab(kpis)
 
     with tabs[1]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="speedtab", show_gauges=False)
         fig = create_speed_chart(df)
         if fig:
@@ -2334,6 +2370,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[2]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="powertab", show_gauges=False)
         fig = create_power_chart(df)
         if fig:
@@ -2342,6 +2379,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[3]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="imutab", show_gauges=False)
         fig = create_imu_chart(df)
         if fig:
@@ -2350,6 +2388,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[4]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="imudetailtab", show_gauges=False)
         fig = create_imu_detail_chart(df)
         if fig:
@@ -2360,6 +2399,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[5]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="efftab", show_gauges=False)
         fig = create_efficiency_chart(df)
         if fig:
@@ -2370,6 +2410,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[6]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="gpstab", show_gauges=False)
         fig = create_gps_map_with_altitude(df)
         if fig:
@@ -2378,10 +2419,12 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[7]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="customtab", show_gauges=False)
         render_dynamic_charts_section(df)
 
     with tabs[8]:
+        render_live_gauges(kpis, unique_ns="speedtab")
         render_kpi_header(kpis, unique_ns="datatabletab", show_gauges=False)
 
         st.subheader("📃 Raw Telemetry Data")
