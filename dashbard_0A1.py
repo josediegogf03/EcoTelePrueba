@@ -1444,14 +1444,14 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    # Filter out points where GPS coordinates are (0, 0)
+    # Filter invalid (0,0) coords
     initial_rows = len(df)
     df_filtered = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
     filtered_rows = len(df_filtered)
-
-    if initial_rows > 0 and filtered_rows < initial_rows:
+    if initial_rows > filtered_rows:
         st.warning(
-            f"🛰️ **GPS Signal Issue:** Excluded {initial_rows - filtered_rows} data points with invalid (0,0) coordinates."
+            f"🛰️ **GPS Signal Issue:** Excluded "
+            f"{initial_rows - filtered_rows} points at (0,0)."
         )
 
     df_valid = df_filtered.dropna(subset=["latitude", "longitude"])
@@ -1465,22 +1465,22 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             showarrow=False,
         )
 
-    # Create subplot with map on left and altitude on right
+    # --- UPDATED: use "mapbox" subplot and go.Scattermap ---
     fig = make_subplots(
         rows=1,
         cols=2,
         column_widths=[0.7, 0.3],
         subplot_titles=("🛰️ Vehicle Track", "⛰️ Altitude Profile"),
-        specs=[[{"type": "scattermapbox"}, {"type": "scatter"}]],
+        specs=[[{"type": "mapbox"}, {"type": "scatter"}]],
     )
 
     center_point = dict(
         lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
 
-    # If you use mapbox, ensure token is set in env; this uses scattermapbox
+    # Scattermap (replaces deprecated Scattermapbox)
     fig.add_trace(
-        go.Scattermapbox(
+        go.Scattermap(
             lat=df_valid["latitude"],
             lon=df_valid["longitude"],
             mode="markers+lines",
@@ -1501,27 +1501,26 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Altitude
+    # Altitude trace (unchanged)
     if "altitude" in df.columns:
-        altitude_data = df.dropna(subset=["altitude"])
-        initial_alt_rows = len(altitude_data)
-        altitude_data = altitude_data[altitude_data["altitude"] != 0]
-        filtered_alt_rows = len(altitude_data)
-
-        if initial_alt_rows > 0 and filtered_alt_rows < initial_alt_rows:
+        alt = df.dropna(subset=["altitude"])
+        init_alt = len(alt)
+        alt = alt[alt["altitude"] != 0]
+        filt_alt = len(alt)
+        if init_alt > filt_alt:
             st.warning(
-                f"⛰️ **Altitude Sensor Issue:** Excluded {initial_alt_rows - filtered_alt_rows} data points with 0 altitude."
+                f"⛰️ **Altitude Sensor Issue:** Excluded "
+                f"{init_alt - filt_alt} zero‐altitude points."
             )
-
-        if not altitude_data.empty:
+        if not alt.empty:
             fig.add_trace(
                 go.Scatter(
-                    x=altitude_data["timestamp"],
-                    y=altitude_data["altitude"],
+                    x=alt["timestamp"],
+                    y=alt["altitude"],
                     mode="lines",
                     line=dict(color="#2ca02c", width=2),
                     name="Altitude",
-                    hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>",
+                    hovertemplate="Time: %{x}<br>Alt: %{y:.1f} m<extra></extra>",
                 ),
                 row=1,
                 col=2,
@@ -1553,6 +1552,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             col=2,
         )
 
+    # Layout remains the same
     fig.update_layout(
         title_text="🛰️ GPS Tracking and Altitude Analysis",
         height=500,
@@ -1561,11 +1561,11 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         mapbox=dict(center=center_point, zoom=14),
     )
 
+    # Ensure the non-map subplot has axis labels
     fig.update_xaxes(title_text="Time", row=1, col=2)
     fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
 
     return fig
-
 
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
