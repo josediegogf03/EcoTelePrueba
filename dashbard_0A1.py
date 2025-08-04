@@ -1824,7 +1824,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                         )
                         if new_type != chart_config.get("chart_type"):
                             st.session_state.dynamic_charts[i]["chart_type"] = new_type
-with col3:
+                    with col3:
                         if chart_config.get("chart_type", "line") not in [
                             "histogram",
                             "heatmap",
