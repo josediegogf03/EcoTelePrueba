@@ -1471,24 +1471,22 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         cols=2,
         column_widths=[0.7, 0.3],
         subplot_titles=("🛰️ Vehicle Track", "⛰️ Altitude Profile"),
-        specs=[[{"type": "scattermapbox"}, {"type": "scatter"}]],
+        specs=[[{"type": "scattermap"}, {"type": "scatter"}]],
     )
 
     center_point = dict(
         lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
 
-    # If you use mapbox, ensure token is set in env; this uses scattermapbox
+    # If you use mapbox, ensure token is set in env; this uses scattermap
     fig.add_trace(
-        go.Scattermapbox(
+        go.Scattermap(
             lat=df_valid["latitude"],
             lon=df_valid["longitude"],
             mode="markers+lines",
-            marker=dict(
+            marker=go.scattermap.Marker(
                 size=8,
-                color=df_valid["speed_ms"]
-                if "speed_ms" in df_valid.columns
-                else "#1f77b4",
+                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
                 colorscale="plasma",
                 showscale=True,
                 colorbar=dict(title="Speed (m/s)", x=0.65),
@@ -1500,6 +1498,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         row=1,
         col=1,
     )
+        )
 
     # Altitude
     if "altitude" in df.columns:
@@ -1557,8 +1556,9 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         title_text="🛰️ GPS Tracking and Altitude Analysis",
         height=500,
         showlegend=False,
-        mapbox_style="open-street-map",
-        mapbox=dict(center=center_point, zoom=14),
+        map_style="open-street-map",           # was mapbox_style
+        map=dict(center=center_point, zoom=14)  # was mapbox=dict(...)
+    )
     )
 
     fig.update_xaxes(title_text="Time", row=1, col=2)
