@@ -13,6 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta, timezone
+import matplotlib.colors as mcolors
 import logging
 import json
 import time
@@ -874,37 +875,37 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-
-def create_small_gauge(value: float, max_val: float, title: str, color: str, suffix: str = "") -> go.Figure:
-    """Create a small gauge chart with external title."""
+def create_small_gauge(value: float, max_val: float, title: str,
+                       color: str, suffix: str = "") -> go.Figure:
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
         title={"text": ""},  # No internal title
-        number={
-            "suffix": suffix,
-            "font": {"size": 14}
-        },
+        number={"suffix": suffix, "font": {"size": 14}},
         gauge={
             "axis": {"range": [0, max_val], "showticklabels": False},
             "bar": {"color": color, "thickness": 0.7},
             "bgcolor": "",
             "borderwidth": 0,
             "steps": [
-                {"range": [0, max_val * 0.6], "color": f"rgb{tuple(list(__import__('matplotlib.colors').to_rgb(color)[:3]) + [0.1])}"},
-                {"range": [max_val * 0.6, max_val], "color": f"rgb{tuple(list(__import__('matplotlib.colors').to_rgb(color)[:3]) + [0.2])}"}
+                {
+                  "range": [0, max_val * 0.6],
+                  "color": f"rgba{(*mcolors.to_rgb(color), 0.1)}"
+                },
+                {
+                  "range": [max_val * 0.6, max_val],
+                  "color": f"rgba{(*mcolors.to_rgb(color), 0.2)}"
+                }
             ],
         }
     ))
-    
     fig.update_layout(
-        height=120,  # Much smaller height
+        height=120,
         margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         font=dict(size=12)
     )
-    
     return fig
 
 
