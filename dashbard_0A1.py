@@ -875,26 +875,26 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-def create_small_gauge(value: float, max_val: float, title: str,
-                       color: str, suffix: str = "") -> go.Figure:
+def create_small_gauge(value: float, max_val: float,
+                       title: str, color: str, suffix: str = "") -> go.Figure:
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
-        title={"text": ""},  # No internal title
+        title={"text": ""},
         number={"suffix": suffix, "font": {"size": 14}},
         gauge={
             "axis": {"range": [0, max_val], "showticklabels": False},
             "bar": {"color": color, "thickness": 0.7},
-            "bgcolor": "",
+            # "bgcolor": "",    ← removed
             "borderwidth": 0,
             "steps": [
                 {
-                  "range": [0, max_val * 0.6],
-                  "color": f"rgba{(*mcolors.to_rgb(color), 0.1)}"
+                    "range": [0, max_val * 0.6],
+                    "color": f"rgba{(*mcolors.to_rgb(color), 0.1)}"
                 },
                 {
-                  "range": [max_val * 0.6, max_val],
-                  "color": f"rgba{(*mcolors.to_rgb(color), 0.2)}"
+                    "range": [max_val * 0.6, max_val],
+                    "color": f"rgba{(*mcolors.to_rgb(color), 0.2)}"
                 }
             ],
         }
@@ -904,7 +904,7 @@ def create_small_gauge(value: float, max_val: float, title: str,
         margin=dict(l=10, r=10, t=10, b=10),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12)
+        font=dict(size=12),
     )
     return fig
 
