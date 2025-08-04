@@ -1,3 +1,4 @@
+
 # app.py
 # Visual refresh version: layout/UI only, functionality preserved.
 # - Adds Plotly gauge widgets (small graphs) with unique keys
@@ -56,7 +57,7 @@ warnings.filterwarnings(
 
 # Configuration
 DASHBOARD_ABLY_API_KEY = (
-    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
+    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8Wthq"
 )
 DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://dsfmdziehhgmrconjcns.supabase.co"
@@ -183,7 +184,7 @@ html, body, [data-testid="stAppViewContainer"] {
 /* Chart helper grid for small widgets (gauges) */
 .widget-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Adjusted minmax width */
   gap: 0.75rem;
 }
 
@@ -913,6 +914,7 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
             number={"suffix": " km/h"},
         )
     )
+    speed_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
     gauges.append(("Speed", speed_gauge, f"{unique_ns}_g_speed"))
 
     # Battery percentage gauge (0-100)
@@ -938,6 +940,7 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
             number={"suffix": "%"},
         )
     )
+    batt_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
     gauges.append(("Battery", batt_gauge, f"{unique_ns}_g_batt"))
 
     # Power gauge (dynamic max to avg*2 or 1000W)
@@ -959,6 +962,7 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
             number={"suffix": " W"},
         )
     )
+    power_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
     gauges.append(("Power", power_gauge, f"{unique_ns}_g_power"))
 
     # Efficiency gauge (km/kWh) dynamic max
@@ -981,6 +985,7 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
             number={"suffix": ""},
         )
     )
+    eff_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
     gauges.append(("Efficiency", eff_gauge, f"{unique_ns}_g_eff"))
 
     # Render gauges in small cards with unique keys
@@ -2359,7 +2364,8 @@ def main():
     # Render content for each tab with unique keys for charts
     with tabs[0]:
         render_overview_tab(kpis)
-        # Small gauges already drawn in header where used
+        # Add the Live Gauges to the Overview tab
+        render_kpi_header(kpis, unique_ns="overviewtab_gauges")
 
     with tabs[1]:
         render_kpi_header(kpis, unique_ns="speedtab")
