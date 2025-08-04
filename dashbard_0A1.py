@@ -1498,7 +1498,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         row=1,
         col=1,
     )
-        )
 
     # Altitude
     if "altitude" in df.columns:
