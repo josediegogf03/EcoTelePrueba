@@ -1,4 +1,3 @@
-# Visual refresh version: layout/UI only, functionality preserved.
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -174,11 +173,36 @@ html, body, [data-testid="stAppViewContainer"] {
   border: 1px solid var(--border); background: var(--card-bg);
 }
 
-/* Chart helper grid for small widgets (gauges) */
-.widget-grid {
+/* Compact gauge grid for small widgets */
+.gauge-grid-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.gauge-widget {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.5rem;
+  box-shadow: var(--shadow);
+}
+
+.gauge-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.gauge-chart {
+  width: 100%;
+  height: 120px;
 }
 
 /* Chart containers */
@@ -854,234 +878,135 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         return default_kpis
 
 
-
-
-
-def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
-    """Render KPI header with metrics + small gauge widgets."""
-    # Metrics row (left: distance/speed; right: energy/power/battery/efficiency)
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric("🚀 Current Speed", f"{kpis['current_speed_kmh']:.1f} km/h")
-        st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-
-    with col2:
-        st.metric("🏃 Max Speed", f"{kpis['max_speed_kmh']:.1f} km/h")
-        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_kmh']:.1f} km/h")
-
-    with col3:
-        st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
-        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-
-    with col4:
-        battery_display = (
-            f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
-        )
-        st.metric("🔋 Battery", battery_display)
-        st.metric(
-            "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
-        )
-
-    # Small gauge widgets in a single row
-    st.markdown(" ")
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("##### Live Gauges")
+def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
+    """Render compact live gauges in a horizontal row with titles outside."""
     
-    # Create 4 columns for the gauges to be in the same row
-    gauge_cols = st.columns(4)
+    st.markdown("##### 📊 Live Performance Gauges")
     
-    # Speed gauge (0-100 km/h baseline; adjust if needed)
-    speed_gauge = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=float(kpis["current_speed_kmh"]),
-            title={"text": "Speed", "font": {"size": 14}},
-            number={"font": {"size": 16}},
-            gauge={
-                "axis": {"range": [0, max(100, kpis["max_speed_kmh"] + 5)], "tickfont": {"size": 10}},
-                "bar": {"color": "#1f77b4", "thickness": 0.7},
-                "steps": [
-                    {"range": [0, max(30, kpis["max_speed_kmh"] * 0.3)], "color": "rgba(31,119,180,0.15)"},
-                    {"range": [max(30, kpis["max_speed_kmh"] * 0.3), max(70, kpis["max_speed_kmh"] * 0.7)], "color": "rgba(31,119,180,0.25)"},
-                    {"range": [max(70, kpis["max_speed_kmh"] * 0.7), max(100, kpis["max_speed_kmh"] + 5)], "color": "rgba(31,119,180,0.35)"},
-                ],
-            },
-            domain={'x': [0, 1], 'y': [0, 1]}
-        )
+    # Use HTML layout for better control over gauge positioning
+    st.markdown(
+        """
+        <div class="gauge-grid-container">
+        """,
+        unsafe_allow_html=True,
     )
-    speed_gauge.update_layout(
-        height=200,  # Fixed small height
-        margin=dict(l=20, r=20, t=30, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12)
-    )
-
-    # Battery percentage gauge (0-100)
-    batt_gauge = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=float(kpis["battery_percentage"]),
-            title={"text": "Battery", "font": {"size": 14}},
-            number={"font": {"size": 16}, "suffix": "%"},
-            gauge={
-                "axis": {"range": [0, 100], "tickfont": {"size": 10}},
-                "bar": {"color": "#2ca02c", "thickness": 0.7},
-                "steps": [
-                    {"range": [0, 20], "color": "rgba(214,39,40,0.25)"},
-                    {"range": [20, 60], "color": "rgba(255,127,14,0.25)"},
-                    {"range": [60, 100], "color": "rgba(44,160,44,0.25)"},
-                ],
-                "threshold": {
-                    "line": {"color": "#d62728", "width": 2},
-                    "thickness": 0.6,
-                    "value": 15,
-                },
-            },
-            domain={'x': [0, 1], 'y': [0, 1]}
-        )
-    )
-    batt_gauge.update_layout(
-        height=200,
-        margin=dict(l=20, r=20, t=30, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12)
-    )
-
-    # Power gauge (dynamic max to avg*2 or 1000W)
-    dyn_pow_max = max(1000.0, float(kpis["avg_power_w"]) * 2.0)
-    power_gauge = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=float(kpis["avg_power_w"]),
-            title={"text": "Power", "font": {"size": 14}},
-            number={"font": {"size": 16}, "suffix": "W"},
-            gauge={
-                "axis": {"range": [0, dyn_pow_max], "tickfont": {"size": 10}},
-                "bar": {"color": "#ff7f0e", "thickness": 0.7},
-                "steps": [
-                    {"range": [0, dyn_pow_max * 0.3], "color": "rgba(255,127,14,0.20)"},
-                    {"range": [dyn_pow_max * 0.3, dyn_pow_max * 0.7], "color": "rgba(255,127,14,0.28)"},
-                    {"range": [dyn_pow_max * 0.7, dyn_pow_max], "color": "rgba(255,127,14,0.36)"},
-                ],
-            },
-            domain={'x': [0, 1], 'y': [0, 1]}
-        )
-    )
-    power_gauge.update_layout(
-        height=200,
-        margin=dict(l=20, r=20, t=30, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12)
-    )
-
-    # Efficiency gauge (km/kWh) dynamic max
-    eff_val = float(kpis["efficiency_km_per_kwh"])
-    dyn_eff_max = max(100.0, eff_val * 1.5) if eff_val > 0 else 100.0
-    eff_gauge = go.Figure(
-        go.Indicator(
-            mode="gauge+number",
-            value=eff_val,
-            title={"text": "Efficiency", "font": {"size": 14}},
-            number={"font": {"size": 16}},
-            gauge={
-                "axis": {"range": [0, dyn_eff_max], "tickfont": {"size": 10}},
-                "bar": {"color": "#6a51a3", "thickness": 0.7},
-                "steps": [
-                    {"range": [0, dyn_eff_max * 0.3], "color": "rgba(106,81,163,0.20)"},
-                    {"range": [dyn_eff_max * 0.3, dyn_eff_max * 0.7], "color": "rgba(106,81,163,0.28)"},
-                    {"range": [dyn_eff_max * 0.7, dyn_eff_max], "color": "rgba(106,81,163,0.36)"},
-                ],
-            },
-            domain={'x': [0, 1], 'y': [0, 1]}
-        )
-    )
-    eff_gauge.update_layout(
-        height=200,
-        margin=dict(l=20, r=20, t=30, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(size=12)
-    )
-
-    # Render gauges in columns with unique keys
-    with gauge_cols[0]:
-        st.plotly_chart(speed_gauge, use_container_width=True, key=f"{unique_ns}_g_speed")
-    with gauge_cols[1]:
-        st.plotly_chart(batt_gauge, use_container_width=True, key=f"{unique_ns}_g_batt")
-    with gauge_cols[2]:
-        st.plotly_chart(power_gauge, use_container_width=True, key=f"{unique_ns}_g_power")
-    with gauge_cols[3]:
-        st.plotly_chart(eff_gauge, use_container_width=True, key=f"{unique_ns}_g_eff")
-
-    st.markdown("</div>", unsafe_allow_html=True)  # card
+    
+    # Create gauge configurations
+    gauges_config = [
+        {
+            "title": "Speed",
+            "value": float(kpis["current_speed_kmh"]),
+            "max_val": max(100, kpis["max_speed_kmh"] + 5),
+            "color": "#1f77b4",
+            "suffix": " km/h",
+            "ranges": [
+                {"range": [0, max(30, kpis["max_speed_kmh"] * 0.3)], "color": "rgba(31,119,180,0.15)"},
+                {"range": [max(30, kpis["max_speed_kmh"] * 0.3), max(70, kpis["max_speed_kmh"] * 0.7)], "color": "rgba(31,119,180,0.25)"},
+                {"range": [max(70, kpis["max_speed_kmh"] * 0.7), max(100, kpis["max_speed_kmh"] + 5)], "color": "rgba(31,119,180,0.35)"},
+            ]
+        },
+        {
+            "title": "Battery",
+            "value": float(kpis["battery_percentage"]),
+            "max_val": 100,
+            "color": "#2ca02c",
+            "suffix": "%",
+            "ranges": [
+                {"range": [0, 20], "color": "rgba(214,39,40,0.25)"},
+                {"range": [20, 60], "color": "rgba(255,127,14,0.25)"},
+                {"range": [60, 100], "color": "rgba(44,160,44,0.25)"},
+            ],
+            "threshold": {"line": {"color": "#d62728", "width": 3}, "thickness": 0.6, "value": 15}
+        },
+        {
+            "title": "Power",
+            "value": float(kpis["avg_power_w"]),
+            "max_val": max(1000.0, float(kpis["avg_power_w"]) * 2.0),
+            "color": "#ff7f0e",
+            "suffix": " W",
+            "ranges": []  # Dynamic ranges will be calculated
+        },
+        {
+            "title": "Efficiency",
+            "value": float(kpis["efficiency_km_per_kwh"]),
+            "max_val": max(100.0, kpis["efficiency_km_per_kwh"] * 1.5) if kpis["efficiency_km_per_kwh"] > 0 else 100.0,
+            "color": "#9467bd",
+            "suffix": " km/kWh",
+            "ranges": []  # Dynamic ranges will be calculated
+        }
+    ]
+    
+    # Calculate dynamic ranges for power and efficiency
+    power_max = gauges_config[2]["max_val"]
+    gauges_config[2]["ranges"] = [
+        {"range": [0, power_max * 0.3], "color": "rgba(255,127,14,0.20)"},
+        {"range": [power_max * 0.3, power_max * 0.7], "color": "rgba(255,127,14,0.28)"},
+        {"range": [power_max * 0.7, power_max], "color": "rgba(255,127,14,0.36)"},
+    ]
+    
+    eff_max = gauges_config[3]["max_val"]
+    gauges_config[3]["ranges"] = [
+        {"range": [0, eff_max * 0.3], "color": "rgba(148,103,189,0.20)"},
+        {"range": [eff_max * 0.3, eff_max * 0.7], "color": "rgba(148,103,189,0.28)"},
+        {"range": [eff_max * 0.7, eff_max], "color": "rgba(148,103,189,0.36)"},
+    ]
+    
+    # Create columns for each gauge
+    cols = st.columns(4)
+    
+    for i, gauge_config in enumerate(gauges_config):
+        with cols[i]:
+            # Title outside the gauge
+            st.markdown(f"<div class='gauge-title'>{gauge_config['title']}</div>", unsafe_allow_html=True)
+            
+            # Create the gauge figure
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=gauge_config["value"],
+                number={"suffix": gauge_config["suffix"], "font": {"size": 16}},
+                gauge={
+                    "axis": {"range": [0, gauge_config["max_val"]], "tickwidth": 1, "showticklabels": False},
+                    "bar": {"color": gauge_config["color"], "thickness": 0.6},
+                    "steps": gauge_config["ranges"],
+                    "borderwidth": 1,
+                    "bordercolor": "rgba(0,0,0,0.1)"
+                }
+            ))
+            
+            # Add threshold if specified
+            if "threshold" in gauge_config:
+                fig.data[0].gauge.threshold = gauge_config["threshold"]
+            
+            # Update layout for compact size
+            fig.update_layout(
+                height=120,
+                margin=dict(l=5, r=5, t=5, b=5),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(size=10)
+            )
+            
+            # Render the gauge with unique key
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key=f"{unique_ns}_gauge_{i}_{gauge_config['title'].lower()}"
+            )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_overview_tab(kpis: Dict[str, float]):
-    """Render overview tab with KPIs."""
+    """Render overview tab with gauges only (KPIs removed)."""
     st.markdown("### 📊 Performance Overview")
     st.markdown(
-        "Real-time key performance indicators for your Shell Eco-marathon vehicle"
+        "Real-time key performance indicators for your Shell Eco-marathon vehicle displayed as interactive gauges"
     )
+    
+    # Show live gauges
+    render_live_gauges(kpis, unique_ns="overview")
 
-    # ADD THE GAUGES TO THE OVERVIEW TAB
-    render_kpi_header(kpis, unique_ns="overviewtab")
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            label="🚀 Current Speed",
-            value=f"{kpis['current_speed_kmh']:.1f} km/h",
-            help="Current vehicle speed",
-        )
-        st.metric(
-            label="🛣️ Total Distance",
-            value=f"{kpis['total_distance_km']:.2f} km",
-            help="Distance traveled during the session",
-        )
-
-    with col2:
-        st.metric(
-            label="🏃 Maximum Speed",
-            value=f"{kpis['max_speed_kmh']:.1f} km/h",
-            help="Highest speed achieved",
-        )
-        st.metric(
-            label="⚡ Average Speed",
-            value=f"{kpis['avg_speed_kmh']:.1f} km/h",
-            help="Mean speed throughout the session",
-        )
-
-    with col3:
-        st.metric(
-            label="🔋 Energy Consumed",
-            value=f"{kpis['total_energy_kwh']:.2f} kWh",
-            help="Total energy consumption",
-        )
-        st.metric(
-            label="💡 Average Power",
-            value=f"{kpis['avg_power_w']:.1f} W",
-            help="Mean power consumption",
-        )
-
-    with col4:
-        battery_display = (
-            f"{kpis['battery_voltage_v']:.1f}V ({kpis['battery_percentage']:.0f}%)"
-        )
-        st.metric(
-            label="🔋 Battery Status",
-            value=battery_display,
-            help="Current battery voltage and estimated percentage",
-        )
-        st.metric(
-            label="♻️ Efficiency",
-            value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
-            help="Energy efficiency ratio",
-        )
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
     st.markdown(
@@ -2387,10 +2312,9 @@ def main():
     # Render content for each tab with unique keys for charts
     with tabs[0]:
         render_overview_tab(kpis)
-        # Small gauges already drawn in header where used
 
     with tabs[1]:
-        render_kpi_header(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="speedtab")
         fig = create_speed_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2398,7 +2322,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[2]:
-        render_kpi_header(kpis, unique_ns="powertab")
+        render_live_gauges(kpis, unique_ns="powertab")
         fig = create_power_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2406,7 +2330,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[3]:
-        render_kpi_header(kpis, unique_ns="imutab")
+        render_live_gauges(kpis, unique_ns="imutab")
         fig = create_imu_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2414,7 +2338,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[4]:
-        render_kpi_header(kpis, unique_ns="imudetailtab")
+        render_live_gauges(kpis, unique_ns="imudetailtab")
         fig = create_imu_detail_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2424,7 +2348,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[5]:
-        render_kpi_header(kpis, unique_ns="efftab")
+        render_live_gauges(kpis, unique_ns="efftab")
         fig = create_efficiency_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2434,7 +2358,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[6]:
-        render_kpi_header(kpis, unique_ns="gpstab")
+        render_live_gauges(kpis, unique_ns="gpstab")
         fig = create_gps_map_with_altitude(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
@@ -2442,11 +2366,11 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[7]:
-        render_kpi_header(kpis, unique_ns="customtab")
+        render_live_gauges(kpis, unique_ns="customtab")
         render_dynamic_charts_section(df)
 
     with tabs[8]:
-        render_kpi_header(kpis, unique_ns="datatabletab")
+        render_live_gauges(kpis, unique_ns="datatabletab")
 
         st.subheader("📃 Raw Telemetry Data")
 
