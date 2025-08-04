@@ -100,12 +100,12 @@ st.markdown(
   --bg: Canvas;
   --text: CanvasText;
 
-  --muted: rgba(127,127,127,0.4);
+  --muted: rgb(127,127,127,0.4);
   --border: color-mix(in oklab, CanvasText 12%, Canvas);
 
   --card-bg: color-mix(in oklab, Canvas 85%, CanvasText 15%);
   --card-bg-strong: color-mix(in oklab, Canvas 75%, CanvasText 25%);
-  --shadow: 0 10px 30px rgba(0,0,0,0.15);
+  --shadow: 0 10px 30px rgb(0,0,0,0.15);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -128,7 +128,7 @@ st.markdown(
 
 /* Hide default header bg while keeping it transparent */
 [data-testid="stHeader"] {
-  background-color: rgba(0,0,0,0);
+  background-color: rgb(0,0,0,0);
   backdrop-filter: saturate(100%) blur(4px);
 }
 
@@ -888,11 +888,11 @@ def create_small_gauge(value: float, max_val: float, title: str, color: str, suf
         gauge={
             "axis": {"range": [0, max_val], "showticklabels": False},
             "bar": {"color": color, "thickness": 0.7},
-            "bgcolor": "rgba(0,0,0,0)",
+            "bgcolor": "",
             "borderwidth": 0,
             "steps": [
-                {"range": [0, max_val * 0.6], "color": f"rgba{tuple(list(__import__('matplotlib.colors').to_rgba(color)[:3]) + [0.1])}"},
-                {"range": [max_val * 0.6, max_val], "color": f"rgba{tuple(list(__import__('matplotlib.colors').to_rgba(color)[:3]) + [0.2])}"}
+                {"range": [0, max_val * 0.6], "color": f"rgb{tuple(list(__import__('matplotlib.colors').to_rgb(color)[:3]) + [0.1])}"},
+                {"range": [max_val * 0.6, max_val], "color": f"rgb{tuple(list(__import__('matplotlib.colors').to_rgb(color)[:3]) + [0.2])}"}
             ],
         }
     ))
@@ -900,8 +900,8 @@ def create_small_gauge(value: float, max_val: float, title: str, color: str, suf
     fig.update_layout(
         height=120,  # Much smaller height
         margin=dict(l=10, r=10, t=10, b=10),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
         font=dict(size=12)
     )
     
@@ -1145,8 +1145,8 @@ def create_speed_chart(df: pd.DataFrame):
     )
 
     fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
         font=dict(size=12),
         margin=dict(l=40, r=40, t=60, b=40),
         height=400,
@@ -1212,8 +1212,8 @@ def create_power_chart(df: pd.DataFrame):
     fig.update_layout(
         height=500,
         title_text="⚡ Electrical System Performance",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
@@ -1280,8 +1280,8 @@ def create_imu_chart(df: pd.DataFrame):
     fig.update_layout(
         height=600,
         title_text="🎮 IMU Sensor Data Analysis",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
@@ -1358,8 +1358,8 @@ def create_imu_detail_chart(df: pd.DataFrame):
     fig.update_layout(
         height=600,
         title_text="🎮 Detailed IMU Sensor Analysis",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
@@ -1388,8 +1388,8 @@ def create_efficiency_chart(df: pd.DataFrame):
     )
 
     fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
         height=400,
     )
 
@@ -1663,8 +1663,8 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
 
     fig.update_layout(
         height=400,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
