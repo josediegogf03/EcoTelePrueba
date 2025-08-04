@@ -1,11 +1,4 @@
-
-# app.py
 # Visual refresh version: layout/UI only, functionality preserved.
-# - Adds Plotly gauge widgets (small graphs) with unique keys
-# - Modern CSS with radial bottom gradient (transparent), rounded cards, blur
-# - Light/dark friendly via color-scheme and prefers-color-scheme
-# - Ensures no StreamlitDuplicateElementId by passing unique keys everywhere
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -57,7 +50,7 @@ warnings.filterwarnings(
 
 # Configuration
 DASHBOARD_ABLY_API_KEY = (
-    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8Wthq"
+    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
 )
 DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://dsfmdziehhgmrconjcns.supabase.co"
@@ -184,7 +177,7 @@ html, body, [data-testid="stAppViewContainer"] {
 /* Chart helper grid for small widgets (gauges) */
 .widget-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Adjusted minmax width */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
 }
 
@@ -861,6 +854,9 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         return default_kpis
 
 
+
+
+
 def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
     """Render KPI header with metrics + small gauge widgets."""
     # Metrics row (left: distance/speed; right: energy/power/battery/efficiency)
@@ -887,61 +883,72 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
             "♻️ Efficiency", f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh"
         )
 
-    # Small gauge widgets
+    # Small gauge widgets in a single row
     st.markdown(" ")
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("##### Live Gauges")
-    st.markdown('<div class="widget-grid">', unsafe_allow_html=True)
-
-    # Build gauges as Plotly Indicators: assign unique keys
-    gauges = []
-
+    
+    # Create 4 columns for the gauges to be in the same row
+    gauge_cols = st.columns(4)
+    
     # Speed gauge (0-100 km/h baseline; adjust if needed)
     speed_gauge = go.Figure(
         go.Indicator(
             mode="gauge+number",
             value=float(kpis["current_speed_kmh"]),
-            title={"text": "Speed (km/h)"},
+            title={"text": "Speed", "font": {"size": 14}},
+            number={"font": {"size": 16}},
             gauge={
-                "axis": {"range": [0, max(100, kpis["max_speed_kmh"] + 5)]},
-                "bar": {"color": "#1f77b4"},
+                "axis": {"range": [0, max(100, kpis["max_speed_kmh"] + 5)], "tickfont": {"size": 10}},
+                "bar": {"color": "#1f77b4", "thickness": 0.7},
                 "steps": [
                     {"range": [0, max(30, kpis["max_speed_kmh"] * 0.3)], "color": "rgba(31,119,180,0.15)"},
                     {"range": [max(30, kpis["max_speed_kmh"] * 0.3), max(70, kpis["max_speed_kmh"] * 0.7)], "color": "rgba(31,119,180,0.25)"},
                     {"range": [max(70, kpis["max_speed_kmh"] * 0.7), max(100, kpis["max_speed_kmh"] + 5)], "color": "rgba(31,119,180,0.35)"},
                 ],
             },
-            number={"suffix": " km/h"},
+            domain={'x': [0, 1], 'y': [0, 1]}
         )
     )
-    speed_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
-    gauges.append(("Speed", speed_gauge, f"{unique_ns}_g_speed"))
+    speed_gauge.update_layout(
+        height=200,  # Fixed small height
+        margin=dict(l=20, r=20, t=30, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12)
+    )
 
     # Battery percentage gauge (0-100)
     batt_gauge = go.Figure(
         go.Indicator(
             mode="gauge+number",
             value=float(kpis["battery_percentage"]),
-            title={"text": "Battery (%)"},
+            title={"text": "Battery", "font": {"size": 14}},
+            number={"font": {"size": 16}, "suffix": "%"},
             gauge={
-                "axis": {"range": [0, 100]},
-                "bar": {"color": "#2ca02c"},
+                "axis": {"range": [0, 100], "tickfont": {"size": 10}},
+                "bar": {"color": "#2ca02c", "thickness": 0.7},
                 "steps": [
                     {"range": [0, 20], "color": "rgba(214,39,40,0.25)"},
                     {"range": [20, 60], "color": "rgba(255,127,14,0.25)"},
                     {"range": [60, 100], "color": "rgba(44,160,44,0.25)"},
                 ],
                 "threshold": {
-                    "line": {"color": "#d62728", "width": 3},
+                    "line": {"color": "#d62728", "width": 2},
                     "thickness": 0.6,
                     "value": 15,
                 },
             },
-            number={"suffix": "%"},
+            domain={'x': [0, 1], 'y': [0, 1]}
         )
     )
-    batt_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
-    gauges.append(("Battery", batt_gauge, f"{unique_ns}_g_batt"))
+    batt_gauge.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=30, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12)
+    )
 
     # Power gauge (dynamic max to avg*2 or 1000W)
     dyn_pow_max = max(1000.0, float(kpis["avg_power_w"]) * 2.0)
@@ -949,21 +956,27 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
         go.Indicator(
             mode="gauge+number",
             value=float(kpis["avg_power_w"]),
-            title={"text": "Avg Power (W)"},
+            title={"text": "Power", "font": {"size": 14}},
+            number={"font": {"size": 16}, "suffix": "W"},
             gauge={
-                "axis": {"range": [0, dyn_pow_max]},
-                "bar": {"color": "#ff7f0e"},
+                "axis": {"range": [0, dyn_pow_max], "tickfont": {"size": 10}},
+                "bar": {"color": "#ff7f0e", "thickness": 0.7},
                 "steps": [
                     {"range": [0, dyn_pow_max * 0.3], "color": "rgba(255,127,14,0.20)"},
                     {"range": [dyn_pow_max * 0.3, dyn_pow_max * 0.7], "color": "rgba(255,127,14,0.28)"},
                     {"range": [dyn_pow_max * 0.7, dyn_pow_max], "color": "rgba(255,127,14,0.36)"},
                 ],
             },
-            number={"suffix": " W"},
+            domain={'x': [0, 1], 'y': [0, 1]}
         )
     )
-    power_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
-    gauges.append(("Power", power_gauge, f"{unique_ns}_g_power"))
+    power_gauge.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=30, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12)
+    )
 
     # Efficiency gauge (km/kWh) dynamic max
     eff_val = float(kpis["efficiency_km_per_kwh"])
@@ -972,29 +985,38 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader"):
         go.Indicator(
             mode="gauge+number",
             value=eff_val,
-            title={"text": "Efficiency (km/kWh)"},
+            title={"text": "Efficiency", "font": {"size": 14}},
+            number={"font": {"size": 16}},
             gauge={
-                "axis": {"range": [0, dyn_eff_max]},
-                "bar": {"color": "#6a51a3"},
+                "axis": {"range": [0, dyn_eff_max], "tickfont": {"size": 10}},
+                "bar": {"color": "#6a51a3", "thickness": 0.7},
                 "steps": [
                     {"range": [0, dyn_eff_max * 0.3], "color": "rgba(106,81,163,0.20)"},
                     {"range": [dyn_eff_max * 0.3, dyn_eff_max * 0.7], "color": "rgba(106,81,163,0.28)"},
                     {"range": [dyn_eff_max * 0.7, dyn_eff_max], "color": "rgba(106,81,163,0.36)"},
                 ],
             },
-            number={"suffix": ""},
+            domain={'x': [0, 1], 'y': [0, 1]}
         )
     )
-    eff_gauge.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10)) # Smaller height
-    gauges.append(("Efficiency", eff_gauge, f"{unique_ns}_g_eff"))
+    eff_gauge.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=30, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12)
+    )
 
-    # Render gauges in small cards with unique keys
-    for label, fig, key in gauges:
-        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True, key=key)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Render gauges in columns with unique keys
+    with gauge_cols[0]:
+        st.plotly_chart(speed_gauge, use_container_width=True, key=f"{unique_ns}_g_speed")
+    with gauge_cols[1]:
+        st.plotly_chart(batt_gauge, use_container_width=True, key=f"{unique_ns}_g_batt")
+    with gauge_cols[2]:
+        st.plotly_chart(power_gauge, use_container_width=True, key=f"{unique_ns}_g_power")
+    with gauge_cols[3]:
+        st.plotly_chart(eff_gauge, use_container_width=True, key=f"{unique_ns}_g_eff")
 
-    st.markdown("</div>", unsafe_allow_html=True)  # widget-grid
     st.markdown("</div>", unsafe_allow_html=True)  # card
 
 
@@ -1004,6 +1026,9 @@ def render_overview_tab(kpis: Dict[str, float]):
     st.markdown(
         "Real-time key performance indicators for your Shell Eco-marathon vehicle"
     )
+
+    # ADD THE GAUGES TO THE OVERVIEW TAB
+    render_kpi_header(kpis, unique_ns="overviewtab")
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -1057,8 +1082,6 @@ def render_overview_tab(kpis: Dict[str, float]):
             value=f"{kpis['efficiency_km_per_kwh']:.2f} km/kWh",
             help="Energy efficiency ratio",
         )
-
-
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
     st.markdown(
@@ -2364,8 +2387,7 @@ def main():
     # Render content for each tab with unique keys for charts
     with tabs[0]:
         render_overview_tab(kpis)
-        # Add the Live Gauges to the Overview tab
-        render_kpi_header(kpis, unique_ns="overviewtab_gauges")
+        # Small gauges already drawn in header where used
 
     with tabs[1]:
         render_kpi_header(kpis, unique_ns="speedtab")
