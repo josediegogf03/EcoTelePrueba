@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -2370,7 +2368,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[2]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="powertab")
         render_kpi_header(kpis, unique_ns="powertab", show_gauges=False)
         fig = create_power_chart(df)
         if fig:
@@ -2379,7 +2377,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[3]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="imutab")
         render_kpi_header(kpis, unique_ns="imutab", show_gauges=False)
         fig = create_imu_chart(df)
         if fig:
@@ -2388,7 +2386,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[4]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="imutdetailtab")
         render_kpi_header(kpis, unique_ns="imudetailtab", show_gauges=False)
         fig = create_imu_detail_chart(df)
         if fig:
@@ -2399,7 +2397,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[5]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="efftab")
         render_kpi_header(kpis, unique_ns="efftab", show_gauges=False)
         fig = create_efficiency_chart(df)
         if fig:
@@ -2410,7 +2408,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[6]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="gpstab")
         render_kpi_header(kpis, unique_ns="gpstab", show_gauges=False)
         fig = create_gps_map_with_altitude(df)
         if fig:
@@ -2419,12 +2417,12 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[7]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="customtab")
         render_kpi_header(kpis, unique_ns="customtab", show_gauges=False)
         render_dynamic_charts_section(df)
 
     with tabs[8]:
-        render_live_gauges(kpis, unique_ns="speedtab")
+        render_live_gauges(kpis, unique_ns="datatabletab")
         render_kpi_header(kpis, unique_ns="datatabletab", show_gauges=False)
 
         st.subheader("📃 Raw Telemetry Data")
