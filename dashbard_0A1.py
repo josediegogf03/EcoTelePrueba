@@ -777,6 +777,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         "efficiency_km_per_kwh": 0.0,
         "battery_voltage_v": 0.0,
         "battery_percentage": 0.0,
+        "avg_current_a": 0.0,
     }
 
     if df.empty:
@@ -860,6 +861,10 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
                             * 100,
                         ),
                     )
+        if "current_a" in df.columns:
+            curr_data = df["current_a"].dropna()
+            if not curr_data.empty:
+                kpis["avg_current_a"] = max(0.0, curr_data.mean())
 
         return kpis
 
@@ -1015,8 +1020,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
 
 
 def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show_gauges: bool = True):
-    """Render KPI header with metrics (removed duplicated ones) + optional small gauges."""
-    # Updated metrics row - removed duplicated KPIs that are now gauges
+    """Render KPI header with metrics + optional small gauges."""
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -1028,15 +1032,14 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
         st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
 
     with col3:
-        battery_display = f"{kpis['battery_voltage_v']:.1f}V"
-        st.metric("⚡ Voltage", battery_display)
-        st.metric("🔌 Current", f"{kpis['avg_power_w']/max(kpis['battery_voltage_v'], 1):.1f} A")
+        st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.1f} V")
+        st.metric("🔌 Current", f"{kpis['avg_current_a']:.2f} A")    # ← Moved here
 
     with col4:
-        st.metric("📊 Data Points", f"{len(st.session_state.telemetry_data):,}")
-        st.metric("⏰ Last Update", st.session_state.last_update.strftime('%H:%M:%S'))
-    
-    # Show live gauges if requested
+        # Replace Data Points / Last Update with Avg Current & Avg Power
+        st.metric("🔌 Avg Current", f"{kpis['avg_current_a']:.2f} A")
+        st.metric("💡 Avg Power",   f"{kpis['avg_power_w']:.1f} W")
+
     if show_gauges:
         render_live_gauges(kpis, unique_ns)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -2514,7 +2517,7 @@ def main():
     st.divider()
     st.markdown(
         "<div style='text-align: center; opacity: 0.8; padding: 1rem;'>"
-        "<p>Shell Eco-marathon Telemetry Dashboard — Visual Refresh</p>"
+        "<p>Shell Eco-marathon Telemetry Dashboard</p>"
         "</div>",
         unsafe_allow_html=True,
     )
