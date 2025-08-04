@@ -1558,7 +1558,6 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         map_style="open-street-map",           # was mapbox_style
         map=dict(center=center_point, zoom=14)  # was mapbox=dict(...)
     )
-    )
 
     fig.update_xaxes(title_text="Time", row=1, col=2)
     fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
