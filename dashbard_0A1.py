@@ -1144,10 +1144,6 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     st.markdown("##### 📊 Live Performance Gauges")
 
     # Create the gauge grid - now with 6 columns for Roll and Pitch
-    st.markdown(
-        '<div class="widget-grid" style="grid-template-columns: repeat(6, 1fr);">',
-        unsafe_allow_html=True,
-    )
 
     # Create 6 columns for the gauges
     cols = st.columns(6)
