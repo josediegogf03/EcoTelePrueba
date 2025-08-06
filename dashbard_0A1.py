@@ -1308,34 +1308,17 @@ def create_imu_chart(df: pd.DataFrame):
                 x=df["timestamp"],
                 y=df[axis],
                 name=f"Accel {axis[-1].upper()}",
-                line=dict(color=accel_colors[i], width=2),
+                line=dict(color=colors_accel[i], width=2),
             ),
             row=2,
             col=1,
         )
 
-    # Adapt legend background & font to current theme
-    theme = st.get_option("theme.base")  # "light" or "dark"
-    if theme == "dark":
-        legend_bg         = "rgba(0,0,0,0.6)"
-        legend_bordercol  = "rgba(255,255,255,0.2)"
-        legend_font_color = "#FFFFFF"
-    else:
-        legend_bg         = "rgba(255,255,255,0.8)"
-        legend_bordercol  = "rgba(0,0,0,0.2)"
-        legend_font_color = "#000000"
-
     fig.update_layout(
         height=600,
         title_text="🎮 IMU Sensor Data Analysis",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        legend=dict(
-            bgcolor=legend_bg,
-            bordercolor=legend_bordercol,
-            borderwidth=1,
-            font=dict(color=legend_font_color),
-        ),
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
@@ -1378,12 +1361,10 @@ def create_imu_detail_chart(df: pd.DataFrame):
         horizontal_spacing=0.1,
     )
 
-    gyro_colors  = ["#e74c3c", "#2ecc71", "#3498db"]
+    gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
     accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
 
-    for i, (axis, color) in enumerate(zip(
-        ["gyro_x", "gyro_y", "gyro_z"], gyro_colors
-    )):
+    for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
         fig.add_trace(
             go.Scatter(
                 x=df["timestamp"],
@@ -1396,9 +1377,9 @@ def create_imu_detail_chart(df: pd.DataFrame):
             col=i + 1,
         )
 
-    for i, (axis, color) in enumerate(zip(
-        ["accel_x", "accel_y", "accel_z"], accel_colors
-    )):
+    for i, (axis, color) in enumerate(
+        zip(["accel_x", "accel_y", "accel_z"], accel_colors)
+    ):
         fig.add_trace(
             go.Scatter(
                 x=df["timestamp"],
@@ -1411,32 +1392,14 @@ def create_imu_detail_chart(df: pd.DataFrame):
             col=i + 1,
         )
 
-    # Adapt legend background & font to current theme
-    theme = st.get_option("theme.base")
-    if theme == "dark":
-        legend_bg         = "rgba(0,0,0,0.6)"
-        legend_bordercol  = "rgba(255,255,255,0.2)"
-        legend_font_color = "#FFFFFF"
-    else:
-        legend_bg         = "rgba(255,255,255,0.8)"
-        legend_bordercol  = "rgba(0,0,0,0.2)"
-        legend_font_color = "#000000"
-
     fig.update_layout(
         height=600,
         title_text="🎮 Detailed IMU Sensor Analysis",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        legend=dict(
-            bgcolor=legend_bg,
-            bordercolor=legend_bordercol,
-            borderwidth=1,
-            font=dict(color=legend_font_color),
-        ),
+        plot_bgcolor="rgb(0,0,0,0)",
+        paper_bgcolor="rgb(0,0,0,0)",
     )
 
     return fig
-
 
 
 def create_efficiency_chart(df: pd.DataFrame):
