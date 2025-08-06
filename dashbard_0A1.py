@@ -74,182 +74,296 @@ st.set_page_config(
     },
 )
 
-# -------------------------------------------------------
-# Modern CSS: radial bottom gradient (transparent), cards
-# -------------------------------------------------------
+# Theme detection function
+def get_streamlit_theme():
+    """Detect current Streamlit theme (light/dark)"""
+    try:
+        # Try to use st.context.theme (available in Streamlit 2025+)
+        theme = st.context.theme
+        if theme and hasattr(theme, 'base'):
+            return theme.base  # 'light' or 'dark'
+    except (AttributeError, Exception):
+        pass
+    
+    # Fallback: assume light mode if detection fails
+    return 'light'
+
+# Get current theme
+CURRENT_THEME = get_streamlit_theme()
+IS_DARK_MODE = CURRENT_THEME == 'dark'
+
+# Adaptive color scheme based on theme
+def get_theme_colors():
+    """Get adaptive colors based on current theme"""
+    if IS_DARK_MODE:
+        return {
+            'primary': '#4fc3f7',
+            'success': '#4caf50', 
+            'warning': '#ff9800',
+            'error': '#f44336',
+            'bg': '#0e1117',
+            'surface': '#262730',
+            'surface_variant': '#31333f',
+            'text': '#fafafa',
+            'text_secondary': '#a6a6a6',
+            'border': 'rgba(250, 250, 250, 0.12)',
+            'shadow': '0 8px 32px rgba(0, 0, 0, 0.4)',
+            'gradient_start': 'rgba(79, 195, 247, 0.1)',
+            'gradient_end': 'rgba(79, 195, 247, 0.02)',
+            'plot_bg': 'rgba(14, 17, 23, 0.8)',
+            'plot_paper_bg': 'rgba(14, 17, 23, 0)',
+            'legend_bg': 'rgba(38, 39, 48, 0.9)',
+            'legend_border': 'rgba(250, 250, 250, 0.2)',
+        }
+    else:
+        return {
+            'primary': '#1976d2',
+            'success': '#2e7d32',
+            'warning': '#f57c00', 
+            'error': '#d32f2f',
+            'bg': '#ffffff',
+            'surface': '#f8f9fa',
+            'surface_variant': '#e3f2fd',
+            'text': '#212529',
+            'text_secondary': '#6c757d',
+            'border': 'rgba(0, 0, 0, 0.12)',
+            'shadow': '0 8px 32px rgba(0, 0, 0, 0.1)',
+            'gradient_start': 'rgba(25, 118, 210, 0.08)',
+            'gradient_end': 'rgba(25, 118, 210, 0.02)',
+            'plot_bg': 'rgba(248, 249, 250, 0.8)',
+            'plot_paper_bg': 'rgba(255, 255, 255, 0)',
+            'legend_bg': 'rgba(255, 255, 255, 0.95)',
+            'legend_border': 'rgba(0, 0, 0, 0.1)',
+        }
+
+THEME_COLORS = get_theme_colors()
+
+# Enhanced CSS with adaptive theming and soft design elements
 st.markdown(
-    """
+    f"""
 <style>
 /* Enable native light/dark form controls and colors */
-:root { color-scheme: light dark; }
+:root {{ color-scheme: light dark; }}
 
-/* Tailwind-like utility tokens (not real Tailwind) */
-:root {
-  --primary: #1f77b4;
-  --success: #2ca02c;
-  --warning: #ff7f0e;
-  --error: #d62728;
+/* Adaptive theme variables */
+:root {{
+  --primary: {THEME_COLORS['primary']};
+  --success: {THEME_COLORS['success']};
+  --warning: {THEME_COLORS['warning']};
+  --error: {THEME_COLORS['error']};
+  --bg: {THEME_COLORS['bg']};
+  --surface: {THEME_COLORS['surface']};
+  --surface-variant: {THEME_COLORS['surface_variant']};
+  --text: {THEME_COLORS['text']};
+  --text-secondary: {THEME_COLORS['text_secondary']};
+  --border: {THEME_COLORS['border']};
+  --shadow: {THEME_COLORS['shadow']};
+  --plot-bg: {THEME_COLORS['plot_bg']};
+  --plot-paper-bg: {THEME_COLORS['plot_paper_bg']};
+  --legend-bg: {THEME_COLORS['legend_bg']};
+  --legend-border: {THEME_COLORS['legend_border']};
+}}
 
-  --bg: Canvas;
-  --text: CanvasText;
-
-  --muted: rgb(127,127,127,0.4);
-  --border: color-mix(in oklab, CanvasText 12%, Canvas);
-
-  --card-bg: color-mix(in oklab, Canvas 85%, CanvasText 15%);
-  --card-bg-strong: color-mix(in oklab, Canvas 75%, CanvasText 25%);
-  --shadow: 0 10px 30px rgb(0,0,0,0.15);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --border: color-mix(in oklab, Canvas 20%, CanvasText);
-    --card-bg: color-mix(in oklab, Canvas 80%, CanvasText 20%);
-    --card-bg-strong: color-mix(in oklab, Canvas 65%, CanvasText 35%);
-  }
-}
-
-/* App background with a bottom-centered transparent radial gradient that does not reach top */
-[data-testid="stAppViewContainer"] {
-  background:
-    radial-gradient(ellipse 75% 50% at 50% 100%,
-      color-mix(in oklab, var(--primary) 12%, transparent) 0%,
-      transparent 60%) no-repeat,
+/* App background with soft gradient */
+[data-testid="stAppViewContainer"] {{
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% 100%,
+      {THEME_COLORS['gradient_start']} 0%,
+      {THEME_COLORS['gradient_end']} 60%, 
+      var(--bg) 100%) no-repeat,
     var(--bg);
   background-attachment: fixed;
-}
+}}
 
-/* Hide default header bg while keeping it transparent */
-[data-testid="stHeader"] {
-  background-color: rgb(0,0,0,0);
-  backdrop-filter: saturate(100%) blur(4px);
-}
-
-/* Global text color */
-html, body, [data-testid="stAppViewContainer"] {
-  color: var(--text);
-}
+/* Header with soft backdrop blur */
+[data-testid="stHeader"] {{
+  background: rgba(0,0,0,0);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+}}
 
 /* Main header */
-.main-header {
+.main-header {{
     font-size: 2.2rem;
     color: var(--primary);
     text-align: center;
     margin-bottom: 0.75rem;
     font-weight: 800;
     letter-spacing: 0.2px;
-}
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}}
 
-/* Status indicator chips */
-.status-indicator {
-    display: flex; align-items: center; justify-content: center;
-    padding: 0.65rem 0.85rem; border-radius: 9999px;
-    font-weight: 700; font-size: 0.9rem; border: 1px solid var(--border);
-    background: var(--card-bg); box-shadow: var(--shadow);
-}
-
-/* Cards with circular borders and subtle blur */
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 18px; /* circular border elements */
-  padding: 1rem;
+/* Softened cards with enhanced blur */
+.card, .status-indicator, .session-info {{
+  background: var(--surface);
+  border: none;  /* Remove borders */
+  border-radius: 24px;  /* Increased radius for softer look */
+  padding: 1.5rem;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px) saturate(110%);
-}
+  backdrop-filter: blur(20px) saturate(180%);
+  position: relative;
+}}
 
-.card-strong {
-  background: var(--card-bg-strong);
-}
+.card-strong {{
+  background: var(--surface-variant);
+}}
 
-/* Session info card */
-.session-info h3 {
-  color: var(--primary); margin-bottom: 0.6rem; font-size: 1.2rem;
-}
-.session-info p { margin: 0.2rem 0; }
+/* Status indicators without borders */
+.status-indicator {{
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    padding: 0.75rem 1rem; 
+    font-weight: 700; 
+    font-size: 0.9rem; 
+    border: none;  /* Remove border */
+    margin-bottom: 0.5rem;
+}}
 
-/* Notices */
-.historical-notice, .pagination-info {
-  border-radius: 14px; padding: 0.9rem 1rem; font-weight: 700;
-  border: 1px solid var(--border); background: var(--card-bg);
-}
+/* Session info styling */
+.session-info h3 {{
+  color: var(--primary); 
+  margin-bottom: 0.6rem; 
+  font-size: 1.2rem;
+}}
+.session-info p {{ 
+  margin: 0.3rem 0; 
+  color: var(--text);
+}}
 
-/* Chart helper grid for small widgets (gauges) - UPDATED for single row */
-.widget-grid {
+/* Notices with soft backgrounds */
+.historical-notice, .pagination-info {{
+  border-radius: 20px; 
+  padding: 1rem 1.2rem; 
+  font-weight: 700;
+  border: none;  /* Remove border */
+  background: var(--surface-variant);
+  backdrop-filter: blur(15px) saturate(150%);
+}}
+
+/* Enhanced gauge grid */
+.widget-grid {{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-top: 1rem;
-}
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  padding: 0.5rem;
+}}
 
-/* Individual gauge container - UPDATED for smaller size */
-.gauge-container {
+/* Gauge containers with soft styling */
+.gauge-container {{
   text-align: center;
-}
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 1rem;
+  backdrop-filter: blur(15px);
+  box-shadow: var(--shadow);
+  border: none;  /* Remove border */
+}}
 
-.gauge-title {
-  font-size: 0.85rem;
+.gauge-title {{
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
   opacity: 0.9;
-}
+}}
 
-/* Chart containers */
-.chart-wrap {
-  border-radius: 16px; border: 1px solid var(--border);
-  background: var(--card-bg);
-  padding: 0.5rem 0.5rem 0.2rem 0.5rem;
+/* Chart containers with enhanced blur */
+.chart-wrap {{
+  border-radius: 24px; 
+  border: none;  /* Remove border */
+  background: var(--surface);
+  padding: 1rem;
   box-shadow: var(--shadow);
-}
+  backdrop-filter: blur(25px) saturate(200%);
+  margin-bottom: 1rem;
+}}
 
-/* Buttons */
-.stButton > button {
-  border-radius: 12px !important;
-  border: 1px solid var(--primary) !important;
-  background: var(--primary) !important;
+/* Enhanced buttons */
+.stButton > button {{
+  border-radius: 16px !important;
+  border: none !important;  /* Remove border */
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 100%) !important;
   color: white !important;
   font-weight: 700 !important;
-  transition: all 0.2s ease !important;
-}
-.stButton > button:hover {
-  background: transparent !important;
-  color: var(--primary) !important;
-}
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  backdrop-filter: blur(10px) !important;
+}}
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
+.stButton > button:hover {{
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2) !important;
+}}
+
+/* Soft tabs */
+.stTabs [data-baseweb="tab-list"] {{
   border-bottom: 1px solid var(--border);
-}
-.stTabs [data-baseweb="tab"] {
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 0.5rem;
+}}
+
+.stTabs [data-baseweb="tab"] {{
   border-radius: 12px;
-}
+  border: none !important;  /* Remove tab borders */
+}}
 
-/* Dynamic charts info cards */
-.chart-type-grid {
+/* Chart info cards */
+.chart-type-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.75rem;
-}
-.chart-type-card {
-  background: var(--card-bg);
-  border-radius: 16px;
-  padding: 1rem;
-  border: 1px solid var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}}
+
+.chart-type-card {{
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 1.5rem;
+  border: none;  /* Remove border */
   box-shadow: var(--shadow);
-}
-.chart-type-name {
-  font-weight: 800; color: var(--primary);
-}
-.chart-type-desc {
+  backdrop-filter: blur(15px);
+}}
+
+.chart-type-name {{
+  font-weight: 800; 
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}}
+
+.chart-type-desc {{
   opacity: 0.8;
-}
+  color: var(--text-secondary);
+}}
 
-/* Minor improvements to dataframes and expanders */
-[data-testid="stDataFrame"] {
-  border-radius: 12px; border: 1px solid var(--border);
-}
+/* Enhanced dataframes */
+[data-testid="stDataFrame"] {{
+  border-radius: 16px; 
+  border: none;  /* Remove border */
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}}
 
+/* Metric cards enhancement */
+.metric-card {{
+  background: var(--surface) !important;
+  border-radius: 20px !important;
+  border: none !important;  /* Remove border */
+  box-shadow: var(--shadow) !important;
+  backdrop-filter: blur(15px) !important;
+}}
+
+/* Global text styling */
+* {{
+  color: var(--text);
+}}
+
+/* Ensure proper contrast for all elements */
+.stMarkdown, .stText {{
+  color: var(--text) !important;
+}}
 </style>
 """,
     unsafe_allow_html=True,
@@ -269,9 +383,7 @@ def setup_terminal_logging():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-
 setup_terminal_logging()
-
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
@@ -688,7 +800,6 @@ class EnhancedTelemetryManager:
         with self._lock:
             return self.stats.copy()
 
-
 def merge_telemetry_data(
     realtime_data: List[Dict],
     supabase_data: pd.DataFrame,
@@ -733,7 +844,6 @@ def merge_telemetry_data(
         st.error(f"Error merging telemetry data: {e}")
         return pd.DataFrame()
 
-
 def initialize_session_state():
     """Initialize Streamlit session state."""
     defaults = {
@@ -760,7 +870,6 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 
 def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """Calculate KPIs from telemetry data."""
@@ -872,9 +981,37 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         st.error(f"Error calculating KPIs: {e}")
         return default_kpis
 
-import matplotlib.colors as mcolors
-import plotly.graph_objects as go
-from typing import Optional
+def create_adaptive_layout_template():
+    """Create adaptive layout template for plotly charts"""
+    return {
+        'plot_bgcolor': THEME_COLORS['plot_bg'],
+        'paper_bgcolor': THEME_COLORS['plot_paper_bg'],
+        'font': {
+            'color': THEME_COLORS['text'],
+            'family': 'system-ui, -apple-system, sans-serif'
+        },
+        'title': {
+            'font': {'color': THEME_COLORS['text'], 'size': 16}
+        },
+        'legend': {
+            'bgcolor': THEME_COLORS['legend_bg'],
+            'bordercolor': THEME_COLORS['legend_border'],
+            'borderwidth': 1,
+            'font': {'color': THEME_COLORS['text']},
+        },
+        'xaxis': {
+            'gridcolor': THEME_COLORS['border'],
+            'tickcolor': THEME_COLORS['text_secondary'],
+            'titlefont': {'color': THEME_COLORS['text']},
+            'tickfont': {'color': THEME_COLORS['text_secondary']}
+        },
+        'yaxis': {
+            'gridcolor': THEME_COLORS['border'], 
+            'tickcolor': THEME_COLORS['text_secondary'],
+            'titlefont': {'color': THEME_COLORS['text']},
+            'tickfont': {'color': THEME_COLORS['text_secondary']}
+        }
+    }
 
 def create_small_gauge(
     value: float,
@@ -886,43 +1023,40 @@ def create_small_gauge(
     thresh_val: Optional[float] = None,
 ) -> go.Figure:
     """
-    Plotly Indicator gauge with:
-      • number INSIDE the dial
-      • optional delta against avg_ref (mean)
-      • threshold line at thresh_val (e.g. max)
-      • adaptive max_val if None
+    Plotly Indicator gauge with adaptive theming and enhanced visibility
     """
-    # 1. Auto-compute max if not given
+    # Auto-compute max if not given
     if max_val is None or max_val <= 0:
         max_val = value * 1.2 if value > 0 else 1.0
 
-    # 2. Prepare gauge steps with light alphas
+    # Prepare gauge steps with theme-aware colors
     rgb = mcolors.to_rgb(color)
     steps = [
-        {"range": [0, max_val * 0.6], "color": f"rgba{(*rgb, 0.1)}"},
-        {"range": [max_val * 0.6, max_val], "color": f"rgba{(*rgb, 0.25)}"},
+        {"range": [0, max_val * 0.6], "color": f"rgba{(*rgb, 0.15)}"},
+        {"range": [max_val * 0.6, max_val], "color": f"rgba{(*rgb, 0.3)}"},
     ]
 
-    # 3. Build gauge dict
+    # Build gauge dict
     gauge = {
         "axis": {
             "range": [0, max_val],
             "ticks": "inside",
             "showticklabels": False,
+            "tickcolor": THEME_COLORS['text_secondary'],
         },
         "bar": {"color": color, "thickness": 0.35},
         "steps": steps,
     }
 
-    # 4. Add a threshold line if requested
+    # Add a threshold line if requested
     if thresh_val is not None:
         gauge["threshold"] = {
-            "line": {"color": "firebrick", "width": 3},
+            "line": {"color": THEME_COLORS['error'], "width": 3},
             "thickness": 0.8,
             "value": thresh_val,
         }
 
-    # 5. Assemble the indicator trace
+    # Assemble the indicator trace
     mode = "gauge+number" + ("+delta" if avg_ref is not None else "")
     delta_cfg = (
         {"reference": avg_ref, "position": "top", "increasing": {"color": color}}
@@ -934,20 +1068,22 @@ def create_small_gauge(
         go.Indicator(
             mode=mode,
             value=value,
-            number={"suffix": suffix, "font": {"size": 16}},
+            number={"suffix": suffix, "font": {"size": 16, "color": THEME_COLORS['text']}},
             delta=delta_cfg,
             gauge=gauge,
             domain={"x": [0, 1], "y": [0, 1]},
         )
     )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),
         height=140,
-        paper_bgcolor="rgba(0,0,0,0)",
+        **layout_template
     )
+    
     return fig
-
 
 def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     """Render compact live gauges in a single row with external titles."""
@@ -967,7 +1103,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
             kpis["current_speed_kmh"], 
             max(100, kpis["max_speed_kmh"] + 5), 
             "Speed", 
-            "#1f77b4", 
+            THEME_COLORS['primary'], 
             " km/h"
         )
         st.plotly_chart(speed_fig, use_container_width=True, key=f"{unique_ns}_gauge_speed")
@@ -981,7 +1117,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
             kpis["battery_percentage"], 
             100, 
             "Battery", 
-            "#2ca02c", 
+            THEME_COLORS['success'], 
             "%"
         )
         st.plotly_chart(battery_fig, use_container_width=True, key=f"{unique_ns}_gauge_battery")
@@ -995,7 +1131,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
             kpis["avg_power_w"], 
             max(1000, kpis["avg_power_w"] * 2), 
             "Power", 
-            "#ff7f0e", 
+            THEME_COLORS['warning'], 
             " W"
         )
         st.plotly_chart(power_fig, use_container_width=True, key=f"{unique_ns}_gauge_power")
@@ -1018,7 +1154,6 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     
     st.markdown('</div>', unsafe_allow_html=True)  # Close widget-grid
 
-
 def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show_gauges: bool = True):
     """Render KPI header with metrics + optional small gauges."""
     col1, col2, col3, col4 = st.columns(4)
@@ -1033,17 +1168,14 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
 
     with col3:
         st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.1f} V")
-        st.metric("🔌 Current", f"{kpis['avg_current_a']:.2f} A")    # ← Moved here
+        st.metric("🔌 Current", f"{kpis['avg_current_a']:.2f} A")
 
     with col4:
-        # Replace Data Points / Last Update with Avg Current & Avg Power
         st.metric("🔌 Avg Current", f"{kpis['avg_current_a']:.2f} A")
-        st.metric("💡 Avg Power",   f"{kpis['avg_power_w']:.1f} W")
+        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
 
     if show_gauges:
         render_live_gauges(kpis, unique_ns)
-        st.markdown('</div>', unsafe_allow_html=True)
-
 
 def render_overview_tab(kpis: Dict[str, float]):
     """Render overview tab with KPIs and gauges."""
@@ -1054,7 +1186,6 @@ def render_overview_tab(kpis: Dict[str, float]):
 
     # Show metrics and gauges
     render_kpi_header(kpis, unique_ns="overview", show_gauges=True)
-
 
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
@@ -1070,7 +1201,6 @@ def render_session_info(session_data: Dict[str, Any]):
     """,
         unsafe_allow_html=True,
     )
-
 
 def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
     """
@@ -1159,9 +1289,8 @@ def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
 
     st.session_state.data_quality_notifications = notifications
 
-
 def create_speed_chart(df: pd.DataFrame):
-    """Create speed chart."""
+    """Create speed chart with adaptive theming."""
     if df.empty or "speed_ms" not in df.columns:
         return go.Figure().add_annotation(
             text="No speed data available",
@@ -1170,6 +1299,7 @@ def create_speed_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     fig = px.line(
@@ -1178,22 +1308,21 @@ def create_speed_chart(df: pd.DataFrame):
         y="speed_ms",
         title="🚗 Vehicle Speed Over Time",
         labels={"speed_ms": "Speed (m/s)", "timestamp": "Time"},
-        color_discrete_sequence=["#1f77b4"],
+        color_discrete_sequence=[THEME_COLORS['primary']],
     )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
-        font=dict(size=12),
-        margin=dict(l=40, r=40, t=60, b=40),
         height=400,
+        margin=dict(l=40, r=40, t=60, b=40),
+        **layout_template
     )
 
     return fig
 
-
 def create_power_chart(df: pd.DataFrame):
-    """Create power chart."""
+    """Create power chart with adaptive theming."""
     if df.empty or not all(
         col in df.columns for col in ["voltage_v", "current_a", "power_w"]
     ):
@@ -1204,6 +1333,7 @@ def create_power_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     fig = make_subplots(
@@ -1218,7 +1348,7 @@ def create_power_chart(df: pd.DataFrame):
             x=df["timestamp"],
             y=df["voltage_v"],
             name="Voltage (V)",
-            line=dict(color="#2ca02c", width=2),
+            line=dict(color=THEME_COLORS['success'], width=2),
         ),
         row=1,
         col=1,
@@ -1229,7 +1359,7 @@ def create_power_chart(df: pd.DataFrame):
             x=df["timestamp"],
             y=df["current_a"],
             name="Current (A)",
-            line=dict(color="#d62728", width=2),
+            line=dict(color=THEME_COLORS['error'], width=2),
         ),
         row=1,
         col=1,
@@ -1240,24 +1370,24 @@ def create_power_chart(df: pd.DataFrame):
             x=df["timestamp"],
             y=df["power_w"],
             name="Power (W)",
-            line=dict(color="#ff7f0e", width=2),
+            line=dict(color=THEME_COLORS['warning'], width=2),
         ),
         row=2,
         col=1,
     )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
         height=500,
         title_text="⚡ Electrical System Performance",
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
+        **layout_template
     )
 
     return fig
 
-
 def create_imu_chart(df: pd.DataFrame):
-    """Create IMU chart."""
+    """Create IMU chart with adaptive theming."""
     if df.empty or not all(
         col in df.columns
         for col in [
@@ -1276,6 +1406,7 @@ def create_imu_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     fig = make_subplots(
@@ -1288,7 +1419,7 @@ def create_imu_chart(df: pd.DataFrame):
         vertical_spacing=0.25,
     )
 
-    colors_gyro = ["#e74c3c", "#2ecc71", "#3498db"]
+    colors_gyro = [THEME_COLORS['error'], THEME_COLORS['success'], THEME_COLORS['primary']]
     for i, axis in enumerate(["gyro_x", "gyro_y", "gyro_z"]):
         fig.add_trace(
             go.Scatter(
@@ -1301,7 +1432,7 @@ def create_imu_chart(df: pd.DataFrame):
             col=1,
         )
 
-    colors_accel = ["#f39c12", "#9b59b6", "#34495e"]
+    colors_accel = [THEME_COLORS['warning'], "#9b59b6", "#34495e"]
     for i, axis in enumerate(["accel_x", "accel_y", "accel_z"]):
         fig.add_trace(
             go.Scatter(
@@ -1314,24 +1445,18 @@ def create_imu_chart(df: pd.DataFrame):
             col=1,
         )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
         height=500,
-        title_text="⚡ Electrical System Performance",
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
-        legend=dict(
-            bgcolor="var(--card-bg)",
-            bordercolor="var(--border)",
-            borderwidth=1,
-            font=dict(color="var(--text)"),
-        ),
+        title_text="🎮 IMU Sensor Data Analysis",
+        **layout_template
     )
 
     return fig
 
-
 def create_imu_detail_chart(df: pd.DataFrame):
-    """Create detailed IMU chart."""
+    """Create detailed IMU chart with adaptive theming."""
     if df.empty or not all(
         col in df.columns
         for col in [
@@ -1350,6 +1475,7 @@ def create_imu_detail_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     fig = make_subplots(
@@ -1367,8 +1493,8 @@ def create_imu_detail_chart(df: pd.DataFrame):
         horizontal_spacing=0.1,
     )
 
-    gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
-    accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
+    gyro_colors = [THEME_COLORS['error'], THEME_COLORS['success'], THEME_COLORS['primary']]
+    accel_colors = [THEME_COLORS['warning'], "#9b59b6", "#34495e"]
 
     for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
         fig.add_trace(
@@ -1398,18 +1524,18 @@ def create_imu_detail_chart(df: pd.DataFrame):
             col=i + 1,
         )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
         height=600,
         title_text="🎮 Detailed IMU Sensor Analysis",
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
+        **layout_template
     )
 
     return fig
 
-
 def create_efficiency_chart(df: pd.DataFrame):
-    """Create efficiency chart."""
+    """Create efficiency chart with adaptive theming."""
     if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
         return go.Figure().add_annotation(
             text="No efficiency data available",
@@ -1418,6 +1544,7 @@ def create_efficiency_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     fig = px.scatter(
@@ -1430,17 +1557,17 @@ def create_efficiency_chart(df: pd.DataFrame):
         color_continuous_scale="viridis",
     )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
         height=400,
+        **layout_template
     )
 
     return fig
 
-
 def create_gps_map_with_altitude(df: pd.DataFrame):
-    """Create GPS map with altitude chart, filtering invalid points."""
+    """Create GPS map with altitude chart and adaptive theming."""
     if df.empty or not all(
         col in df.columns for col in ["latitude", "longitude"]
     ):
@@ -1451,6 +1578,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     # Filter out points where GPS coordinates are (0, 0)
@@ -1472,6 +1600,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     # Create subplot with map on left and altitude on right
@@ -1487,7 +1616,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
     )
 
-    # If you use mapbox, ensure token is set in env; this uses scattermap
+    # Add map trace
     fig.add_trace(
         go.Scattermap(
             lat=df_valid["latitude"],
@@ -1495,12 +1624,12 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             mode="markers+lines",
             marker=go.scattermap.Marker(
                 size=8,
-                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
+                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else THEME_COLORS['primary'],
                 colorscale="plasma",
                 showscale=True,
                 colorbar=dict(title="Speed (m/s)", x=0.65),
             ),
-            line=dict(width=2, color="#1f77b4"),
+            line=dict(width=2, color=THEME_COLORS['primary']),
             hovertemplate="Lat: %{lat}<br>Lon: %{lon}<extra></extra>",
             name="Track",
         ),
@@ -1508,7 +1637,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Altitude
+    # Altitude data
     if "altitude" in df.columns:
         altitude_data = df.dropna(subset=["altitude"])
         initial_alt_rows = len(altitude_data)
@@ -1526,7 +1655,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                     x=altitude_data["timestamp"],
                     y=altitude_data["altitude"],
                     mode="lines",
-                    line=dict(color="#2ca02c", width=2),
+                    line=dict(color=THEME_COLORS['success'], width=2),
                     name="Altitude",
                     hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>",
                 ),
@@ -1542,6 +1671,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                     text=["No valid altitude data"],
                     textposition="middle center",
                     showlegend=False,
+                    textfont=dict(color=THEME_COLORS['text']),
                 ),
                 row=1,
                 col=2,
@@ -1555,24 +1685,28 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 text=["No altitude data available"],
                 textposition="middle center",
                 showlegend=False,
+                textfont=dict(color=THEME_COLORS['text']),
             ),
             row=1,
             col=2,
         )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
+    
     fig.update_layout(
         title_text="🛰️ GPS Tracking and Altitude Analysis",
         height=500,
         showlegend=False,
-        map_style="open-street-map",           # was mapbox_style
-        map=dict(center=center_point, zoom=14)  # was mapbox=dict(...)
+        map_style="open-street-map",
+        map=dict(center=center_point, zoom=14),
+        **layout_template
     )
 
-    fig.update_xaxes(title_text="Time", row=1, col=2)
-    fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
+    fig.update_xaxes(title_text="Time", row=1, col=2, color=THEME_COLORS['text'])
+    fig.update_yaxes(title_text="Altitude (m)", row=1, col=2, color=THEME_COLORS['text'])
 
     return fig
-
 
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
@@ -1584,9 +1718,8 @@ def get_available_columns(df: pd.DataFrame) -> List[str]:
 
     return [col for col in numeric_columns if col not in exclude_cols]
 
-
 def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
-    """Create dynamic chart based on configuration."""
+    """Create dynamic chart based on configuration with adaptive theming."""
     if df.empty:
         return go.Figure().add_annotation(
             text="No data available",
@@ -1595,6 +1728,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5,
             y=0.5,
             showarrow=False,
+            font=dict(color=THEME_COLORS['text'])
         )
 
     x_col = chart_config.get("x_axis")
@@ -1620,6 +1754,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
+                font=dict(color=THEME_COLORS['text'])
             )
     else:
         if not y_col or y_col not in df.columns:
@@ -1630,6 +1765,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
+                font=dict(color=THEME_COLORS['text'])
             )
 
         if x_col not in df.columns:
@@ -1640,6 +1776,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
+                font=dict(color=THEME_COLORS['text'])
             )
 
         try:
@@ -1649,7 +1786,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                     x=x_col,
                     y=y_col,
                     title=title,
-                    color_discrete_sequence=["#1f77b4"],
+                    color_discrete_sequence=[THEME_COLORS['primary']],
                 )
             elif chart_type == "scatter":
                 fig = px.scatter(
@@ -1657,7 +1794,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                     x=x_col,
                     y=y_col,
                     title=title,
-                    color_discrete_sequence=["#ff7f0e"],
+                    color_discrete_sequence=[THEME_COLORS['warning']],
                 )
             elif chart_type == "bar":
                 recent_df = df.tail(20)
@@ -1669,20 +1806,21 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                         x=0.5,
                         y=0.5,
                         showarrow=False,
+                        font=dict(color=THEME_COLORS['text'])
                     )
                 fig = px.bar(
                     recent_df,
                     x=x_col,
                     y=y_col,
                     title=title,
-                    color_discrete_sequence=["#2ca02c"],
+                    color_discrete_sequence=[THEME_COLORS['success']],
                 )
             elif chart_type == "histogram":
                 fig = px.histogram(
                     df,
                     x=y_col,
                     title=f"Distribution of {y_col}",
-                    color_discrete_sequence=["#d62728"],
+                    color_discrete_sequence=[THEME_COLORS['error']],
                 )
             else:
                 fig = px.line(
@@ -1690,7 +1828,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                     x=x_col,
                     y=y_col,
                     title=title,
-                    color_discrete_sequence=["#1f77b4"],
+                    color_discrete_sequence=[THEME_COLORS['primary']],
                 )
         except Exception as e:
             return go.Figure().add_annotation(
@@ -1700,16 +1838,17 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
+                font=dict(color=THEME_COLORS['text'])
             )
 
+    # Apply adaptive layout
+    layout_template = create_adaptive_layout_template()
     fig.update_layout(
         height=400,
-        plot_bgcolor="rgb(0,0,0,0)",
-        paper_bgcolor="rgb(0,0,0,0)",
+        **layout_template
     )
 
     return fig
-
 
 def render_dynamic_charts_section(df: pd.DataFrame):
     """Render dynamic charts section with persistent chart info."""
@@ -1943,7 +2082,6 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 
             except Exception as e:
                 st.error(f"Error rendering chart configuration: {e}")
-
 
 def main():
     """Main dashboard function."""
@@ -2267,6 +2405,8 @@ def main():
                     ),
                     "Max Datapoints Per Session": MAX_DATAPOINTS_PER_SESSION,
                     "Max Rows Per Request": SUPABASE_MAX_ROWS_PER_REQUEST,
+                    "Current Theme": CURRENT_THEME,
+                    "Dark Mode": IS_DARK_MODE,
                 }
 
                 if st.session_state.telemetry_manager:
@@ -2345,7 +2485,7 @@ def main():
     # Calculate KPIs
     kpis = calculate_kpis(df)
 
-    # Tabs for different visualizations - THIS IS THE ONLY PLACE TABS SHOULD BE RENDERED
+    # Tabs for different visualizations
     st.subheader("📈 Dashboard")
 
     tab_names = [
@@ -2393,7 +2533,7 @@ def main():
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[4]:
-        render_live_gauges(kpis, unique_ns="imutdetailtab")
+        render_live_gauges(kpis, unique_ns="imudetailtab")
         render_kpi_header(kpis, unique_ns="imudetailtab", show_gauges=False)
         fig = create_imu_detail_chart(df)
         if fig:
@@ -2522,8 +2662,9 @@ def main():
     # Footer
     st.divider()
     st.markdown(
-        "<div style='text-align: center; opacity: 0.8; padding: 1rem;'>"
-        "<p>Shell Eco-marathon Telemetry Dashboard</p>"
+        f"<div style='text-align: center; opacity: 0.7; padding: 1.5rem; color: {THEME_COLORS['text_secondary']};'>"
+        "<p>Shell Eco-marathon Telemetry Dashboard • Enhanced with Adaptive Theming</p>"
+        f"<p style='font-size: 0.8rem;'>Theme: {CURRENT_THEME.title()} Mode</p>"
         "</div>",
         unsafe_allow_html=True,
     )
