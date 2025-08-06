@@ -20,6 +20,7 @@ import math
 
 try:
     from streamlit_autorefresh import st_autorefresh
+
     AUTOREFRESH_AVAILABLE = True
 except ImportError:
     AUTOREFRESH_AVAILABLE = False
@@ -27,6 +28,7 @@ except ImportError:
 # Handles imports with error checking
 try:
     from ably import AblyRealtime, AblyRest
+
     ABLY_AVAILABLE = True
 except ImportError:
     ABLY_AVAILABLE = False
@@ -35,6 +37,7 @@ except ImportError:
 
 try:
     from supabase import create_client, Client
+
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -74,69 +77,69 @@ st.set_page_config(
     },
 )
 
+
 # -------------------------------------------------------
-# Merged CSS: Adaptive Engine + Modern UI with Gradient Borders
+# Theme-Aware CSS with Merged UI Styles
 # -------------------------------------------------------
 def get_theme_aware_css():
     """
     Generate theme-aware CSS that adapts to Streamlit's light/dark mode,
-    incorporating the requested UI style with lighter greys and gradient borders.
+    incorporating the modern UI from the second script.
     """
     return """
 <style>
 /* Enable native light/dark form controls and colors */
 :root { 
     color-scheme: light dark; 
+    --primary: #1f77b4;
 }
 
-/* Modern adaptive color system with lighter greys */
+/* Modern adaptive color system based on the new UI */
 :root {
-  --primary: #1f77b4;
-  --primary-alpha-10: color-mix(in oklab, var(--primary) 10%, transparent);
-  --primary-alpha-20: color-mix(in oklab, var(--primary) 20%, transparent);
-  
-  /* Base adaptive colors */
+  /* Base colors from browser theme */
   --bg: Canvas;
   --text: CanvasText;
   --text-secondary: color-mix(in oklab, CanvasText 70%, Canvas);
   --text-muted: color-mix(in oklab, CanvasText 50%, Canvas);
   
-  /* Lighter adaptive borders */
+  /* Borders - using a lighter grey as requested */
   --border: color-mix(in oklab, CanvasText 12%, Canvas);
-  --border-strong: color-mix(in oklab, CanvasText 20%, Canvas);
   
-  /* Adaptive surface colors */
-  --card-bg: color-mix(in oklab, Canvas 92%, CanvasText);
-  --card-bg-hover: color-mix(in oklab, Canvas 88%, CanvasText);
-  
-  /* Shadows that adapt to theme */
-  --shadow: 0 10px 30px color-mix(in oklab, CanvasText 8%, transparent);
+  /* Card/Surface backgrounds with blur */
+  --card-bg: color-mix(in oklab, Canvas 92%, transparent);
+  --card-border: color-mix(in oklab, CanvasText 15%, transparent);
+
+  /* Soft shadows */
+  --shadow: 0 8px 24px rgb(0,0,0,0.12);
+  --shadow-strong: 0 10px 30px rgb(0,0,0,0.15);
 }
 
 /* Dark theme specific adjustments */
 @media (prefers-color-scheme: dark) {
   :root {
     --border: color-mix(in oklab, CanvasText 20%, Canvas);
-    --border-strong: color-mix(in oklab, CanvasText 30%, Canvas);
-    --card-bg: color-mix(in oklab, Canvas 80%, CanvasText);
-    --card-bg-hover: color-mix(in oklab, Canvas 75%, CanvasText);
+    --card-bg: color-mix(in oklab, Canvas 85%, transparent);
+    --card-border: color-mix(in oklab, CanvasText 25%, transparent);
+    --shadow: 0 8px 24px rgb(0,0,0,0.25);
+    --shadow-strong: 0 10px 30px rgb(0,0,0,0.3);
   }
 }
 
-/* App background with bottom radial gradient */
+/* App background with bottom-centered transparent radial gradient */
 [data-testid="stAppViewContainer"] {
   background:
     radial-gradient(ellipse 75% 50% at 50% 100%,
-      var(--primary-alpha-10) 0%,
+      color-mix(in oklab, var(--primary) 12%, transparent) 0%,
       transparent 60%) no-repeat,
     var(--bg);
   background-attachment: fixed;
 }
 
-/* Transparent header with subtle blur */
+/* Transparent header with a subtle blur */
 [data-testid="stHeader"] {
-  background-color: rgba(0,0,0,0);
-  backdrop-filter: saturate(100%) blur(4px);
+  background-color: color-mix(in oklab, var(--bg) 70%, transparent);
+  backdrop-filter: saturate(100%) blur(8px);
+  border-bottom: 1px solid var(--border);
 }
 
 /* Global text color */
@@ -144,7 +147,7 @@ html, body, [data-testid="stAppViewContainer"] {
   color: var(--text);
 }
 
-/* Main header styling */
+/* Main header style */
 .main-header {
     font-size: 2.2rem;
     color: var(--primary);
@@ -166,61 +169,68 @@ html, body, [data-testid="stAppViewContainer"] {
     border: 1px solid var(--border);
     background: var(--card-bg); 
     box-shadow: var(--shadow);
+    backdrop-filter: blur(6px) saturate(110%);
 }
 
-/* Cards with soft gradient border */
-.card, .chart-wrap, .historical-notice, .pagination-info, [data-testid="stExpander"] {
+/* Cards with soft borders and shadows */
+.card {
   background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 18px;
   padding: 1.25rem;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(6px) saturate(110%);
-  
-  /* Gradient Border Implementation */
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  position: relative;
+  backdrop-filter: blur(8px) saturate(110%);
+  transition: all 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-strong);
+  border-color: color-mix(in oklab, var(--primary) 50%, transparent);
 }
 
-.card::before, .chart-wrap::before, .historical-notice::before, .pagination-info::before, [data-testid="stExpander"]::before {
-  content: '';
-  position: absolute;
-  top: 0; right: 0; bottom: 0; left: 0;
-  z-index: -1;
-  margin: -2px; /* Same as border-width */
-  border-radius: inherit; /* Inherit the border-radius */
-  background: linear-gradient(135deg, var(--primary-alpha-20), var(--border));
-}
-
-.card:hover, .chart-wrap:hover {
-  background: var(--card-bg-hover);
-}
-
-/* Session info card specific styling */
+/* Session info card */
 .session-info h3 {
   color: var(--primary); 
-  margin-bottom: 0.8rem; 
-  font-size: 1.3rem;
-  font-weight: 700;
+  margin-bottom: 0.6rem; 
+  font-size: 1.2rem;
 }
 .session-info p { 
-  margin: 0.3rem 0; 
+  margin: 0.2rem 0; 
   color: var(--text-secondary);
-  font-weight: 500;
 }
 
-/* Gauge containers */
+/* Notices */
+.historical-notice, .pagination-info {
+  border-radius: 14px; 
+  padding: 0.9rem 1rem; 
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
+}
+
+/* Widget grid for gauges */
 .widget-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr); /* Updated for 6 gauges */
+  grid-template-columns: repeat(4, 1fr); 
   gap: 1rem;
   margin-top: 1rem;
 }
 
+/* Individual gauge container */
 .gauge-container {
   text-align: center;
+  padding: 0.75rem;
+  background: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(6px);
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow);
 }
-
+.gauge-container:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-strong);
+}
 .gauge-title {
   font-size: 0.85rem;
   font-weight: 600;
@@ -229,12 +239,17 @@ html, body, [data-testid="stAppViewContainer"] {
   opacity: 0.9;
 }
 
-/* Chart containers (already styled by .chart-wrap) */
+/* Chart wrappers */
 .chart-wrap {
-  padding: 0.75rem;
+  border-radius: 16px; 
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  padding: 0.5rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
 }
 
-/* Button styling from code_2 */
+/* Buttons */
 .stButton > button {
   border-radius: 12px !important;
   border: 1px solid var(--primary) !important;
@@ -243,91 +258,99 @@ html, body, [data-testid="stAppViewContainer"] {
   font-weight: 700 !important;
   transition: all 0.2s ease !important;
 }
-
 .stButton > button:hover {
   background: transparent !important;
   color: var(--primary) !important;
+  transform: translateY(-1px);
 }
 
-/* Tab styling */
+/* Tabs - modified to remove the box on selection */
 .stTabs [data-baseweb="tab-list"] {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  gap: 8px;
 }
 .stTabs [data-baseweb="tab"] {
-  border-radius: 12px;
+  padding: 10px 16px;
+  border-radius: 8px 8px 0 0 !important;
+  background-color: transparent !important;
+  color: var(--text-secondary);
+  font-weight: 600;
   transition: all 0.3s ease;
+  border: none !important;
+  border-bottom: 2px solid transparent;
 }
 .stTabs [data-baseweb="tab"]:hover {
-  background: var(--card-bg-hover);
+  background-color: color-mix(in oklab, var(--border) 50%, transparent) !important;
+  color: var(--text);
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
-  background: var(--primary);
-  color: white;
+  color: var(--primary) !important;
+  border-bottom: 2px solid var(--primary) !important;
 }
 
-/* Dynamic chart type cards */
+/* Dynamic chart cards */
 .chart-type-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
 }
-
 .chart-type-card {
   background: var(--card-bg);
-  border-radius: 18px;
-  padding: 1.25rem;
+  border-radius: 16px;
+  padding: 1rem;
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  transition: all 0.3s ease;
-  border: 1px solid var(--border); /* Simpler border for these */
-}
-.chart-type-card:hover {
-  background: var(--card-bg-hover);
-  transform: translateY(-4px);
 }
 .chart-type-name {
   font-weight: 800; 
   color: var(--primary);
-  font-size: 1.1rem;
 }
 .chart-type-desc {
-  color: var(--text-secondary);
-  line-height: 1.5;
+  opacity: 0.8;
 }
 
-/* Dataframe styling */
-[data-testid="stDataFrame"] {
+/* Dataframes and other elements */
+[data-testid="stDataFrame"], [data-testid="stExpander"] {
   border-radius: 16px; 
   border: 1px solid var(--border);
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
 }
 
-/* Metric styling */
-[data-testid="stMetricValue"] {
-  font-weight: 700 !important;
-}
-[data-testid="stMetricLabel"] {
-  color: var(--text-secondary) !important;
+/* Make Plotly charts transparent */
+.js-plotly-plot .plotly, .js-plotly-plot .plotly-graph-div {
+    background: transparent !important;
 }
 
-/* Responsive design */
-@media (max-width: 992px) {
-  .widget-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-@media (max-width: 768px) {
-  .widget-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .main-header {
-    font-size: 2rem;
-  }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
 }
 
+/* Focus visible improvements */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 </style>
 """
 
+
 # Apply the enhanced theme-aware CSS
 st.markdown(get_theme_aware_css(), unsafe_allow_html=True)
+
 
 # Logger setup
 def setup_terminal_logging():
@@ -343,7 +366,9 @@ def setup_terminal_logging():
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
+
 setup_terminal_logging()
+
 
 class EnhancedTelemetryManager:
     """Telemetry manager with multi-source data integration and pagination support."""
@@ -838,44 +863,58 @@ def calculate_roll_and_pitch(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate Roll and Pitch from accelerometer data using the provided formulas."""
     if df.empty:
         return df
-    
+
     df_calc = df.copy()
-    
+
     # Check if we have the required accelerometer columns
-    accel_cols = ['accel_x', 'accel_y', 'accel_z']
+    accel_cols = ["accel_x", "accel_y", "accel_z"]
     if not all(col in df_calc.columns for col in accel_cols):
         return df_calc
-    
+
     try:
         # Convert to numeric and handle any non-numeric values
         for col in accel_cols:
-            df_calc[col] = pd.to_numeric(df_calc[col], errors='coerce')
-        
+            df_calc[col] = pd.to_numeric(df_calc[col], errors="coerce")
+
         # Calculate Roll (γ) = arctan(ay / sqrt(ax² + az²))
-        denominator_roll = np.sqrt(df_calc['accel_x']**2 + df_calc['accel_z']**2)
+        denominator_roll = np.sqrt(
+            df_calc["accel_x"] ** 2 + df_calc["accel_z"] ** 2
+        )
         # Avoid division by zero
-        denominator_roll = np.where(denominator_roll == 0, 1e-10, denominator_roll)
-        df_calc['roll_rad'] = np.arctan2(df_calc['accel_y'], denominator_roll)
-        df_calc['roll_deg'] = np.degrees(df_calc['roll_rad'])
-        
+        denominator_roll = np.where(
+            denominator_roll == 0, 1e-10, denominator_roll
+        )
+        df_calc["roll_rad"] = np.arctan2(
+            df_calc["accel_y"], denominator_roll
+        )
+        df_calc["roll_deg"] = np.degrees(df_calc["roll_rad"])
+
         # Calculate Pitch (β) = arctan(ax / sqrt(ay² + az²))
-        denominator_pitch = np.sqrt(df_calc['accel_y']**2 + df_calc['accel_z']**2)
+        denominator_pitch = np.sqrt(
+            df_calc["accel_y"] ** 2 + df_calc["accel_z"] ** 2
+        )
         # Avoid division by zero
-        denominator_pitch = np.where(denominator_pitch == 0, 1e-10, denominator_pitch)
-        df_calc['pitch_rad'] = np.arctan2(df_calc['accel_x'], denominator_pitch)
-        df_calc['pitch_deg'] = np.degrees(df_calc['pitch_rad'])
-        
+        denominator_pitch = np.where(
+            denominator_pitch == 0, 1e-10, denominator_pitch
+        )
+        df_calc["pitch_rad"] = np.arctan2(
+            df_calc["accel_x"], denominator_pitch
+        )
+        df_calc["pitch_deg"] = np.degrees(df_calc["pitch_rad"])
+
         # Replace any infinite or NaN values with 0
-        df_calc[['roll_rad', 'roll_deg', 'pitch_rad', 'pitch_deg']] = df_calc[['roll_rad', 'roll_deg', 'pitch_rad', 'pitch_deg']].replace([np.inf, -np.inf, np.nan], 0)
-        
+        df_calc[["roll_rad", "roll_deg", "pitch_rad", "pitch_deg"]] = df_calc[
+            ["roll_rad", "roll_deg", "pitch_rad", "pitch_deg"]
+        ].replace([np.inf, -np.inf, np.nan], 0)
+
     except Exception as e:
         st.warning(f"⚠️ Error calculating Roll and Pitch: {e}")
         # Add zero columns if calculation fails
-        df_calc['roll_rad'] = 0.0
-        df_calc['roll_deg'] = 0.0
-        df_calc['pitch_rad'] = 0.0
-        df_calc['pitch_deg'] = 0.0
-    
+        df_calc["roll_rad"] = 0.0
+        df_calc["roll_deg"] = 0.0
+        df_calc["pitch_rad"] = 0.0
+        df_calc["pitch_deg"] = 0.0
+
     return df_calc
 
 
@@ -907,7 +946,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
     try:
         # Calculate Roll and Pitch first
         df = calculate_roll_and_pitch(df)
-        
+
         numeric_cols = [
             "energy_j",
             "speed_ms",
@@ -987,7 +1026,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
                             * 100,
                         ),
                     )
-        
+
         # Current
         if "current_a" in df.columns:
             curr_data = df["current_a"].dropna()
@@ -1000,7 +1039,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
             if not roll_data.empty:
                 kpis["current_roll_deg"] = roll_data.iloc[-1]
                 kpis["max_roll_deg"] = roll_data.abs().max()
-        
+
         if "pitch_deg" in df.columns:
             pitch_data = df["pitch_deg"].dropna()
             if not pitch_data.empty:
@@ -1067,10 +1106,10 @@ def create_small_gauge(
     mode = "gauge+number" + ("+delta" if avg_ref is not None else "")
     delta_cfg = (
         {
-            "reference": avg_ref, 
-            "position": "top", 
+            "reference": avg_ref,
+            "position": "top",
             "increasing": {"color": color},
-            "font": {"size": 12}
+            "font": {"size": 12},
         }
         if avg_ref is not None
         else None
@@ -1081,8 +1120,8 @@ def create_small_gauge(
             mode=mode,
             value=value,
             number={
-                "suffix": suffix, 
-                "font": {"size": 18, "color": "var(--text)"}
+                "suffix": suffix,
+                "font": {"size": 18, "color": "var(--text)"},
             },
             delta=delta_cfg,
             gauge=gauge,
@@ -1095,7 +1134,7 @@ def create_small_gauge(
         height=140,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": "var(--text)"}
+        font={"color": "var(--text)"},
     )
     return fig
 
@@ -1103,103 +1142,139 @@ def create_small_gauge(
 def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     """Render compact live gauges in a single row with external titles and Roll/Pitch."""
     st.markdown("##### 📊 Live Performance Gauges")
-    
-    st.markdown('<div class="widget-grid">', unsafe_allow_html=True)
-    
+
+    # Create the gauge grid - now with 6 columns for Roll and Pitch
+    st.markdown(
+        '<div class="widget-grid" style="grid-template-columns: repeat(6, 1fr);">',
+        unsafe_allow_html=True,
+    )
+
     # Create 6 columns for the gauges
     cols = st.columns(6)
-    
+
     # Gauge 1: Current Speed
     with cols[0]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">🚀 Speed (km/h)</div>', unsafe_allow_html=True)
-        speed_fig = create_small_gauge(
-            kpis["current_speed_kmh"], 
-            max(100, kpis["max_speed_kmh"] + 5), 
-            "Speed", 
-            "#1f77b4", 
-            " km/h"
+        st.markdown(
+            '<div class="gauge-title">🚀 Speed (km/h)</div>',
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(speed_fig, use_container_width=True, key=f"{unique_ns}_gauge_speed")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+        speed_fig = create_small_gauge(
+            kpis["current_speed_kmh"],
+            max(100, kpis["max_speed_kmh"] + 5),
+            "Speed",
+            "#1f77b4",
+            " km/h",
+        )
+        st.plotly_chart(
+            speed_fig, use_container_width=True, key=f"{unique_ns}_gauge_speed"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     # Gauge 2: Battery Percentage
     with cols[1]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">🔋 Battery (%)</div>', unsafe_allow_html=True)
-        battery_fig = create_small_gauge(
-            kpis["battery_percentage"], 
-            100, 
-            "Battery", 
-            "#2ca02c", 
-            "%"
+        st.markdown(
+            '<div class="gauge-title">🔋 Battery (%)</div>',
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(battery_fig, use_container_width=True, key=f"{unique_ns}_gauge_battery")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+        battery_fig = create_small_gauge(
+            kpis["battery_percentage"], 100, "Battery", "#2ca02c", "%"
+        )
+        st.plotly_chart(
+            battery_fig,
+            use_container_width=True,
+            key=f"{unique_ns}_gauge_battery",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     # Gauge 3: Average Power
     with cols[2]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">💡 Power (W)</div>', unsafe_allow_html=True)
-        power_fig = create_small_gauge(
-            kpis["avg_power_w"], 
-            max(1000, kpis["avg_power_w"] * 2), 
-            "Power", 
-            "#ff7f0e", 
-            " W"
+        st.markdown(
+            '<div class="gauge-title">💡 Power (W)</div>',
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(power_fig, use_container_width=True, key=f"{unique_ns}_gauge_power")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+        power_fig = create_small_gauge(
+            kpis["avg_power_w"],
+            max(1000, kpis["avg_power_w"] * 2),
+            "Power",
+            "#ff7f0e",
+            " W",
+        )
+        st.plotly_chart(
+            power_fig, use_container_width=True, key=f"{unique_ns}_gauge_power"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     # Gauge 4: Efficiency
     with cols[3]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">♻️ Efficiency (km/kWh)</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="gauge-title">♻️ Efficiency (km/kWh)</div>',
+            unsafe_allow_html=True,
+        )
         eff_val = kpis["efficiency_km_per_kwh"]
         eff_fig = create_small_gauge(
-            eff_val, 
-            max(100, eff_val * 1.5) if eff_val > 0 else 100, 
-            "Efficiency", 
-            "#6a51a3", 
-            ""
+            eff_val,
+            max(100, eff_val * 1.5) if eff_val > 0 else 100,
+            "Efficiency",
+            "#6a51a3",
+            "",
         )
-        st.plotly_chart(eff_fig, use_container_width=True, key=f"{unique_ns}_gauge_efficiency")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+        st.plotly_chart(
+            eff_fig,
+            use_container_width=True,
+            key=f"{unique_ns}_gauge_efficiency",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     # Gauge 5: Roll
     with cols[4]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">🔄 Roll (°)</div>', unsafe_allow_html=True)
-        roll_max = max(45, abs(kpis["current_roll_deg"]) + 10) if kpis["current_roll_deg"] != 0 else 45
-        roll_fig = create_small_gauge(
-            kpis["current_roll_deg"], 
-            roll_max, 
-            "Roll", 
-            "#e377c2", 
-            "°"
+        st.markdown(
+            '<div class="gauge-title">🔄 Roll (°)</div>', unsafe_allow_html=True
         )
-        st.plotly_chart(roll_fig, use_container_width=True, key=f"{unique_ns}_gauge_roll")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+        roll_max = (
+            max(45, abs(kpis["current_roll_deg"]) + 10)
+            if kpis["current_roll_deg"] != 0
+            else 45
+        )
+        roll_fig = create_small_gauge(
+            kpis["current_roll_deg"], roll_max, "Roll", "#e377c2", "°"
+        )
+        st.plotly_chart(
+            roll_fig, use_container_width=True, key=f"{unique_ns}_gauge_roll"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
     # Gauge 6: Pitch
     with cols[5]:
         st.markdown('<div class="gauge-container">', unsafe_allow_html=True)
-        st.markdown('<div class="gauge-title">📐 Pitch (°)</div>', unsafe_allow_html=True)
-        pitch_max = max(45, abs(kpis["current_pitch_deg"]) + 10) if kpis["current_pitch_deg"] != 0 else 45
-        pitch_fig = create_small_gauge(
-            kpis["current_pitch_deg"], 
-            pitch_max, 
-            "Pitch", 
-            "#17becf", 
-            "°"
+        st.markdown(
+            '<div class="gauge-title">📐 Pitch (°)</div>', unsafe_allow_html=True
         )
-        st.plotly_chart(pitch_fig, use_container_width=True, key=f"{unique_ns}_gauge_pitch")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Close widget-grid
+        pitch_max = (
+            max(45, abs(kpis["current_pitch_deg"]) + 10)
+            if kpis["current_pitch_deg"] != 0
+            else 45
+        )
+        pitch_fig = create_small_gauge(
+            kpis["current_pitch_deg"], pitch_max, "Pitch", "#17becf", "°"
+        )
+        st.plotly_chart(
+            pitch_fig, use_container_width=True, key=f"{unique_ns}_gauge_pitch"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)  # Close widget-grid
 
 
-def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show_gauges: bool = True):
+def render_kpi_header(
+    kpis: Dict[str, float],
+    unique_ns: str = "kpiheader",
+    show_gauges: bool = True,
+):
     """Render KPI header with metrics + optional small gauges including Roll/Pitch."""
     col1, col2, col3, col4 = st.columns(4)
 
@@ -1242,7 +1317,7 @@ def render_session_info(session_data: Dict[str, Any]):
         <h3>📊 Session Information</h3>
         <p>📋 <strong>Session:</strong> {session_data['session_id'][:8]}...</p>
         <p>📅 <strong>Start:</strong> {session_data['start_time'].strftime('%Y-%m-%d %H:%M:%S')}</p>
-        <p>⏱️ <strong>Duration:</strong> {session_data['duration']}</p>
+        <p>⏱️ <strong>Duration:</strong> {str(session_data['duration']).split('.')[0]}</p>
         <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
     </div>
     """,
@@ -1348,7 +1423,7 @@ def create_speed_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     fig = px.line(
@@ -1368,13 +1443,11 @@ def create_speed_chart(df: pd.DataFrame):
         margin=dict(l=40, r=40, t=60, b=40),
         height=400,
         xaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
+            gridcolor="var(--border)", color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
-        )
+            gridcolor="var(--border)", color="var(--text-secondary)"
+        ),
     )
 
     return fig
@@ -1392,7 +1465,7 @@ def create_power_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     fig = make_subplots(
@@ -1445,8 +1518,12 @@ def create_power_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_xaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
+    fig.update_yaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
 
     return fig
 
@@ -1471,7 +1548,7 @@ def create_imu_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     # Calculate Roll and Pitch
@@ -1483,7 +1560,7 @@ def create_imu_chart(df: pd.DataFrame):
         subplot_titles=(
             "🎯 Gyroscope Data (deg/s)",
             "📈 Accelerometer Data (m/s²)",
-            "🎭 Roll & Pitch (degrees)"
+            "🎭 Roll & Pitch (degrees)",
         ),
         vertical_spacing=0.15,
     )
@@ -1553,8 +1630,12 @@ def create_imu_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_xaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
+    fig.update_yaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
 
     return fig
 
@@ -1579,7 +1660,7 @@ def create_imu_detail_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     # Calculate Roll and Pitch
@@ -1597,7 +1678,7 @@ def create_imu_detail_chart(df: pd.DataFrame):
             "📊 Accel Z",
             "🔄 Roll (°)",
             "📐 Pitch (°)",
-            "🎯 R&P Combined"
+            "🎯 R&P Combined",
         ),
         vertical_spacing=0.12,
         horizontal_spacing=0.08,
@@ -1606,7 +1687,9 @@ def create_imu_detail_chart(df: pd.DataFrame):
     gyro_colors = ["#e74c3c", "#2ecc71", "#3498db"]
     accel_colors = ["#f39c12", "#9b59b6", "#34495e"]
 
-    for i, (axis, color) in enumerate(zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)):
+    for i, (axis, color) in enumerate(
+        zip(["gyro_x", "gyro_y", "gyro_z"], gyro_colors)
+    ):
         fig.add_trace(
             go.Scatter(
                 x=df["timestamp"],
@@ -1695,15 +1778,21 @@ def create_imu_detail_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_xaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
+    fig.update_yaxes(
+        gridcolor="var(--border)", color="var(--text-secondary)"
+    )
 
     return fig
 
 
 def create_efficiency_chart(df: pd.DataFrame):
     """Create theme-aware efficiency chart."""
-    if df.empty or not all(col in df.columns for col in ["speed_ms", "power_w"]):
+    if df.empty or not all(
+        col in df.columns for col in ["speed_ms", "power_w"]
+    ):
         return go.Figure().add_annotation(
             text="No efficiency data available",
             xref="paper",
@@ -1711,7 +1800,7 @@ def create_efficiency_chart(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     fig = px.scatter(
@@ -1731,13 +1820,11 @@ def create_efficiency_chart(df: pd.DataFrame):
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
         xaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
+            gridcolor="var(--border)", color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
-        )
+            gridcolor="var(--border)", color="var(--text-secondary)"
+        ),
     )
 
     return fig
@@ -1755,7 +1842,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     # Filter out points where GPS coordinates are (0, 0)
@@ -1777,7 +1864,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     # Create subplot with map on left and altitude on right
@@ -1800,7 +1887,11 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             mode="markers+lines",
             marker=go.scattermap.Marker(
                 size=8,
-                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
+                color=(
+                    df_valid["speed_ms"]
+                    if "speed_ms" in df_valid.columns
+                    else "#1f77b4"
+                ),
                 colorscale="plasma",
                 showscale=True,
                 colorbar=dict(title="Speed (m/s)", x=0.65),
@@ -1847,7 +1938,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                     text=["No valid altitude data"],
                     textposition="middle center",
                     showlegend=False,
-                    textfont={"color": "var(--text-muted)"}
+                    textfont={"color": "var(--text-muted)"},
                 ),
                 row=1,
                 col=2,
@@ -1861,7 +1952,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 text=["No altitude data available"],
                 textposition="middle center",
                 showlegend=False,
-                textfont={"color": "var(--text-muted)"}
+                textfont={"color": "var(--text-muted)"},
             ),
             row=1,
             col=2,
@@ -1875,13 +1966,23 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         map=dict(center=center_point, zoom=14),
         paper_bgcolor="rgba(0,0,0,0)",
         font={"color": "var(--text)"},
-        title_font={"color": "var(--text)"}
+        title_font={"color": "var(--text)"},
     )
 
-    fig.update_xaxes(title_text="Time", row=1, col=2, 
-                     gridcolor="var(--border)", color="var(--text-secondary)")
-    fig.update_yaxes(title_text="Altitude (m)", row=1, col=2,
-                     gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_xaxes(
+        title_text="Time",
+        row=1,
+        col=2,
+        gridcolor="var(--border)",
+        color="var(--text-secondary)",
+    )
+    fig.update_yaxes(
+        title_text="Altitude (m)",
+        row=1,
+        col=2,
+        gridcolor="var(--border)",
+        color="var(--text-secondary)",
+    )
 
     return fig
 
@@ -1907,7 +2008,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
     x_col = chart_config.get("x_axis")
@@ -1933,7 +2034,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
-                font={"color": "var(--text-muted)"}
+                font={"color": "var(--text-muted)"},
             )
     else:
         if not y_col or y_col not in df.columns:
@@ -1944,7 +2045,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
-                font={"color": "var(--text-muted)"}
+                font={"color": "var(--text-muted)"},
             )
 
         if x_col not in df.columns:
@@ -1955,7 +2056,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
-                font={"color": "var(--text-muted)"}
+                font={"color": "var(--text-muted)"},
             )
 
         try:
@@ -1985,7 +2086,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                         x=0.5,
                         y=0.5,
                         showarrow=False,
-                        font={"color": "var(--text-muted)"}
+                        font={"color": "var(--text-muted)"},
                     )
                 fig = px.bar(
                     recent_df,
@@ -2017,7 +2118,7 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
                 x=0.5,
                 y=0.5,
                 showarrow=False,
-                font={"color": "var(--text-muted)"}
+                font={"color": "var(--text-muted)"},
             )
 
     # Apply theme-aware styling to all charts
@@ -2028,13 +2129,11 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
         xaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
+            gridcolor="var(--border)", color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border)",
-            color="var(--text-secondary)"
-        )
+            gridcolor="var(--border)", color="var(--text-secondary)"
+        ),
     )
 
     return fig
@@ -2083,8 +2182,8 @@ def render_dynamic_charts_section(df: pd.DataFrame):
         available_columns = get_available_columns(df)
         # Add Roll and Pitch to available columns if calculated
         df_with_rp = calculate_roll_and_pitch(df)
-        if 'roll_deg' in df_with_rp.columns and 'roll_deg' not in available_columns:
-            available_columns.extend(['roll_deg', 'pitch_deg'])
+        if "roll_deg" in df_with_rp.columns and "roll_deg" not in available_columns:
+            available_columns.extend(["roll_deg", "pitch_deg"])
     except Exception as e:
         st.error(f"Error getting available columns: {e}")
         available_columns = []
@@ -2162,9 +2261,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                                 "bar",
                                 "histogram",
                                 "heatmap",
-                            ].index(
-                                chart_config.get("chart_type", "line")
-                            ),
+                            ].index(chart_config.get("chart_type", "line")),
                             key=f"type_{chart_config['id']}",
                         )
                         if new_type != chart_config.get("chart_type"):
@@ -2253,16 +2350,18 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                         fig = None
                         # Use dataframe with Roll and Pitch for plotting
                         df_with_rp = calculate_roll_and_pitch(df)
-                        
+
                         if chart_config.get("chart_type") == "heatmap":
-                            fig = create_dynamic_chart(df_with_rp, chart_config)
-                        elif chart_config.get(
-                            "y_axis"
-                        ) and (
+                            fig = create_dynamic_chart(
+                                df_with_rp, chart_config
+                            )
+                        elif chart_config.get("y_axis") and (
                             chart_config.get("chart_type") == "histogram"
                             or chart_config.get("x_axis")
                         ):
-                            fig = create_dynamic_chart(df_with_rp, chart_config)
+                            fig = create_dynamic_chart(
+                                df_with_rp, chart_config
+                            )
 
                         if fig:
                             st.plotly_chart(
@@ -2707,7 +2806,9 @@ def main():
         fig = create_speed_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_speed_main")
+            st.plotly_chart(
+                fig, use_container_width=True, key="chart_speed_main"
+            )
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[2]:
@@ -2716,7 +2817,9 @@ def main():
         fig = create_power_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_power_main")
+            st.plotly_chart(
+                fig, use_container_width=True, key="chart_power_main"
+            )
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[3]:
@@ -2725,7 +2828,9 @@ def main():
         fig = create_imu_chart(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_imu_main")
+            st.plotly_chart(
+                fig, use_container_width=True, key="chart_imu_main"
+            )
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[4]:
@@ -2756,7 +2861,9 @@ def main():
         fig = create_gps_map_with_altitude(df)
         if fig:
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_gps_main")
+            st.plotly_chart(
+                fig, use_container_width=True, key="chart_gps_main"
+            )
             st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[7]:
@@ -2771,9 +2878,13 @@ def main():
         st.subheader("📃 Raw Telemetry Data")
 
         if len(df) > 1000:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+            st.info(
+                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
+            )
         else:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+            st.info(
+                f"ℹ️ Showing last 100 from all {len(df):,} data points below."
+            )
 
         display_df = df.tail(100) if len(df) > 100 else df
         st.dataframe(display_df, use_container_width=True, height=400)
@@ -2806,7 +2917,7 @@ def main():
             with col1:
                 st.metric("Total Rows", f"{len(df):,}")
                 st.metric("Columns", len(df.columns))
-                if 'roll_deg' in calculate_roll_and_pitch(df).columns:
+                if "roll_deg" in calculate_roll_and_pitch(df).columns:
                     st.metric("Roll & Pitch", "✅ Calculated")
             with col2:
                 if "timestamp" in df.columns and len(df) > 1:
@@ -2820,7 +2931,9 @@ def main():
                             time_span = (
                                 timestamp_series.max() - timestamp_series.min()
                             )
-                            st.metric("Time Span", str(time_span).split(".")[0])
+                            st.metric(
+                                "Time Span", str(time_span).split(".")[0]
+                            )
 
                             if time_span.total_seconds() > 0:
                                 data_rate = len(df) / time_span.total_seconds()
