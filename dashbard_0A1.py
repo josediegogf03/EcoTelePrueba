@@ -119,7 +119,7 @@ def get_theme_aware_css():
   :root {
     --border: color-mix(in oklab, CanvasText 20%, Canvas);
     --card-bg: color-mix(in oklab, Canvas 85%, transparent);
-    --card-border: color-mix(in oklab, CanvasText 25%, transparent);
+    --card-border: color-mix(in oklab, CanvasText 0%, transparent);
     --shadow: 0 8px 24px rgb(0,0,0,0.25);
     --shadow-strong: 0 10px 30px rgb(0,0,0,0.3);
   }
@@ -1259,9 +1259,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
         st.plotly_chart(
             pitch_fig, use_container_width=True, key=f"{unique_ns}_gauge_pitch"
         )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)  # Close widget-grid
+        st.markdown("</div>", unsafe_allow_html=True) 
 
 
 def render_kpi_header(
