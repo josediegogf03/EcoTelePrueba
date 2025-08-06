@@ -1144,8 +1144,6 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     st.markdown("##### 📊 Live Performance Gauges")
 
     # Create the gauge grid - now with 6 columns for Roll and Pitch
-
-    # Create 6 columns for the gauges
     cols = st.columns(6)
 
     # Gauge 1: Current Speed
