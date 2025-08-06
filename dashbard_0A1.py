@@ -1324,6 +1324,7 @@ def create_imu_chart(df: pd.DataFrame):
             bordercolor="var(--border)",
             borderwidth=1,
             font=dict(color="var(--text)"),
+        ),
     )
 
     return fig
