@@ -1315,10 +1315,15 @@ def create_imu_chart(df: pd.DataFrame):
         )
 
     fig.update_layout(
-        height=600,
-        title_text="🎮 IMU Sensor Data Analysis",
+        height=500,
+        title_text="⚡ Electrical System Performance",
         plot_bgcolor="rgb(0,0,0,0)",
         paper_bgcolor="rgb(0,0,0,0)",
+        legend=dict(
+            bgcolor="var(--card-bg)",
+            bordercolor="var(--border)",
+            borderwidth=1,
+            font=dict(color="var(--text)"),
     )
 
     return fig
