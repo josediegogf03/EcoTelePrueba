@@ -75,85 +75,68 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------
-# Theme-Aware CSS with Adaptive Colors and Improved Styling
+# Merged CSS: Adaptive Engine + Modern UI with Gradient Borders
 # -------------------------------------------------------
 def get_theme_aware_css():
-    """Generate theme-aware CSS that adapts to Streamlit's light/dark mode"""
+    """
+    Generate theme-aware CSS that adapts to Streamlit's light/dark mode,
+    incorporating the requested UI style with lighter greys and gradient borders.
+    """
     return """
 <style>
 /* Enable native light/dark form controls and colors */
 :root { 
     color-scheme: light dark; 
-    /* Base adaptive colors using light-dark() function where possible */
-    --primary-hue: 210;
-    --primary-sat: 100%;
-    --primary-light: 50%;
 }
 
-/* Modern adaptive color system */
+/* Modern adaptive color system with lighter greys */
 :root {
-  --primary: hsl(var(--primary-hue), var(--primary-sat), var(--primary-light));
-  --primary-alpha-10: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.1);
-  --primary-alpha-20: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.2);
+  --primary: #1f77b4;
+  --primary-alpha-10: color-mix(in oklab, var(--primary) 10%, transparent);
+  --primary-alpha-20: color-mix(in oklab, var(--primary) 20%, transparent);
   
-  /* Adaptive backgrounds and text */
+  /* Base adaptive colors */
   --bg: Canvas;
   --text: CanvasText;
   --text-secondary: color-mix(in oklab, CanvasText 70%, Canvas);
   --text-muted: color-mix(in oklab, CanvasText 50%, Canvas);
   
-  /* Adaptive borders and surfaces */
-  --border-light: color-mix(in oklab, CanvasText 8%, Canvas);
-  --border: color-mix(in oklab, CanvasText 15%, Canvas);
-  --border-strong: color-mix(in oklab, CanvasText 25%, Canvas);
+  /* Lighter adaptive borders */
+  --border: color-mix(in oklab, CanvasText 12%, Canvas);
+  --border-strong: color-mix(in oklab, CanvasText 20%, Canvas);
   
   /* Adaptive surface colors */
-  --surface: color-mix(in oklab, Canvas 90%, CanvasText);
-  --surface-hover: color-mix(in oklab, Canvas 85%, CanvasText);
-  --surface-active: color-mix(in oklab, Canvas 80%, CanvasText);
-  
-  /* Enhanced glass effect colors */
-  --glass-bg: color-mix(in oklab, Canvas 85%, transparent);
-  --glass-bg-strong: color-mix(in oklab, Canvas 75%, transparent);
-  --glass-border: color-mix(in oklab, CanvasText 20%, transparent);
+  --card-bg: color-mix(in oklab, Canvas 92%, CanvasText);
+  --card-bg-hover: color-mix(in oklab, Canvas 88%, CanvasText);
   
   /* Shadows that adapt to theme */
-  --shadow-light: 0 2px 8px color-mix(in oklab, CanvasText 5%, transparent);
-  --shadow: 0 4px 20px color-mix(in oklab, CanvasText 10%, transparent);
-  --shadow-strong: 0 8px 40px color-mix(in oklab, CanvasText 15%, transparent);
+  --shadow: 0 10px 30px color-mix(in oklab, CanvasText 8%, transparent);
 }
 
 /* Dark theme specific adjustments */
 @media (prefers-color-scheme: dark) {
   :root {
-    --border-light: color-mix(in oklab, Canvas 15%, CanvasText);
-    --border: color-mix(in oklab, Canvas 25%, CanvasText);
-    --border-strong: color-mix(in oklab, Canvas 35%, CanvasText);
-    
-    --surface: color-mix(in oklab, Canvas 80%, CanvasText);
-    --surface-hover: color-mix(in oklab, Canvas 75%, CanvasText);
-    --surface-active: color-mix(in oklab, Canvas 70%, CanvasText);
-    
-    --glass-bg: color-mix(in oklab, Canvas 70%, transparent);
-    --glass-bg-strong: color-mix(in oklab, Canvas 60%, transparent);
+    --border: color-mix(in oklab, CanvasText 20%, Canvas);
+    --border-strong: color-mix(in oklab, CanvasText 30%, Canvas);
+    --card-bg: color-mix(in oklab, Canvas 80%, CanvasText);
+    --card-bg-hover: color-mix(in oklab, Canvas 75%, CanvasText);
   }
 }
 
-/* App background with enhanced gradient */
+/* App background with bottom radial gradient */
 [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(ellipse 80% 60% at 50% 100%,
+    radial-gradient(ellipse 75% 50% at 50% 100%,
       var(--primary-alpha-10) 0%,
-      transparent 70%) no-repeat,
+      transparent 60%) no-repeat,
     var(--bg);
   background-attachment: fixed;
 }
 
-/* Transparent header with enhanced glass effect */
+/* Transparent header with subtle blur */
 [data-testid="stHeader"] {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(120%);
-  border-bottom: 1px solid var(--border-light);
+  background-color: rgba(0,0,0,0);
+  backdrop-filter: saturate(100%) blur(4px);
 }
 
 /* Global text color */
@@ -161,191 +144,128 @@ html, body, [data-testid="stAppViewContainer"] {
   color: var(--text);
 }
 
-/* Main header with enhanced styling */
+/* Main header styling */
 .main-header {
-    font-size: 2.4rem;
-    background: linear-gradient(135deg, var(--primary), color-mix(in oklab, var(--primary) 80%, Canvas));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 2.2rem;
+    color: var(--primary);
     text-align: center;
-    margin-bottom: 1rem;
-    font-weight: 900;
-    letter-spacing: -0.5px;
+    margin-bottom: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
 }
 
-/* Enhanced status indicators with better visibility */
+/* Status indicator chips */
 .status-indicator {
     display: flex; 
     align-items: center; 
     justify-content: center;
-    padding: 0.75rem 1rem; 
-    border-radius: 12px;
+    padding: 0.65rem 0.85rem; 
+    border-radius: 9999px;
     font-weight: 700; 
     font-size: 0.9rem; 
     border: 1px solid var(--border);
-    background: var(--glass-bg-strong);
-    backdrop-filter: blur(10px) saturate(110%);
+    background: var(--card-bg); 
     box-shadow: var(--shadow);
-    color: var(--text);
 }
 
-/* Enhanced cards with improved glass effect */
-.card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 20px;
+/* Cards with soft gradient border */
+.card, .chart-wrap, .historical-notice, .pagination-info, [data-testid="stExpander"] {
+  background: var(--card-bg);
+  border-radius: 18px;
   padding: 1.25rem;
-  backdrop-filter: blur(20px) saturate(120%);
   box-shadow: var(--shadow);
-  transition: all 0.3s ease;
+  backdrop-filter: blur(6px) saturate(110%);
+  
+  /* Gradient Border Implementation */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
 }
 
-.card:hover {
-  background: var(--glass-bg-strong);
-  border-color: var(--border);
-  box-shadow: var(--shadow-strong);
+.card::before, .chart-wrap::before, .historical-notice::before, .pagination-info::before, [data-testid="stExpander"]::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: -1;
+  margin: -2px; /* Same as border-width */
+  border-radius: inherit; /* Inherit the border-radius */
+  background: linear-gradient(135deg, var(--primary-alpha-20), var(--border));
 }
 
-.card-strong {
-  background: var(--glass-bg-strong);
-  border: 1px solid var(--border);
+.card:hover, .chart-wrap:hover {
+  background: var(--card-bg-hover);
 }
 
-/* Session info card with enhanced visibility */
-.session-info {
-  border-left: 4px solid var(--primary);
-}
-
+/* Session info card specific styling */
 .session-info h3 {
   color: var(--primary); 
   margin-bottom: 0.8rem; 
   font-size: 1.3rem;
   font-weight: 700;
 }
-
 .session-info p { 
   margin: 0.3rem 0; 
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-/* Enhanced notices with better contrast */
-.historical-notice, .pagination-info {
-  border-radius: 16px; 
-  padding: 1rem 1.25rem; 
-  font-weight: 600;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  backdrop-filter: blur(10px);
-}
-
-.historical-notice {
-  background: linear-gradient(135deg, var(--primary-alpha-10), var(--surface));
-  border-color: var(--primary-alpha-20);
-}
-
-/* Enhanced gauge containers */
+/* Gauge containers */
 .widget-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: repeat(6, 1fr); /* Updated for 6 gauges */
+  gap: 1rem;
   margin-top: 1rem;
 }
 
 .gauge-container {
   text-align: center;
-  padding: 0.75rem;
-  background: var(--glass-bg);
-  border-radius: 16px;
-  border: 1px solid var(--border-light);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-}
-
-.gauge-container:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-  transform: translateY(-2px);
 }
 
 .gauge-title {
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
   opacity: 0.9;
-  background: linear-gradient(135deg, var(--text), var(--text-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
-/* Enhanced chart containers */
+/* Chart containers (already styled by .chart-wrap) */
 .chart-wrap {
-  border-radius: 20px; 
-  border: 1px solid var(--border-light);
-  background: var(--glass-bg);
   padding: 0.75rem;
-  backdrop-filter: blur(15px) saturate(110%);
-  box-shadow: var(--shadow);
-  transition: all 0.3s ease;
 }
 
-.chart-wrap:hover {
-  border-color: var(--border);
-  background: var(--glass-bg-strong);
-  box-shadow: var(--shadow-strong);
-}
-
-/* Enhanced buttons */
+/* Button styling from code_2 */
 .stButton > button {
-  border-radius: 14px !important;
-  border: 2px solid var(--primary) !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--primary) !important;
   background: var(--primary) !important;
   color: white !important;
   font-weight: 700 !important;
-  padding: 0.5rem 1.25rem !important;
-  transition: all 0.3s ease !important;
-  backdrop-filter: blur(10px) !important;
+  transition: all 0.2s ease !important;
 }
 
 .stButton > button:hover {
-  background: var(--glass-bg-strong) !important;
+  background: transparent !important;
   color: var(--primary) !important;
-  border-color: var(--primary) !important;
-  transform: translateY(-2px) !important;
-  box-shadow: var(--shadow) !important;
 }
 
-/* Enhanced tabs */
+/* Tab styling */
 .stTabs [data-baseweb="tab-list"] {
-  border-bottom: 2px solid var(--border);
-  background: var(--glass-bg);
-  border-radius: 16px 16px 0 0;
-  padding: 0.5rem;
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
 }
-
 .stTabs [data-baseweb="tab"] {
   border-radius: 12px;
-  color: var(--text-secondary);
-  font-weight: 600;
   transition: all 0.3s ease;
 }
-
 .stTabs [data-baseweb="tab"]:hover {
-  background: var(--surface-hover);
-  color: var(--text);
+  background: var(--card-bg-hover);
 }
-
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
   background: var(--primary);
   color: white;
 }
 
-/* Chart type cards for dynamic section */
+/* Dynamic chart type cards */
 .chart-type-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -353,169 +273,53 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 
 .chart-type-card {
-  background: var(--glass-bg);
+  background: var(--card-bg);
   border-radius: 18px;
   padding: 1.25rem;
-  border: 1px solid var(--border-light);
-  backdrop-filter: blur(12px) saturate(110%);
-  box-shadow: var(--shadow-light);
-  transition: all 0.3s ease;
-}
-
-.chart-type-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-  transform: translateY(-4px);
   box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+  border: 1px solid var(--border); /* Simpler border for these */
 }
-
+.chart-type-card:hover {
+  background: var(--card-bg-hover);
+  transform: translateY(-4px);
+}
 .chart-type-name {
   font-weight: 800; 
   color: var(--primary);
   font-size: 1.1rem;
-  margin-bottom: 0.5rem;
 }
-
 .chart-type-desc {
   color: var(--text-secondary);
   line-height: 1.5;
-  font-weight: 500;
 }
 
-/* Enhanced dataframes */
+/* Dataframe styling */
 [data-testid="stDataFrame"] {
   border-radius: 16px; 
   border: 1px solid var(--border);
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
 }
 
-/* Enhanced metrics */
+/* Metric styling */
 [data-testid="stMetricValue"] {
-  color: var(--text) !important;
   font-weight: 700 !important;
 }
-
 [data-testid="stMetricLabel"] {
   color: var(--text-secondary) !important;
-  font-weight: 600 !important;
-}
-
-/* Enhanced expanders */
-[data-testid="stExpander"] {
-  border: 1px solid var(--border-light);
-  border-radius: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-}
-
-/* Enhanced sidebar */
-.css-1d391kg {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(120%);
-  border-right: 1px solid var(--border);
-}
-
-/* Enhanced containers */
-[data-testid="stContainer"] > div {
-  background: var(--glass-bg);
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
-  transition: all 0.3s ease;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--surface);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
-}
-
-/* Enhanced form elements */
-.stSelectbox > div > div {
-  background: var(--glass-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-}
-
-.stTextInput > div > div > input {
-  background: var(--glass-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  color: var(--text);
-}
-
-.stSlider > div > div > div > div {
-  background: var(--primary);
 }
 
 /* Responsive design */
+@media (max-width: 992px) {
+  .widget-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
 @media (max-width: 768px) {
   .widget-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
   }
-  
-  .chart-type-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .main-header {
     font-size: 2rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .widget-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Print styles */
-@media print {
-  .widget-grid,
-  .chart-wrap {
-    break-inside: avoid;
-  }
-}
-
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Focus visible improvements */
-*:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  :root {
-    --border: CanvasText;
-    --border-strong: CanvasText;
-    --surface: Canvas;
   }
 }
 
@@ -1210,10 +1014,6 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         return default_kpis
 
 
-import matplotlib.colors as mcolors
-import plotly.graph_objects as go
-from typing import Optional
-
 def create_small_gauge(
     value: float,
     max_val: Optional[float],
@@ -1304,8 +1104,7 @@ def render_live_gauges(kpis: Dict[str, float], unique_ns: str = "gauges"):
     """Render compact live gauges in a single row with external titles and Roll/Pitch."""
     st.markdown("##### 📊 Live Performance Gauges")
     
-    # Create the gauge grid - now with 6 columns for Roll and Pitch
-    st.markdown('<div class="widget-grid" style="grid-template-columns: repeat(6, 1fr);">', unsafe_allow_html=True)
+    st.markdown('<div class="widget-grid">', unsafe_allow_html=True)
     
     # Create 6 columns for the gauges
     cols = st.columns(6)
@@ -1569,11 +1368,11 @@ def create_speed_chart(df: pd.DataFrame):
         margin=dict(l=40, r=40, t=60, b=40),
         height=400,
         xaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         )
     )
@@ -1646,8 +1445,8 @@ def create_power_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
+    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
 
     return fig
 
@@ -1746,7 +1545,7 @@ def create_imu_chart(df: pd.DataFrame):
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
         legend=dict(
-            bgcolor="var(--glass-bg)",
+            bgcolor="var(--card-bg)",
             bordercolor="var(--border)",
             borderwidth=1,
             font=dict(color="var(--text)"),
@@ -1754,8 +1553,8 @@ def create_imu_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
+    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
 
     return fig
 
@@ -1896,8 +1695,8 @@ def create_imu_detail_chart(df: pd.DataFrame):
     )
 
     # Update axes colors
-    fig.update_xaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
-    fig.update_yaxes(gridcolor="var(--border-light)", color="var(--text-secondary)")
+    fig.update_xaxes(gridcolor="var(--border)", color="var(--text-secondary)")
+    fig.update_yaxes(gridcolor="var(--border)", color="var(--text-secondary)")
 
     return fig
 
@@ -1932,11 +1731,11 @@ def create_efficiency_chart(df: pd.DataFrame):
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
         xaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         )
     )
@@ -2080,9 +1879,9 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
     )
 
     fig.update_xaxes(title_text="Time", row=1, col=2, 
-                     gridcolor="var(--border-light)", color="var(--text-secondary)")
+                     gridcolor="var(--border)", color="var(--text-secondary)")
     fig.update_yaxes(title_text="Altitude (m)", row=1, col=2,
-                     gridcolor="var(--border-light)", color="var(--text-secondary)")
+                     gridcolor="var(--border)", color="var(--text-secondary)")
 
     return fig
 
@@ -2229,11 +2028,11 @@ def create_dynamic_chart(df: pd.DataFrame, chart_config: Dict[str, Any]):
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
         xaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         ),
         yaxis=dict(
-            gridcolor="var(--border-light)",
+            gridcolor="var(--border)",
             color="var(--text-secondary)"
         )
     )
