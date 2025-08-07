@@ -95,10 +95,10 @@ def get_theme_aware_css():
 
 :root {
   color-scheme: light dark;
-  /* Brand palette */
-  --brand-1: 222 95% 54%;   /* blue */
-  --brand-2: 280 65% 62%;   /* purple */
-  --accent-1: 158 64% 52%;  /* green */
+  /* Brand palette (desaturated, soft) */
+  --brand-1: 222 35% 56%;   /* muted blue */
+  --brand-2: 280 32% 62%;   /* muted purple */
+  --accent-1: 158 30% 52%;  /* muted green */
 
   /* Semantic tokens */
   --primary: hsl(var(--brand-1));
@@ -134,17 +134,17 @@ def get_theme_aware_css():
 /* Background with layered gradients */
 [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, hsl(var(--brand-2)) 20%, transparent), transparent 60%),
-    radial-gradient(1300px 700px at 110% 110%, color-mix(in oklab, hsl(var(--brand-1)) 18%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 6%, var(--bg)) 0%, var(--bg) 60%);
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, hsl(var(--brand-2)) 10%, transparent), transparent 60%),
+    radial-gradient(1300px 700px at 110% 110%, color-mix(in oklab, hsl(var(--brand-1)) 8%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 4%, var(--bg)) 0%, var(--bg) 60%);
   background-attachment: fixed;
 }
 
 /* Header */
 [data-testid="stHeader"] {
   background: linear-gradient(90deg,
-              color-mix(in oklab, hsl(var(--brand-1)) 24%, transparent),
-              color-mix(in oklab, hsl(var(--brand-2)) 24%, transparent))
+              color-mix(in oklab, hsl(var(--brand-1)) 12%, transparent),
+              color-mix(in oklab, hsl(var(--brand-2)) 12%, transparent))
               , var(--glass);
   backdrop-filter: blur(18px) saturate(140%);
   border-bottom: 1px solid var(--glass-border);
@@ -154,7 +154,9 @@ def get_theme_aware_css():
 html, body { color: var(--text); }
 .main-header {
   font-size: 2.25rem; font-weight: 800; letter-spacing: .2px;
-  background: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2)));
+  background: linear-gradient(90deg,
+              color-mix(in oklab, hsl(var(--brand-1)) 65%, var(--text)),
+              color-mix(in oklab, hsl(var(--brand-2)) 65%, var(--text)));
   -webkit-background-clip: text; background-clip: text; color: transparent;
   text-align: center; margin: .25rem 0 1rem;
 }
@@ -169,7 +171,7 @@ html, body { color: var(--text); }
 
 /* Cards */
 .card { border-radius:18px; padding:1.1rem; border:1px solid var(--glass-border);
-  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-2)) 6%, transparent), transparent), var(--glass);
+  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-2)) 4%, transparent), transparent), var(--glass);
   backdrop-filter: blur(18px) saturate(140%); box-shadow: var(--shadow-1);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
@@ -186,7 +188,7 @@ html, body { color: var(--text); }
 /* Gauges */
 .widget-grid { display:grid; grid-template-columns: repeat(6, 1fr); gap:1rem; margin-top: .75rem; }
 .gauge-container { text-align:center; padding:.75rem; border-radius:16px; border:1px solid var(--glass-border);
-  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 6%, transparent), transparent), var(--glass);
+  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 4%, transparent), transparent), var(--glass);
   backdrop-filter: blur(10px); transition: transform .2s ease, border-color .2s ease, background .2s ease; }
 .gauge-container:hover { transform: translateY(-2px); border-color: var(--border); }
 .gauge-title { font-size:.85rem; font-weight:600; color:var(--text-subtle); margin-bottom:.25rem; }
@@ -196,14 +198,17 @@ html, body { color: var(--text); }
 
 /* Buttons */
 .stButton > button, div[data-testid="stDownloadButton"] > button {
-  border-radius:12px !important; font-weight:700 !important; color:white !important;
-  background: linear-gradient(135deg, hsl(var(--brand-1)), hsl(var(--brand-2))) !important;
-  border: 1px solid color-mix(in oklab, hsl(var(--brand-1)) 50%, hsl(var(--brand-2)) 50%) !important;
-  box-shadow: 0 6px 16px color-mix(in oklab, hsl(var(--brand-1)) 25%, transparent) !important;
-  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease !important;
+  border-radius:12px !important; font-weight:700 !important; color:var(--text) !important;
+  background: linear-gradient(135deg,
+              color-mix(in oklab, hsl(var(--brand-1)) 28%, var(--bg)),
+              color-mix(in oklab, hsl(var(--brand-2)) 28%, var(--bg))) !important;
+  border: 1px solid color-mix(in oklab, hsl(var(--brand-1)) 20%, var(--border-strong)) !important;
+  box-shadow: 0 6px 16px color-mix(in oklab, hsl(var(--brand-1)) 15%, transparent) !important;
+  transition: transform .15s ease, box-shadow .2s ease !important;
 }
 .stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover {
-  filter: saturate(110%); transform: translateY(-2px); box-shadow: 0 10px 22px color-mix(in oklab, hsl(var(--brand-2)) 26%, transparent) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px color-mix(in oklab, hsl(var(--brand-2)) 18%, transparent) !important;
 }
 .stButton > button:active, div[data-testid="stDownloadButton"] > button:active { transform: translateY(0); }
 
@@ -212,12 +217,15 @@ html, body { color: var(--text); }
 .stTabs [data-baseweb="tab"] { border:none; border-radius:10px 10px 0 0; background: transparent; color: var(--text-muted);
   font-weight:600; padding:.6rem 1rem; transition: color .2s ease, background .2s ease; }
 .stTabs [data-baseweb="tab"]:hover { color: var(--text); background: var(--glass); }
-.stTabs [data-baseweb="tab"][aria-selected="true"] { color: hsl(var(--brand-1)); box-shadow: inset 0 -3px 0 0 hsl(var(--brand-1)); }
+.stTabs [data-baseweb="tab"][aria-selected="true"] { color: color-mix(in oklab, hsl(var(--brand-1)) 60%, var(--text)); box-shadow: inset 0 -3px 0 0 color-mix(in oklab, hsl(var(--brand-1)) 60%, var(--text)); }
 
 /* Custom chart type cards */
 .chart-type-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:.75rem; }
 .chart-type-card { background: var(--glass); border-radius:16px; padding:1rem; border:1px solid var(--glass-border); box-shadow: var(--shadow-1); }
-.chart-type-name { font-weight:800; background: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2))); -webkit-background-clip:text; background-clip:text; color: transparent; }
+.chart-type-name { font-weight:800; background: linear-gradient(90deg,
+                 color-mix(in oklab, hsl(var(--brand-1)) 60%, var(--text)),
+                 color-mix(in oklab, hsl(var(--brand-2)) 60%, var(--text)));
+                 -webkit-background-clip:text; background-clip:text; color: transparent; }
 .chart-type-desc { color: var(--text-muted); }
 
 /* Data containers */
@@ -240,10 +248,10 @@ div[data-baseweb="input"] > div { background: var(--glass); border-radius:10px; 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--brand-1)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, hsl(var(--brand-1)) 50%, var(--border-strong)); }
 
 /* Focus ring */
-*:focus-visible { outline: 2px solid hsl(var(--brand-1)); outline-offset:2px; border-radius:4px; }
+*:focus-visible { outline: 2px solid color-mix(in oklab, hsl(var(--brand-1)) 55%, var(--text)); outline-offset:2px; border-radius:4px; }
 </style>
 """
 
