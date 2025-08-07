@@ -85,172 +85,165 @@ def get_theme_aware_css():
     return """
 <style>
 /*
-  Modern visual refresh for Streamlit UI (graphs untouched)
-  - Fluid design tokens
-  - Soft glass surfaces with subtle depth
-  - Crisp typography and improved spacing
+  Modern translucent visual refresh
+  - Soft gradients, glassmorphism, pill controls
+  - Works in light and dark (uses color-scheme and Canvas/CanvasText)
+  Inspired by Streamlit theming docs and community CSS techniques.
+  Docs: https://docs.streamlit.io/library/advanced-features/theming
+        https://discuss.streamlit.io/t/css-hacks/14501
 */
 
-/* System-aware theme base */
 :root {
   color-scheme: light dark;
-  --brand-hue-1: 258; /* indigo */
-  --brand-hue-2: 190; /* cyan */
-  --brand: linear-gradient(90deg, hsl(var(--brand-hue-1) 85% 60%) 0%, hsl(var(--brand-hue-2) 85% 55%) 100%);
+  /* Brand palette */
+  --brand-1: 222 95% 54%;   /* blue */
+  --brand-2: 280 65% 62%;   /* purple */
+  --accent-1: 158 64% 52%;  /* green */
 
-  /* Neutral surfaces */
+  /* Semantic tokens */
+  --primary: hsl(var(--brand-1));
+  --accent: hsl(var(--brand-2));
+  --ok: hsl(var(--accent-1));
+
   --bg: Canvas;
   --text: CanvasText;
   --text-muted: color-mix(in oklab, CanvasText 55%, Canvas);
-  --text-secondary: color-mix(in oklab, CanvasText 70%, Canvas);
-  --border: color-mix(in oklab, CanvasText 14%, Canvas);
-  --border-strong: color-mix(in oklab, CanvasText 28%, Canvas);
-  --surface: color-mix(in oklab, Canvas 93%, CanvasText);
-  --surface-2: color-mix(in oklab, Canvas 88%, CanvasText);
-  --surface-3: color-mix(in oklab, Canvas 82%, CanvasText);
+  --text-subtle: color-mix(in oklab, CanvasText 40%, Canvas);
 
-  /* Glass + shadows */
-  --glass: color-mix(in oklab, Canvas 80%, transparent);
+  --border-weak: color-mix(in oklab, CanvasText 8%, Canvas);
+  --border: color-mix(in oklab, CanvasText 14%, Canvas);
+  --border-strong: color-mix(in oklab, CanvasText 26%, Canvas);
+
+  --glass: color-mix(in oklab, Canvas 82%, transparent);
   --glass-strong: color-mix(in oklab, Canvas 70%, transparent);
-  --glass-border: color-mix(in oklab, CanvasText 20%, transparent);
-  --shadow-1: 0 2px 10px color-mix(in oklab, CanvasText 6%, transparent);
-  --shadow-2: 0 10px 30px color-mix(in oklab, CanvasText 10%, transparent);
+  --glass-border: color-mix(in oklab, CanvasText 24%, transparent);
+
+  --shadow-1: 0 6px 20px color-mix(in oklab, CanvasText 10%, transparent);
+  --shadow-2: 0 14px 35px color-mix(in oklab, CanvasText 14%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: color-mix(in oklab, Canvas 78%, CanvasText);
-    --surface-2: color-mix(in oklab, Canvas 72%, CanvasText);
-    --surface-3: color-mix(in oklab, Canvas 66%, CanvasText);
-    --glass: color-mix(in oklab, Canvas 64%, transparent);
-    --glass-strong: color-mix(in oklab, Canvas 56%, transparent);
-    --border: color-mix(in oklab, Canvas 22%, CanvasText);
-    --border-strong: color-mix(in oklab, Canvas 36%, CanvasText);
+    --glass: color-mix(in oklab, Canvas 68%, transparent);
+    --glass-strong: color-mix(in oklab, Canvas 58%, transparent);
+    --shadow-1: 0 8px 26px rgba(0,0,0,0.35);
+    --shadow-2: 0 18px 42px rgba(0,0,0,0.45);
   }
 }
 
-/* Background with soft gradient glows */
+/* Background with layered gradients */
 [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(1200px 600px at 80% -10%, color-mix(in oklab, hsl(var(--brand-hue-2) 85% 60%) 12%, transparent), transparent 60%),
-    radial-gradient(900px 500px at -10% 90%, color-mix(in oklab, hsl(var(--brand-hue-1) 85% 65%) 12%, transparent), transparent 60%),
-    var(--bg);
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, hsl(var(--brand-2)) 20%, transparent), transparent 60%),
+    radial-gradient(1300px 700px at 110% 110%, color-mix(in oklab, hsl(var(--brand-1)) 18%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 6%, var(--bg)) 0%, var(--bg) 60%);
   background-attachment: fixed;
-  color: var(--text);
 }
 
-/* Top app bar */
+/* Header */
 [data-testid="stHeader"] {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--glass) 80%, transparent), transparent);
-  backdrop-filter: blur(14px) saturate(130%);
+  background: linear-gradient(90deg,
+              color-mix(in oklab, hsl(var(--brand-1)) 24%, transparent),
+              color-mix(in oklab, hsl(var(--brand-2)) 24%, transparent))
+              , var(--glass);
+  backdrop-filter: blur(18px) saturate(140%);
   border-bottom: 1px solid var(--glass-border);
 }
 
 /* Typography */
 html, body { color: var(--text); }
-.hero { 
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  backdrop-filter: blur(20px) saturate(125%);
-  border-radius: 20px;
-  padding: 20px 22px;
-  margin: 0 0 14px 0;
-  box-shadow: var(--shadow-2);
+.main-header {
+  font-size: 2.25rem; font-weight: 800; letter-spacing: .2px;
+  background: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2)));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-align: center; margin: .25rem 0 1rem;
 }
-.hero-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.hero-title { 
-  font-size: 1.4rem; font-weight: 800; letter-spacing: 0.2px;
-  background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.hero-sub { color: var(--text-secondary); font-weight: 600; }
 
-/* Tag chips and notices */
+/* Status pill */
 .status-indicator {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-  font-weight: 700; color: var(--text);
-}
-.historical-notice, .pagination-info {
-  border-radius: 14px; padding: 12px 14px; font-weight: 700;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  display:flex; align-items:center; justify-content:center;
+  padding:.55rem .9rem; border-radius:999px; font-weight:700; font-size:.9rem;
+  border:1px solid var(--glass-border); background: var(--glass-strong);
+  backdrop-filter: blur(10px) saturate(130%); box-shadow: var(--shadow-1);
 }
 
 /* Cards */
-.card { 
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 18px; padding: 16px; box-shadow: var(--shadow-1);
+.card { border-radius:18px; padding:1.1rem; border:1px solid var(--glass-border);
+  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-2)) 6%, transparent), transparent), var(--glass);
+  backdrop-filter: blur(18px) saturate(140%); box-shadow: var(--shadow-1);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); border-color: var(--border-strong); }
-.card-strong { background: var(--glass-strong); border: 1px solid var(--border); }
+.card-strong { background: var(--glass-strong); border:1px solid var(--border); }
+.session-info h3 { color: hsl(var(--brand-1)); margin:0 0 .5rem; font-weight:800; }
+.session-info p { margin:.25rem 0; color: var(--text-muted); }
 
-.session-info h3 { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; margin-bottom: 8px; }
-.session-info p { margin: 6px 0; color: var(--text-secondary); }
-
-/* Metric tiles */
-[data-testid="stMetric"] {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-1);
+/* Notifications */
+.historical-notice,.pagination-info { border-radius:14px; padding:.9rem 1rem; font-weight:700;
+  border:1px solid var(--border); background: var(--glass);
 }
-[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-weight: 600 !important; }
-[data-testid="stMetricValue"] { font-weight: 800 !important; letter-spacing: .2px; }
 
-/* Gauge grid */
-.widget-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 8px; }
-.gauge-container { text-align: center; padding: 10px; background: var(--surface); border-radius: 16px; border: 1px solid var(--border); transition: all .25s ease; }
-.gauge-container:hover { background: var(--surface-2); border-color: var(--border-strong); transform: translateY(-2px); }
-.gauge-title { font-size: .85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
+/* Gauges */
+.widget-grid { display:grid; grid-template-columns: repeat(6, 1fr); gap:1rem; margin-top: .75rem; }
+.gauge-container { text-align:center; padding:.75rem; border-radius:16px; border:1px solid var(--glass-border);
+  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 6%, transparent), transparent), var(--glass);
+  backdrop-filter: blur(10px); transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+.gauge-container:hover { transform: translateY(-2px); border-color: var(--border); }
+.gauge-title { font-size:.85rem; font-weight:600; color:var(--text-subtle); margin-bottom:.25rem; }
 
-/* Chart container (graphs themselves untouched) */
-.chart-wrap { border-radius: 18px; border: 1px solid var(--border); background: var(--surface); padding: 8px; box-shadow: var(--shadow-1); }
+/* Chart wrappers (do not change charts themselves) */
+.chart-wrap { border-radius:18px; border:1px solid var(--glass-border); background: var(--glass); padding:.75rem; box-shadow: var(--shadow-1); }
 
 /* Buttons */
-.stButton > button {
-  border-radius: 12px !important; border: 1px solid transparent !important;
-  background-image: var(--brand) !important; color: white !important; font-weight: 800 !important; letter-spacing: .2px;
-  box-shadow: var(--shadow-1) !important; transition: transform .15s ease, box-shadow .15s ease, filter .15s ease !important; padding: 0.55rem 0.9rem !important;
+.stButton > button, div[data-testid="stDownloadButton"] > button {
+  border-radius:12px !important; font-weight:700 !important; color:white !important;
+  background: linear-gradient(135deg, hsl(var(--brand-1)), hsl(var(--brand-2))) !important;
+  border: 1px solid color-mix(in oklab, hsl(var(--brand-1)) 50%, hsl(var(--brand-2)) 50%) !important;
+  box-shadow: 0 6px 16px color-mix(in oklab, hsl(var(--brand-1)) 25%, transparent) !important;
+  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease !important;
 }
-.stButton > button:hover { filter: brightness(1.05); transform: translateY(-1px); box-shadow: var(--shadow-2) !important; }
-.stButton > button:active { transform: translateY(0); }
-
-/* Inputs */
-[data-baseweb="select"], .stTextInput, .stNumberInput, .stDateInput, .stTimeInput, .stTextArea, .stMultiSelect {
-  background: var(--surface) !important; border-radius: 12px !important;
-  border: 1px solid var(--border) !important; box-shadow: none !important;
+.stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover {
+  filter: saturate(110%); transform: translateY(-2px); box-shadow: 0 10px 22px color-mix(in oklab, hsl(var(--brand-2)) 26%, transparent) !important;
 }
-[data-baseweb="select"]:hover, .stTextInput:hover, .stNumberInput:hover, .stTextArea:hover { border-color: var(--border-strong) !important; }
-.stRadio > div[role="radiogroup"] { gap: 8px; }
-.stRadio label { border: 1px solid var(--border); background: var(--surface); padding: 6px 10px; border-radius: 999px; font-weight: 700; color: var(--text-secondary); }
-.stRadio input:checked + div { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
+.stButton > button:active, div[data-testid="stDownloadButton"] > button:active { transform: translateY(0); }
 
-/* Tabs: underline active */
-.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid var(--border); gap: 6px; }
-.stTabs [data-baseweb="tab"] { border-radius: 10px 10px 0 0; color: var(--text-secondary); font-weight: 700; padding: .55rem .9rem; background: transparent; border: none; }
-.stTabs [data-baseweb="tab"]:hover { background: var(--surface-2); color: var(--text); }
-.stTabs [aria-selected="true"] { color: transparent; background: transparent; box-shadow: inset 0 -3px 0 0 hsl(var(--brand-hue-1) 85% 60%); }
-.stTabs [aria-selected="true"] > div { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid var(--border); gap:6px; }
+.stTabs [data-baseweb="tab"] { border:none; border-radius:10px 10px 0 0; background: transparent; color: var(--text-muted);
+  font-weight:600; padding:.6rem 1rem; transition: color .2s ease, background .2s ease; }
+.stTabs [data-baseweb="tab"]:hover { color: var(--text); background: var(--glass); }
+.stTabs [data-baseweb="tab"][aria-selected="true"] { color: hsl(var(--brand-1)); box-shadow: inset 0 -3px 0 0 hsl(var(--brand-1)); }
 
-/* Dataframe & expander */
-[data-testid="stDataFrame"], [data-testid="stExpander"] { border-radius: 16px; border: 1px solid var(--border); background: var(--surface); }
-[data-testid="stExpander"] details { background: transparent; }
+/* Custom chart type cards */
+.chart-type-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:.75rem; }
+.chart-type-card { background: var(--glass); border-radius:16px; padding:1rem; border:1px solid var(--glass-border); box-shadow: var(--shadow-1); }
+.chart-type-name { font-weight:800; background: linear-gradient(90deg, hsl(var(--brand-1)), hsl(var(--brand-2))); -webkit-background-clip:text; background-clip:text; color: transparent; }
+.chart-type-desc { color: var(--text-muted); }
+
+/* Data containers */
+[data-testid="stDataFrame"], [data-testid="stExpander"], [data-testid="stAlert"] {
+  border-radius:16px; border:1px solid var(--border); background: var(--glass); backdrop-filter: blur(10px);
+}
+
+/* Metrics */
+div[data-testid="stMetric"] { border-radius:14px; padding:.6rem .8rem; background: var(--glass); border:1px solid var(--glass-border); box-shadow: var(--shadow-1); }
+div[data-testid="stMetric"] [data-testid="stMetricDelta"] { font-weight:700; }
 
 /* Sidebar */
-[data-testid="stSidebar"] { background: var(--glass-strong); border-right: 1px solid var(--glass-border); backdrop-filter: blur(18px) saturate(120%); }
+[data-testid="stSidebar"] > div { background: var(--glass-strong); border-right:1px solid var(--glass-border); backdrop-filter: blur(18px) saturate(140%); }
+
+/* Inputs */
+label, .stTextInput, .stSelectbox, .stNumberInput, .stSlider { color: var(--text); }
+div[data-baseweb="input"] > div { background: var(--glass); border-radius:10px; border:1px solid var(--border); }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--border-strong) 70%, CanvasText); }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--brand-1)); }
 
-/* Focus */
-*:focus-visible { outline: 2px solid hsl(var(--brand-hue-2) 85% 55%); outline-offset: 2px; border-radius: 6px; }
+/* Focus ring */
+*:focus-visible { outline: 2px solid hsl(var(--brand-1)); outline-offset:2px; border-radius:4px; }
 </style>
 """
 
@@ -2213,16 +2206,7 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 def main():
     """Main dashboard function."""
     st.markdown(
-        """
-        <div class="hero">
-          <div class="hero-inner">
-            <div>
-              <div class="hero-title">🏎️ Shell Eco-marathon Telemetry Dashboard</div>
-              <div class="hero-sub">Modern, theme-aware UI · Real-time + historical telemetry</div>
-            </div>
-          </div>
-        </div>
-        """,
+        '<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>',
         unsafe_allow_html=True,
     )
 
