@@ -233,9 +233,25 @@ html, body { color: var(--text); }
   border-radius:16px; border:1px solid var(--border); background: var(--glass); backdrop-filter: blur(10px);
 }
 
-/* Metrics */
-div[data-testid="stMetric"] { border-radius:14px; padding:.6rem .8rem; background: var(--glass); border:1px solid var(--glass-border); box-shadow: var(--shadow-1); }
-div[data-testid="stMetric"] [data-testid="stMetricDelta"] { font-weight:700; }
+/* Metrics (main KPI cards with glassmorphism) */
+div[data-testid="stMetric"] {
+  position: relative;
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  background:
+    radial-gradient(120% 140% at 10% 0%, color-mix(in oklab, hsl(var(--brand-1)) 10%, transparent), transparent 60%),
+    radial-gradient(140% 120% at 90% 100%, color-mix(in oklab, hsl(var(--brand-2)) 10%, transparent), transparent 60%),
+    var(--glass);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-1);
+}
+div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+  font-weight: 700;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ok) 10%, transparent);
+}
 
 /* Sidebar */
 [data-testid="stSidebar"] > div { background: var(--glass-strong); border-right:1px solid var(--glass-border); backdrop-filter: blur(18px) saturate(140%); }
