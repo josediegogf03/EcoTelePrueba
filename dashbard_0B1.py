@@ -288,6 +288,31 @@ div[data-baseweb="input"] > div { background: var(--glass); border-radius:10px; 
 
 /* Focus ring */
 *:focus-visible { outline: 2px solid color-mix(in oklab, hsl(var(--brand-1)) 55%, var(--text)); outline-offset:2px; border-radius:4px; }
+
+  /* Layout overhaul: scroll snapping & responsive grids */
+  .main .block-container {
+    scroll-behavior: smooth;
+    scroll-snap-type: y proximity;
+    gap: 1.25rem;
+  }
+  .section-snap { scroll-snap-align: start; }
+
+  .content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .top-nav {
+    position: sticky; top: 0.75rem; z-index: 50; margin-bottom: 0.75rem;
+    display: inline-flex; gap: .5rem; padding: .4rem; border-radius: 999px;
+    background: var(--glass-strong); border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: var(--shadow-1);
+  }
+  .top-nav a { text-decoration: none; font-weight: 700; color: var(--text-muted); padding:.35rem .7rem; border-radius:999px; transition: background .2s ease, color .2s ease; }
+  .top-nav a:hover { background: var(--glass); color: var(--text); }
 </style>
 """
 
@@ -2247,107 +2272,6 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                 st.error(f"Error rendering chart configuration: {e}")
 
 
-def render_minimal_dashboard(df: pd.DataFrame, kpis: Dict[str, float]):
-    """Modern minimal, coherent dashboard layout (grid-based) without tabs.
-
-    Keeps all existing functionality by reusing the same chart builders, but
-    presents them in a clean responsive grid.
-    """
-    # Hero + KPIs
-    st.markdown(
-        """
-        <div class="card" style="margin-bottom: .5rem">
-            <div style="display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;">
-                <div style="font-weight:800; font-size:1.25rem; color: var(--text);">
-                    Live Telemetry Overview
-                </div>
-                <div class="status-indicator">Optimized Minimal View</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # KPI header and compact gauges
-    render_kpi_header(kpis, unique_ns="minimal", show_gauges=True)
-
-    # Responsive grid of charts
-    st.markdown(
-        """
-        <div class="dashboard-grid" style="display:grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; margin-top: .5rem;">
-            <div class="chart-wrap" style="grid-column: span 6;">__SPEED__</div>
-            <div class="chart-wrap" style="grid-column: span 6;">__POWER__</div>
-            <div class="chart-wrap" style="grid-column: span 7;">__IMU__</div>
-            <div class="chart-wrap" style="grid-column: span 5;">__EFF__</div>
-            <div class="chart-wrap" style="grid-column: span 7;">__GPS__</div>
-            <div class="chart-wrap" style="grid-column: span 5;">__SESSION__</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Inject charts into placeholders in order
-    speed_fig = create_speed_chart(df)
-    power_fig = create_power_chart(df)
-    imu_fig = create_imu_chart(df)
-    eff_fig = create_efficiency_chart(df)
-    gps_fig = create_gps_map_with_altitude(df)
-
-    # Render into the most recent 6 chart-wraps in order
-    # We reuse Streamlit containers for simplicity
-    grid_cols = st.columns([6,6])
-    with grid_cols[0]:
-        st.plotly_chart(speed_fig, use_container_width=True, key="grid_speed")
-    with grid_cols[1]:
-        st.plotly_chart(power_fig, use_container_width=True, key="grid_power")
-
-    grid_cols2 = st.columns([7,5])
-    with grid_cols2[0]:
-        st.plotly_chart(imu_fig, use_container_width=True, key="grid_imu")
-    with grid_cols2[1]:
-        st.plotly_chart(eff_fig, use_container_width=True, key="grid_eff")
-
-    grid_cols3 = st.columns([7,5])
-    with grid_cols3[0]:
-        st.plotly_chart(gps_fig, use_container_width=True, key="grid_gps")
-    with grid_cols3[1]:
-        if st.session_state.selected_session:
-            render_session_info(st.session_state.selected_session)
-        else:
-            st.markdown(
-                '<div class="card"><strong>Session</strong><br/>No session selected.</div>',
-                unsafe_allow_html=True,
-            )
-
-    st.divider()
-    st.subheader("Custom Charts")
-    render_dynamic_charts_section(df)
-
-    st.subheader("Raw Data")
-    # Reuse the previous data table + downloads block
-    display_df = df.tail(100) if len(df) > 100 else df
-    st.dataframe(display_df, use_container_width=True, height=400)
-    col1, col2 = st.columns(2)
-    with col1:
-        csv_all = df.to_csv(index=False)
-        st.download_button(
-            label=f"📥 Download Full CSV ({len(df):,} rows)",
-            data=csv_all,
-            file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-    with col2:
-        if len(df) > 1000:
-            sample_df = df.sample(n=min(1000, len(df)), random_state=42)
-            st.download_button(
-                label="📥 Download Sample CSV (1000 rows)",
-                data=sample_df.to_csv(index=False),
-                file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
 def main():
     """Main dashboard function."""
     st.markdown(
@@ -2748,9 +2672,157 @@ def main():
     # Calculate KPIs (including Roll and Pitch)
     kpis = calculate_kpis(df)
 
-    # Minimal, coherent single-page grid dashboard
+    # Sticky top navigation and single-page flow
     st.subheader("📈 Dashboard")
-    render_minimal_dashboard(df, kpis)
+    st.markdown(
+        """
+        <div class="top-nav">
+          <a href="#overview">Overview</a>
+          <a href="#perf">Performance</a>
+          <a href="#imu">IMU</a>
+          <a href="#eff-gps">Efficiency & GPS</a>
+          <a href="#custom">Custom</a>
+          <a href="#data">Data</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Overview section
+    st.markdown('<a id="overview"></a><div class="section-snap">', unsafe_allow_html=True)
+    render_overview_tab(kpis)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Performance section (Speed & Power)
+    st.markdown('<a id="perf"></a><div class="section-snap">', unsafe_allow_html=True)
+    st.markdown("### 🚀 Performance", unsafe_allow_html=True)
+    col_spd, col_pwr = st.columns(2)
+    with col_spd:
+        fig = create_speed_chart(df)
+        if fig:
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_speed_main")
+            st.markdown("</div>", unsafe_allow_html=True)
+    with col_pwr:
+        fig = create_power_chart(df)
+        if fig:
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_power_main")
+            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # IMU section
+    st.markdown('<a id="imu"></a><div class="section-snap">', unsafe_allow_html=True)
+    st.markdown("### 🎮 IMU Analytics", unsafe_allow_html=True)
+    fig = create_imu_chart(df)
+    if fig:
+        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_imu_main")
+        st.markdown("</div>", unsafe_allow_html=True)
+    fig = create_imu_detail_chart(df)
+    if fig:
+        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, key="chart_imu_detail_main")
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Efficiency + GPS section
+    st.markdown('<a id="eff-gps"></a><div class="section-snap">', unsafe_allow_html=True)
+    st.markdown("### ⚡ Efficiency & 🛰️ GPS", unsafe_allow_html=True)
+    col_eff, col_gps = st.columns(2)
+    with col_eff:
+        fig = create_efficiency_chart(df)
+        if fig:
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_efficiency_main")
+            st.markdown("</div>", unsafe_allow_html=True)
+    with col_gps:
+        fig = create_gps_map_with_altitude(df)
+        if fig:
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True, key="chart_gps_main")
+            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Custom charts section
+    st.markdown('<a id="custom"></a><div class="section-snap">', unsafe_allow_html=True)
+    st.markdown("### 📈 Custom Charts", unsafe_allow_html=True)
+    render_dynamic_charts_section(df)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Data table section
+    st.markdown('<a id="data"></a><div class="section-snap">', unsafe_allow_html=True)
+    st.subheader("📃 Raw Telemetry Data")
+    if len(df) > 1000:
+        st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+    else:
+        st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
+
+    display_df = df.tail(100) if len(df) > 100 else df
+    st.dataframe(display_df, use_container_width=True, height=400)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label=f"📥 Download Full CSV ({len(df):,} rows)",
+            data=csv,
+            file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with col2:
+        if len(df) > 1000:
+            sample_df = df.sample(n=min(1000, len(df)), random_state=42)
+            sample_csv = sample_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Sample CSV (1000 rows)",
+                data=sample_csv,
+                file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+    with st.expander("📊 Dataset Statistics"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Rows", f"{len(df):,}")
+            st.metric("Columns", len(df.columns))
+            if 'roll_deg' in calculate_roll_and_pitch(df).columns:
+                st.metric("Roll & Pitch", "✅ Calculated")
+        with col2:
+            if "timestamp" in df.columns and len(df) > 1:
+                try:
+                    timestamp_series = pd.to_datetime(
+                        df["timestamp"], errors="coerce", utc=True
+                    )
+                    timestamp_series = timestamp_series.dropna()
+
+                    if len(timestamp_series) > 1:
+                        time_span = (
+                            timestamp_series.max() - timestamp_series.min()
+                        )
+                        st.metric("Time Span", str(time_span).split(".")[0])
+
+                        if time_span.total_seconds() > 0:
+                            data_rate = len(df) / time_span.total_seconds()
+                            st.metric("Data Rate", f"{data_rate:.2f} Hz")
+                    else:
+                        st.metric("Time Span", "N/A")
+                        st.metric("Data Rate", "N/A")
+                except Exception as e:
+                    st.metric("Time Span", "Error")
+                    st.metric("Data Rate", "Error")
+        with col3:
+            memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
+            st.metric("Memory Usage", f"{memory_usage:.2f} MB")
+
+            if "data_source" in df.columns:
+                source_counts = df["data_source"].value_counts()
+                st.write("**Data Sources:**")
+                for source, count in source_counts.items():
+                    st.write(f"• {source}: {count:,} rows")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Auto-refresh for real-time mode only
     if (
