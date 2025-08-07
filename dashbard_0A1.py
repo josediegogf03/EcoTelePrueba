@@ -84,284 +84,282 @@ def get_theme_aware_css():
     """
     return """
 <style>
-/* Enable native light/dark form controls and colors */
-:root {
-    color-scheme: light dark;
-    --primary-hue: 210;
-    --primary-sat: 100%;
-    --primary-light: 50%;
-}
+:root{
+  color-scheme: light dark;
 
-/* Modern adaptive color system */
-:root {
-  --primary: hsl(var(--primary-hue), var(--primary-sat), var(--primary-light));
-  --primary-alpha-10: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.1);
-  --primary-alpha-20: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.2);
+  /* Brand hue: indigo/blue with soft pink accents */
+  --hue: 222;
+  --sat: 90%;
+  --lum: 52%;
+  --primary: hsl(var(--hue), var(--sat), var(--lum));
+  --primary-10: hsla(var(--hue), var(--sat), var(--lum), .10);
+  --primary-16: hsla(var(--hue), var(--sat), var(--lum), .16);
+  --accent: hsl(340 80% 62%);
+  --accent-14: hsl(340 80% 62% / .14);
+  --good: hsl(152 72% 38%);
+  --warn: hsl(38 92% 52%);
+  --bad: hsl(355 82% 54%);
 
-  /* Adaptive backgrounds and text */
+  /* System-aware base */
   --bg: Canvas;
   --text: CanvasText;
-  --text-secondary: color-mix(in oklab, CanvasText 70%, Canvas);
-  --text-muted: color-mix(in oklab, CanvasText 50%, Canvas);
+  --text-2: color-mix(in oklab, CanvasText 72%, Canvas);
+  --muted: color-mix(in oklab, CanvasText 55%, Canvas);
+  --border: color-mix(in oklab, CanvasText 16%, Canvas);
+  --border-strong: color-mix(in oklab, CanvasText 26%, Canvas);
 
-  /* Adaptive borders and surfaces (using lighter greys) */
-  --border-light: color-mix(in oklab, CanvasText 8%, Canvas);
-  --border: color-mix(in oklab, CanvasText 12%, Canvas);
-  --border-strong: color-mix(in oklab, CanvasText 25%, Canvas);
-
-  /* Adaptive surface colors */
-  --surface: color-mix(in oklab, Canvas 90%, CanvasText);
-  --surface-hover: color-mix(in oklab, Canvas 85%, CanvasText);
-  --surface-active: color-mix(in oklab, Canvas 80%, CanvasText);
-
-  /* Enhanced glass effect colors for soft fade borders and backgrounds */
-  --glass-bg: color-mix(in oklab, Canvas 85%, transparent);
-  --glass-bg-strong: color-mix(in oklab, Canvas 75%, transparent);
+  /* Surfaces and glass */
+  --surface: color-mix(in oklab, Canvas 92%, CanvasText);
+  --surface-2: color-mix(in oklab, Canvas 88%, CanvasText);
+  --glass: color-mix(in oklab, Canvas 78%, transparent);
+  --glass-strong: color-mix(in oklab, Canvas 72%, transparent);
   --glass-border: color-mix(in oklab, CanvasText 20%, transparent);
 
-  /* Soft, diffuse shadows that adapt to theme */
-  --shadow-light: 0 2px 8px color-mix(in oklab, CanvasText 5%, transparent);
-  --shadow: 0 10px 30px color-mix(in oklab, CanvasText 8%, transparent);
-  --shadow-strong: 0 8px 40px color-mix(in oklab, CanvasText 12%, transparent);
+  /* Shadows */
+  --shadow-sm: 0 4px 16px color-mix(in oklab, CanvasText 8%, transparent);
+  --shadow: 0 12px 36px color-mix(in oklab, CanvasText 10%, transparent);
+  --shadow-lg: 0 22px 50px color-mix(in oklab, CanvasText 14%, transparent);
+
+  /* Gradients */
+  --grad-card: linear-gradient(135deg,
+      color-mix(in oklab, var(--primary) 8%, transparent) 0%,
+      color-mix(in oklab, var(--accent) 7%, transparent) 100%);
+  --grad-chip: linear-gradient(135deg,
+      color-mix(in oklab, var(--primary) 20%, transparent) 0%,
+      color-mix(in oklab, var(--accent) 18%, transparent) 100%);
 }
 
-/* Dark theme specific adjustments */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --border-light: color-mix(in oklab, Canvas 15%, CanvasText);
-    --border: color-mix(in oklab, Canvas 20%, CanvasText);
-    --border-strong: color-mix(in oklab, Canvas 35%, CanvasText);
-
-    --surface: color-mix(in oklab, Canvas 80%, CanvasText);
-    --surface-hover: color-mix(in oklab, Canvas 75%, CanvasText);
-    --surface-active: color-mix(in oklab, Canvas 70%, CanvasText);
-
-    --glass-bg: color-mix(in oklab, Canvas 70%, transparent);
-    --glass-bg-strong: color-mix(in oklab, Canvas 60%, transparent);
-    --shadow: 0 10px 30px rgba(0,0,0,0.25);
-  }
-}
-
-/* App background with bottom radial gradient */
-[data-testid="stAppViewContainer"] {
+/* App background with soft bottom glow */
+[data-testid="stAppViewContainer"]{
   background:
-    radial-gradient(ellipse 75% 50% at 50% 100%,
-      color-mix(in oklab, var(--primary) 12%, transparent) 0%,
+    radial-gradient(80% 55% at 50% 100%,
+      color-mix(in oklab, var(--primary) 10%, transparent) 0%,
       transparent 60%) no-repeat,
     var(--bg);
   background-attachment: fixed;
+  color: var(--text);
+  font-family: system-ui, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif;
 }
 
-/* Transparent header with enhanced glass effect */
-[data-testid="stHeader"] {
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px) saturate(120%);
+/* Frosted header */
+[data-testid="stHeader"]{
+  background: var(--glass);
+  backdrop-filter: blur(18px) saturate(125%);
   border-bottom: 1px solid var(--glass-border);
 }
 
-/* Global text color */
-html, body, [data-testid="stAppViewContainer"] {
+/* Global headings */
+h1,h2,h3,h4 {
+  letter-spacing:.2px;
   color: var(--text);
 }
-
-/* Main header styling */
-.main-header {
-    font-size: 2.2rem;
-    color: var(--primary);
-    text-align: center;
-    margin-bottom: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.2px;
+.main-header{
+  font-size: 2.25rem;
+  font-weight: 850;
+  text-align:center;
+  margin: .25rem 0 .5rem 0;
+  background: linear-gradient(90deg, var(--text), color-mix(in oklab, var(--text) 70%, transparent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-/* Status indicators with pill shape */
-.status-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.65rem 0.85rem;
-    border-radius: 9999px;
-    font-weight: 700;
-    font-size: 0.9rem;
-    border: 1px solid var(--border);
-    background: var(--glass-bg-strong);
-    backdrop-filter: blur(10px);
-    box-shadow: var(--shadow-light);
-    color: var(--text);
-}
-
-/* Enhanced cards with soft fade border and shadow */
-.card {
-  background: var(--glass-bg);
+/* Cards */
+.card{
+  background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: 18px;
-  padding: 1.25rem;
+  padding: 1.15rem 1.25rem;
   backdrop-filter: blur(20px) saturate(120%);
   box-shadow: var(--shadow);
-  transition: all 0.3s ease;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+  position: relative;
+  overflow: clip;
 }
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-strong);
-  border-color: color-mix(in oklab, CanvasText 30%, transparent);
+.card::before{
+  content:"";
+  position:absolute; inset:0;
+  background: var(--grad-card);
+  opacity:.6; pointer-events:none;
 }
-.card-strong {
-  background: var(--glass-bg-strong);
-  border: 1px solid var(--border);
-}
+.card:hover{ transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: color-mix(in oklab, CanvasText 28%, transparent); }
+.card-strong{ background: var(--glass-strong); }
 
-/* Session info card styling */
-.session-info h3 {
-  color: var(--primary);
-  margin-bottom: 0.6rem;
-  font-size: 1.2rem;
+/* KPI metrics */
+[data-testid="stMetric"]{
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: .9rem 1rem;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: clip;
+}
+[data-testid="stMetric"]::after{
+  content:"";
+  position:absolute; inset:0;
+  background: var(--grad-card);
+  opacity:.45; pointer-events:none;
+}
+[data-testid="stMetricLabel"]{
+  color: var(--muted)!important;
+  font-weight: 700!important;
+  letter-spacing:.1px;
+}
+[data-testid="stMetricValue"]{
+  color: var(--text)!important;
+  font-weight: 850!important;
+  font-size: 1.35rem!important;
+}
+[data-testid="stMetricDelta"] span{
+  border-radius: 9999px;
+  padding: .15rem .5rem;
   font-weight: 700;
-}
-.session-info p {
-  margin: 0.3rem 0;
-  color: var(--text-secondary);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* Notices styling */
-.historical-notice, .pagination-info {
+/* Info / warning / success messages */
+[data-testid="stAlert"]{
   border-radius: 14px;
-  padding: 0.9rem 1rem;
-  font-weight: 700;
   border: 1px solid var(--border);
   background: var(--surface);
-  backdrop-filter: blur(10px);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Widget grid for gauges */
-.widget-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 1rem;
-  margin-top: 1rem;
+/* Status pill */
+.status-indicator{
+  display:flex; align-items:center; justify-content:center;
+  gap:.5rem;
+  padding:.55rem .8rem;
+  border-radius:9999px;
+  border:1px solid var(--border);
+  background: var(--grad-chip);
+  box-shadow: var(--shadow-sm);
+  font-weight:800;
 }
-.gauge-container {
-  text-align: center;
-  padding: 0.75rem;
-  background: var(--glass-bg);
-  border-radius: 16px;
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+
+/* Sidebar glass */
+[data-testid="stSidebar"]{
+  background: var(--glass-strong);
+  backdrop-filter: blur(20px) saturate(125%);
+  border-right: 1px solid var(--glass-border);
 }
-.gauge-container:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
+[data-testid="stSidebar"] [data-testid="stMarkdown"] p{ color: var(--text-2); }
+
+/* Inputs (text/select/date) */
+.stTextInput > div > div,
+div[data-baseweb="input"],
+div[data-baseweb="select"]{
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color .2s ease, background .2s ease;
+}
+div[data-baseweb="select"]:focus-within,
+div[data-baseweb="input"]:focus-within{
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-10);
+}
+
+/* Sliders */
+.stSlider > div > div{
+  padding: .1rem .25rem .75rem .25rem;
+  border-radius: 10px;
+}
+.stSlider [data-baseweb="slider"] div[role="slider"]{
+  background: var(--primary)!important;
+  box-shadow: 0 0 0 6px var(--primary-16);
+}
+
+/* Buttons */
+.stButton > button{
+  border-radius: 12px!important;
+  background: var(--primary)!important;
+  border: 1px solid var(--primary)!important;
+  color: white!important;
+  font-weight: 800!important;
+  letter-spacing:.2px!important;
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+  box-shadow: 0 8px 18px var(--primary-16);
+}
+.stButton > button:hover{
   transform: translateY(-2px);
-}
-.gauge-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
+  background: transparent!important;
+  color: var(--primary)!important;
 }
 
-/* Chart containers */
-.chart-wrap {
+/* Tabs: underline active, no boxes */
+.stTabs [data-baseweb="tab-list"]{ border-bottom:2px solid var(--border); gap:4px; }
+.stTabs [data-baseweb="tab"]{
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-weight: 700;
+  padding: .6rem 1rem;
+}
+.stTabs [data-baseweb="tab"]:hover{ background: var(--surface-2); color: var(--text); }
+.stTabs [data-baseweb="tab"][aria-selected="true"]{
+  color: var(--primary); box-shadow: inset 0 -3px 0 0 var(--primary);
+}
+
+/* Chart containers (non-graph visuals only) */
+.chart-wrap{
   border-radius: 18px;
   border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  padding: 0.75rem;
-  backdrop-filter: blur(15px) saturate(110%);
+  background: var(--glass);
+  padding: .75rem;
+  backdrop-filter: blur(16px) saturate(115%);
   box-shadow: var(--shadow);
 }
 
-/* Button styling */
-.stButton > button {
-  border-radius: 12px !important;
-  border: 1px solid var(--primary) !important;
-  background: var(--primary) !important;
-  color: white !important;
-  font-weight: 700 !important;
-  transition: all 0.2s ease !important;
-}
-.stButton > button:hover {
-  background: transparent !important;
-  color: var(--primary) !important;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-light);
-}
-
-/* Modified Tabs: No box on selected tab */
-.stTabs [data-baseweb="tab-list"] {
-  border-bottom: 2px solid var(--border);
-  gap: 4px;
-}
-.stTabs [data-baseweb="tab"] {
-  border-radius: 8px 8px 0 0;
-  color: var(--text-secondary);
-  font-weight: 600;
-  transition: all 0.3s ease;
-  background-color: transparent;
-  border: none;
-  padding: 0.6rem 1rem;
-}
-.stTabs [data-baseweb="tab"]:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {
-  background-color: transparent; /* This removes the box */
-  color: var(--primary);
-  font-weight: 700;
-  box-shadow: inset 0 -3px 0 0 var(--primary); /* Underline effect */
-}
-
-/* Dynamic chart type cards */
-.chart-type-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.75rem;
-}
-.chart-type-card {
-  background: var(--glass-bg);
+/* Gauge tiles grid */
+.widget-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:1rem; margin-top:.5rem; }
+.gauge-container{
+  text-align:center;
+  padding:.7rem;
   border-radius: 16px;
-  padding: 1rem;
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-light);
+  border:1px solid var(--glass-border);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
+  position:relative; overflow:clip;
 }
-.chart-type-name {
-  font-weight: 800;
-  color: var(--primary);
+.gauge-container::after{
+  content:""; position:absolute; inset:0; background: var(--grad-card); opacity:.4; pointer-events:none;
 }
-.chart-type-desc {
-  color: var(--text-secondary);
-}
+.gauge-container:hover{ transform: translateY(-2px); border-color: var(--border-strong); }
+.gauge-title{ font-size:.85rem; font-weight:800; color: var(--text-2); margin-bottom:.25rem; }
 
-/* Enhanced dataframes and expanders */
-[data-testid="stDataFrame"], [data-testid="stExpander"] {
+/* DataFrame / Expander */
+[data-testid="stDataFrame"], [data-testid="stExpander"]{
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: var(--glass-bg);
+  background: var(--glass);
   backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Enhanced sidebar */
-.css-1d391kg {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(20px) saturate(120%);
-  border-right: 1px solid var(--glass-border);
+/* Notices */
+.historical-notice, .pagination-info{
+  border-radius: 14px;
+  border:1px solid var(--border);
+  background: var(--surface);
+  padding: .85rem 1rem;
+  font-weight:800;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+/* Scrollbar */
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--primary); }
 
-/* Accessibility improvements */
-*:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+/* Focus */
+*:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; border-radius:6px; }
 </style>
 """
-
 # Apply the enhanced theme-aware CSS
 st.markdown(get_theme_aware_css(), unsafe_allow_html=True)
 
