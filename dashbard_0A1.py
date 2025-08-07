@@ -2213,7 +2213,16 @@ def render_dynamic_charts_section(df: pd.DataFrame):
 def main():
     """Main dashboard function."""
     st.markdown(
-        '<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>',
+        """
+        <div class="hero">
+          <div class="hero-inner">
+            <div>
+              <div class="hero-title">🏎️ Shell Eco-marathon Telemetry Dashboard</div>
+              <div class="hero-sub">Modern, theme-aware UI · Real-time + historical telemetry</div>
+            </div>
+          </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
