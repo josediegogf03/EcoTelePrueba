@@ -84,282 +84,176 @@ def get_theme_aware_css():
     """
     return """
 <style>
-:root{
+/*
+  Modern visual refresh for Streamlit UI (graphs untouched)
+  - Fluid design tokens
+  - Soft glass surfaces with subtle depth
+  - Crisp typography and improved spacing
+*/
+
+/* System-aware theme base */
+:root {
   color-scheme: light dark;
+  --brand-hue-1: 258; /* indigo */
+  --brand-hue-2: 190; /* cyan */
+  --brand: linear-gradient(90deg, hsl(var(--brand-hue-1) 85% 60%) 0%, hsl(var(--brand-hue-2) 85% 55%) 100%);
 
-  /* Brand hue: indigo/blue with soft pink accents */
-  --hue: 222;
-  --sat: 90%;
-  --lum: 52%;
-  --primary: hsl(var(--hue), var(--sat), var(--lum));
-  --primary-10: hsla(var(--hue), var(--sat), var(--lum), .10);
-  --primary-16: hsla(var(--hue), var(--sat), var(--lum), .16);
-  --accent: hsl(340 80% 62%);
-  --accent-14: hsl(340 80% 62% / .14);
-  --good: hsl(152 72% 38%);
-  --warn: hsl(38 92% 52%);
-  --bad: hsl(355 82% 54%);
-
-  /* System-aware base */
+  /* Neutral surfaces */
   --bg: Canvas;
   --text: CanvasText;
-  --text-2: color-mix(in oklab, CanvasText 72%, Canvas);
-  --muted: color-mix(in oklab, CanvasText 55%, Canvas);
-  --border: color-mix(in oklab, CanvasText 16%, Canvas);
-  --border-strong: color-mix(in oklab, CanvasText 26%, Canvas);
-
-  /* Surfaces and glass */
-  --surface: color-mix(in oklab, Canvas 92%, CanvasText);
+  --text-muted: color-mix(in oklab, CanvasText 55%, Canvas);
+  --text-secondary: color-mix(in oklab, CanvasText 70%, Canvas);
+  --border: color-mix(in oklab, CanvasText 14%, Canvas);
+  --border-strong: color-mix(in oklab, CanvasText 28%, Canvas);
+  --surface: color-mix(in oklab, Canvas 93%, CanvasText);
   --surface-2: color-mix(in oklab, Canvas 88%, CanvasText);
-  --glass: color-mix(in oklab, Canvas 78%, transparent);
-  --glass-strong: color-mix(in oklab, Canvas 72%, transparent);
+  --surface-3: color-mix(in oklab, Canvas 82%, CanvasText);
+
+  /* Glass + shadows */
+  --glass: color-mix(in oklab, Canvas 80%, transparent);
+  --glass-strong: color-mix(in oklab, Canvas 70%, transparent);
   --glass-border: color-mix(in oklab, CanvasText 20%, transparent);
-
-  /* Shadows */
-  --shadow-sm: 0 4px 16px color-mix(in oklab, CanvasText 8%, transparent);
-  --shadow: 0 12px 36px color-mix(in oklab, CanvasText 10%, transparent);
-  --shadow-lg: 0 22px 50px color-mix(in oklab, CanvasText 14%, transparent);
-
-  /* Gradients */
-  --grad-card: linear-gradient(135deg,
-      color-mix(in oklab, var(--primary) 8%, transparent) 0%,
-      color-mix(in oklab, var(--accent) 7%, transparent) 100%);
-  --grad-chip: linear-gradient(135deg,
-      color-mix(in oklab, var(--primary) 20%, transparent) 0%,
-      color-mix(in oklab, var(--accent) 18%, transparent) 100%);
+  --shadow-1: 0 2px 10px color-mix(in oklab, CanvasText 6%, transparent);
+  --shadow-2: 0 10px 30px color-mix(in oklab, CanvasText 10%, transparent);
 }
 
-/* App background with soft bottom glow */
-[data-testid="stAppViewContainer"]{
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: color-mix(in oklab, Canvas 78%, CanvasText);
+    --surface-2: color-mix(in oklab, Canvas 72%, CanvasText);
+    --surface-3: color-mix(in oklab, Canvas 66%, CanvasText);
+    --glass: color-mix(in oklab, Canvas 64%, transparent);
+    --glass-strong: color-mix(in oklab, Canvas 56%, transparent);
+    --border: color-mix(in oklab, Canvas 22%, CanvasText);
+    --border-strong: color-mix(in oklab, Canvas 36%, CanvasText);
+  }
+}
+
+/* Background with soft gradient glows */
+[data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(80% 55% at 50% 100%,
-      color-mix(in oklab, var(--primary) 10%, transparent) 0%,
-      transparent 60%) no-repeat,
+    radial-gradient(1200px 600px at 80% -10%, color-mix(in oklab, hsl(var(--brand-hue-2) 85% 60%) 12%, transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 90%, color-mix(in oklab, hsl(var(--brand-hue-1) 85% 65%) 12%, transparent), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
-  font-family: system-ui, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif;
 }
 
-/* Frosted header */
-[data-testid="stHeader"]{
-  background: var(--glass);
-  backdrop-filter: blur(18px) saturate(125%);
+/* Top app bar */
+[data-testid="stHeader"] {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--glass) 80%, transparent), transparent);
+  backdrop-filter: blur(14px) saturate(130%);
   border-bottom: 1px solid var(--glass-border);
 }
 
-/* Global headings */
-h1,h2,h3,h4 {
-  letter-spacing:.2px;
-  color: var(--text);
+/* Typography */
+html, body { color: var(--text); }
+.hero { 
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  backdrop-filter: blur(20px) saturate(125%);
+  border-radius: 20px;
+  padding: 20px 22px;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-2);
 }
-.main-header{
-  font-size: 2.25rem;
-  font-weight: 850;
-  text-align:center;
-  margin: .25rem 0 .5rem 0;
-  background: linear-gradient(90deg, var(--text), color-mix(in oklab, var(--text) 70%, transparent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.hero-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hero-title { 
+  font-size: 1.4rem; font-weight: 800; letter-spacing: 0.2px;
+  background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero-sub { color: var(--text-secondary); font-weight: 600; }
+
+/* Tag chips and notices */
+.status-indicator {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-weight: 700; color: var(--text);
+}
+.historical-notice, .pagination-info {
+  border-radius: 14px; padding: 12px 14px; font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 /* Cards */
-.card{
+.card { 
   background: var(--glass);
   border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  padding: 1.15rem 1.25rem;
-  backdrop-filter: blur(20px) saturate(120%);
-  box-shadow: var(--shadow);
+  border-radius: 18px; padding: 16px; box-shadow: var(--shadow-1);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
-  position: relative;
-  overflow: clip;
 }
-.card::before{
-  content:"";
-  position:absolute; inset:0;
-  background: var(--grad-card);
-  opacity:.6; pointer-events:none;
-}
-.card:hover{ transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: color-mix(in oklab, CanvasText 28%, transparent); }
-.card-strong{ background: var(--glass-strong); }
+.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); border-color: var(--border-strong); }
+.card-strong { background: var(--glass-strong); border: 1px solid var(--border); }
 
-/* KPI metrics */
-[data-testid="stMetric"]{
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: .9rem 1rem;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: clip;
-}
-[data-testid="stMetric"]::after{
-  content:"";
-  position:absolute; inset:0;
-  background: var(--grad-card);
-  opacity:.45; pointer-events:none;
-}
-[data-testid="stMetricLabel"]{
-  color: var(--muted)!important;
-  font-weight: 700!important;
-  letter-spacing:.1px;
-}
-[data-testid="stMetricValue"]{
-  color: var(--text)!important;
-  font-weight: 850!important;
-  font-size: 1.35rem!important;
-}
-[data-testid="stMetricDelta"] span{
-  border-radius: 9999px;
-  padding: .15rem .5rem;
-  font-weight: 700;
-  box-shadow: inset 0 0 0 1px var(--border);
-}
+.session-info h3 { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; margin-bottom: 8px; }
+.session-info p { margin: 6px 0; color: var(--text-secondary); }
 
-/* Info / warning / success messages */
-[data-testid="stAlert"]{
-  border-radius: 14px;
+/* Metric tiles */
+[data-testid="stMetric"] {
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-1);
 }
+[data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-weight: 600 !important; }
+[data-testid="stMetricValue"] { font-weight: 800 !important; letter-spacing: .2px; }
 
-/* Status pill */
-.status-indicator{
-  display:flex; align-items:center; justify-content:center;
-  gap:.5rem;
-  padding:.55rem .8rem;
-  border-radius:9999px;
-  border:1px solid var(--border);
-  background: var(--grad-chip);
-  box-shadow: var(--shadow-sm);
-  font-weight:800;
-}
+/* Gauge grid */
+.widget-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 8px; }
+.gauge-container { text-align: center; padding: 10px; background: var(--surface); border-radius: 16px; border: 1px solid var(--border); transition: all .25s ease; }
+.gauge-container:hover { background: var(--surface-2); border-color: var(--border-strong); transform: translateY(-2px); }
+.gauge-title { font-size: .85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
 
-/* Sidebar glass */
-[data-testid="stSidebar"]{
-  background: var(--glass-strong);
-  backdrop-filter: blur(20px) saturate(125%);
-  border-right: 1px solid var(--glass-border);
-}
-[data-testid="stSidebar"] [data-testid="stMarkdown"] p{ color: var(--text-2); }
-
-/* Inputs (text/select/date) */
-.stTextInput > div > div,
-div[data-baseweb="input"],
-div[data-baseweb="select"]{
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: border-color .2s ease, background .2s ease;
-}
-div[data-baseweb="select"]:focus-within,
-div[data-baseweb="input"]:focus-within{
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-10);
-}
-
-/* Sliders */
-.stSlider > div > div{
-  padding: .1rem .25rem .75rem .25rem;
-  border-radius: 10px;
-}
-.stSlider [data-baseweb="slider"] div[role="slider"]{
-  background: var(--primary)!important;
-  box-shadow: 0 0 0 6px var(--primary-16);
-}
+/* Chart container (graphs themselves untouched) */
+.chart-wrap { border-radius: 18px; border: 1px solid var(--border); background: var(--surface); padding: 8px; box-shadow: var(--shadow-1); }
 
 /* Buttons */
-.stButton > button{
-  border-radius: 12px!important;
-  background: var(--primary)!important;
-  border: 1px solid var(--primary)!important;
-  color: white!important;
-  font-weight: 800!important;
-  letter-spacing:.2px!important;
-  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
-  box-shadow: 0 8px 18px var(--primary-16);
+.stButton > button {
+  border-radius: 12px !important; border: 1px solid transparent !important;
+  background-image: var(--brand) !important; color: white !important; font-weight: 800 !important; letter-spacing: .2px;
+  box-shadow: var(--shadow-1) !important; transition: transform .15s ease, box-shadow .15s ease, filter .15s ease !important; padding: 0.55rem 0.9rem !important;
 }
-.stButton > button:hover{
-  transform: translateY(-2px);
-  background: transparent!important;
-  color: var(--primary)!important;
-}
+.stButton > button:hover { filter: brightness(1.05); transform: translateY(-1px); box-shadow: var(--shadow-2) !important; }
+.stButton > button:active { transform: translateY(0); }
 
-/* Tabs: underline active, no boxes */
-.stTabs [data-baseweb="tab-list"]{ border-bottom:2px solid var(--border); gap:4px; }
-.stTabs [data-baseweb="tab"]{
-  border-radius: 8px 8px 0 0;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-weight: 700;
-  padding: .6rem 1rem;
+/* Inputs */
+[data-baseweb="select"], .stTextInput, .stNumberInput, .stDateInput, .stTimeInput, .stTextArea, .stMultiSelect {
+  background: var(--surface) !important; border-radius: 12px !important;
+  border: 1px solid var(--border) !important; box-shadow: none !important;
 }
-.stTabs [data-baseweb="tab"]:hover{ background: var(--surface-2); color: var(--text); }
-.stTabs [data-baseweb="tab"][aria-selected="true"]{
-  color: var(--primary); box-shadow: inset 0 -3px 0 0 var(--primary);
-}
+[data-baseweb="select"]:hover, .stTextInput:hover, .stNumberInput:hover, .stTextArea:hover { border-color: var(--border-strong) !important; }
+.stRadio > div[role="radiogroup"] { gap: 8px; }
+.stRadio label { border: 1px solid var(--border); background: var(--surface); padding: 6px 10px; border-radius: 999px; font-weight: 700; color: var(--text-secondary); }
+.stRadio input:checked + div { background: var(--surface-2); color: var(--text); border-color: var(--border-strong); }
 
-/* Chart containers (non-graph visuals only) */
-.chart-wrap{
-  border-radius: 18px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass);
-  padding: .75rem;
-  backdrop-filter: blur(16px) saturate(115%);
-  box-shadow: var(--shadow);
-}
+/* Tabs: underline active */
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid var(--border); gap: 6px; }
+.stTabs [data-baseweb="tab"] { border-radius: 10px 10px 0 0; color: var(--text-secondary); font-weight: 700; padding: .55rem .9rem; background: transparent; border: none; }
+.stTabs [data-baseweb="tab"]:hover { background: var(--surface-2); color: var(--text); }
+.stTabs [aria-selected="true"] { color: transparent; background: transparent; box-shadow: inset 0 -3px 0 0 hsl(var(--brand-hue-1) 85% 60%); }
+.stTabs [aria-selected="true"] > div { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-/* Gauge tiles grid */
-.widget-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:1rem; margin-top:.5rem; }
-.gauge-container{
-  text-align:center;
-  padding:.7rem;
-  border-radius: 16px;
-  border:1px solid var(--glass-border);
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-sm);
-  transition: transform .2s ease, border-color .2s ease, background .2s ease;
-  position:relative; overflow:clip;
-}
-.gauge-container::after{
-  content:""; position:absolute; inset:0; background: var(--grad-card); opacity:.4; pointer-events:none;
-}
-.gauge-container:hover{ transform: translateY(-2px); border-color: var(--border-strong); }
-.gauge-title{ font-size:.85rem; font-weight:800; color: var(--text-2); margin-bottom:.25rem; }
+/* Dataframe & expander */
+[data-testid="stDataFrame"], [data-testid="stExpander"] { border-radius: 16px; border: 1px solid var(--border); background: var(--surface); }
+[data-testid="stExpander"] details { background: transparent; }
 
-/* DataFrame / Expander */
-[data-testid="stDataFrame"], [data-testid="stExpander"]{
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-sm);
-}
+/* Sidebar */
+[data-testid="stSidebar"] { background: var(--glass-strong); border-right: 1px solid var(--glass-border); backdrop-filter: blur(18px) saturate(120%); }
 
-/* Notices */
-.historical-notice, .pagination-info{
-  border-radius: 14px;
-  border:1px solid var(--border);
-  background: var(--surface);
-  padding: .85rem 1rem;
-  font-weight:800;
-}
-
-/* Scrollbar */
-::-webkit-scrollbar{ width:8px; height:8px; }
-::-webkit-scrollbar-thumb{ background: var(--border-strong); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover{ background: var(--primary); }
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--border-strong) 70%, CanvasText); }
 
 /* Focus */
-*:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; border-radius:6px; }
+*:focus-visible { outline: 2px solid hsl(var(--brand-hue-2) 85% 55%); outline-offset: 2px; border-radius: 6px; }
 </style>
 """
+
 # Apply the enhanced theme-aware CSS
 st.markdown(get_theme_aware_css(), unsafe_allow_html=True)
 
