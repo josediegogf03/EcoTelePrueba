@@ -114,8 +114,9 @@ def get_theme_aware_css():
   --border: color-mix(in oklab, CanvasText 14%, Canvas);
   --border-strong: color-mix(in oklab, CanvasText 26%, Canvas);
 
-  --glass: color-mix(in oklab, Canvas 82%, transparent);
-  --glass-strong: color-mix(in oklab, Canvas 70%, transparent);
+  /* More translucent glass */
+  --glass: color-mix(in oklab, Canvas 65%, transparent);
+  --glass-strong: color-mix(in oklab, Canvas 55%, transparent);
   --glass-border: color-mix(in oklab, CanvasText 24%, transparent);
 
   --shadow-1: 0 6px 20px color-mix(in oklab, CanvasText 10%, transparent);
@@ -124,8 +125,8 @@ def get_theme_aware_css():
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --glass: color-mix(in oklab, Canvas 68%, transparent);
-    --glass-strong: color-mix(in oklab, Canvas 58%, transparent);
+    --glass: color-mix(in oklab, Canvas 58%, transparent);
+    --glass-strong: color-mix(in oklab, Canvas 48%, transparent);
     --shadow-1: 0 8px 26px rgba(0,0,0,0.35);
     --shadow-2: 0 18px 42px rgba(0,0,0,0.45);
   }
@@ -134,9 +135,10 @@ def get_theme_aware_css():
 /* Background with layered gradients */
 [data-testid="stAppViewContainer"] {
   background:
-    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, hsl(var(--brand-2)) 10%, transparent), transparent 60%),
-    radial-gradient(1300px 700px at 110% 110%, color-mix(in oklab, hsl(var(--brand-1)) 8%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 4%, var(--bg)) 0%, var(--bg) 60%);
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in oklab, hsl(var(--brand-2)) 8%, transparent), transparent 60%),
+    radial-gradient(1300px 700px at 110% 110%, color-mix(in oklab, hsl(var(--brand-1)) 6%, transparent), transparent 60%),
+    radial-gradient(900px 520px at 50% 50%, color-mix(in oklab, hsl(var(--accent-1)) 6%, transparent), transparent 65%),
+    linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 3%, var(--bg)) 0%, var(--bg) 60%);
   background-attachment: fixed;
 }
 
@@ -171,7 +173,10 @@ html, body { color: var(--text); }
 
 /* Cards */
 .card { border-radius:18px; padding:1.1rem; border:1px solid var(--glass-border);
-  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-2)) 4%, transparent), transparent), var(--glass);
+  background:
+    radial-gradient(120% 130% at 85% 15%, color-mix(in oklab, hsl(var(--brand-2)) 5%, transparent), transparent 60%),
+    radial-gradient(130% 120% at 15% 85%, color-mix(in oklab, hsl(var(--brand-1)) 5%, transparent), transparent 60%),
+    var(--glass);
   backdrop-filter: blur(18px) saturate(140%); box-shadow: var(--shadow-1);
   transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
 }
@@ -188,13 +193,20 @@ html, body { color: var(--text); }
 /* Gauges */
 .widget-grid { display:grid; grid-template-columns: repeat(6, 1fr); gap:1rem; margin-top: .75rem; }
 .gauge-container { text-align:center; padding:.75rem; border-radius:16px; border:1px solid var(--glass-border);
-  background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--brand-1)) 4%, transparent), transparent), var(--glass);
+  background:
+    radial-gradient(120% 120% at 85% 15%, color-mix(in oklab, hsl(var(--brand-1)) 4%, transparent), transparent 60%),
+    radial-gradient(120% 130% at 20% 80%, color-mix(in oklab, hsl(var(--brand-2)) 4%, transparent), transparent 60%),
+    var(--glass);
   backdrop-filter: blur(10px); transition: transform .2s ease, border-color .2s ease, background .2s ease; }
 .gauge-container:hover { transform: translateY(-2px); border-color: var(--border); }
 .gauge-title { font-size:.85rem; font-weight:600; color:var(--text-subtle); margin-bottom:.25rem; }
 
 /* Chart wrappers (do not change charts themselves) */
-.chart-wrap { border-radius:18px; border:1px solid var(--glass-border); background: var(--glass); padding:.75rem; box-shadow: var(--shadow-1); }
+.chart-wrap { border-radius:18px; border:1px solid var(--glass-border);
+  background:
+    radial-gradient(110% 120% at 85% 10%, color-mix(in oklab, hsl(var(--brand-1)) 3%, transparent), transparent 60%),
+    var(--glass);
+  padding:.75rem; box-shadow: var(--shadow-1); }
 
 /* Buttons */
 .stButton > button, div[data-testid="stDownloadButton"] > button {
@@ -221,7 +233,11 @@ html, body { color: var(--text); }
 
 /* Custom chart type cards */
 .chart-type-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:.75rem; }
-.chart-type-card { background: var(--glass); border-radius:16px; padding:1rem; border:1px solid var(--glass-border); box-shadow: var(--shadow-1); }
+.chart-type-card { border-radius:16px; padding:1rem; border:1px solid var(--glass-border); box-shadow: var(--shadow-1);
+  background:
+    radial-gradient(130% 120% at 20% 15%, color-mix(in oklab, hsl(var(--brand-2)) 4%, transparent), transparent 60%),
+    var(--glass);
+}
 .chart-type-name { font-weight:800; background: linear-gradient(90deg,
                  color-mix(in oklab, hsl(var(--brand-1)) 60%, var(--text)),
                  color-mix(in oklab, hsl(var(--brand-2)) 60%, var(--text)));
@@ -230,7 +246,11 @@ html, body { color: var(--text); }
 
 /* Data containers */
 [data-testid="stDataFrame"], [data-testid="stExpander"], [data-testid="stAlert"] {
-  border-radius:16px; border:1px solid var(--border); background: var(--glass); backdrop-filter: blur(10px);
+  border-radius:16px; border:1px solid var(--border);
+  background:
+    radial-gradient(120% 120% at 80% 10%, color-mix(in oklab, hsl(var(--brand-1)) 3%, transparent), transparent 60%),
+    var(--glass);
+  backdrop-filter: blur(10px);
 }
 
 /* Metrics (main KPI cards with glassmorphism) */
@@ -239,8 +259,8 @@ div[data-testid="stMetric"] {
   border-radius: 18px;
   padding: 1rem 1.1rem;
   background:
-    radial-gradient(120% 140% at 10% 0%, color-mix(in oklab, hsl(var(--brand-1)) 10%, transparent), transparent 60%),
-    radial-gradient(140% 120% at 90% 100%, color-mix(in oklab, hsl(var(--brand-2)) 10%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 10% 0%, color-mix(in oklab, hsl(var(--brand-1)) 7%, transparent), transparent 60%),
+    radial-gradient(140% 120% at 90% 100%, color-mix(in oklab, hsl(var(--brand-2)) 7%, transparent), transparent 60%),
     var(--glass);
   backdrop-filter: blur(14px) saturate(140%);
   border: 1px solid var(--glass-border);
