@@ -2827,7 +2827,7 @@ def main():
     st.divider()
     st.markdown(
         "<div style='text-align: center; opacity: 0.8; padding: 1rem;'>"
-        "<p>Shell Eco-marathon Telemetry Dashboard with Adaptive Theme</p>"
+        "<p>Shell Eco-marathon Telemetry Dashboard</p>"
         "</div>",
         unsafe_allow_html=True,
     )
