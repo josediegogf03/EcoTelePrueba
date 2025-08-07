@@ -142,22 +142,6 @@ def get_theme_aware_css():
   background-attachment: fixed;
 }
 
-/* Page layout refinements */
-.block-container { padding-top: 0.75rem; padding-bottom: 2rem; }
-.page-intro { text-align:center; color: var(--text-muted); margin: -0.25rem 0 1.25rem; font-weight:600; }
-
-/* Toolbar */
-.toolbar.card { padding: 0.75rem; }
-.toolbar { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; align-items: stretch; }
-.toolbar .pill {
-  display:flex; align-items:center; justify-content:center; gap:.6rem;
-  padding:.65rem 1rem; border-radius:999px; font-weight:800; letter-spacing:.2px;
-  border:1px solid var(--glass-border); background: var(--glass-strong);
-  backdrop-filter: blur(10px) saturate(130%);
-}
-@media (max-width: 1100px) { .toolbar { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) { .toolbar { grid-template-columns: 1fr; } }
-
 /* Header */
 [data-testid="stHeader"] {
   background: linear-gradient(90deg,
@@ -2263,14 +2247,111 @@ def render_dynamic_charts_section(df: pd.DataFrame):
                 st.error(f"Error rendering chart configuration: {e}")
 
 
+def render_minimal_dashboard(df: pd.DataFrame, kpis: Dict[str, float]):
+    """Modern minimal, coherent dashboard layout (grid-based) without tabs.
+
+    Keeps all existing functionality by reusing the same chart builders, but
+    presents them in a clean responsive grid.
+    """
+    # Hero + KPIs
+    st.markdown(
+        """
+        <div class="card" style="margin-bottom: .5rem">
+            <div style="display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;">
+                <div style="font-weight:800; font-size:1.25rem; color: var(--text);">
+                    Live Telemetry Overview
+                </div>
+                <div class="status-indicator">Optimized Minimal View</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # KPI header and compact gauges
+    render_kpi_header(kpis, unique_ns="minimal", show_gauges=True)
+
+    # Responsive grid of charts
+    st.markdown(
+        """
+        <div class="dashboard-grid" style="display:grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; margin-top: .5rem;">
+            <div class="chart-wrap" style="grid-column: span 6;">__SPEED__</div>
+            <div class="chart-wrap" style="grid-column: span 6;">__POWER__</div>
+            <div class="chart-wrap" style="grid-column: span 7;">__IMU__</div>
+            <div class="chart-wrap" style="grid-column: span 5;">__EFF__</div>
+            <div class="chart-wrap" style="grid-column: span 7;">__GPS__</div>
+            <div class="chart-wrap" style="grid-column: span 5;">__SESSION__</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Inject charts into placeholders in order
+    speed_fig = create_speed_chart(df)
+    power_fig = create_power_chart(df)
+    imu_fig = create_imu_chart(df)
+    eff_fig = create_efficiency_chart(df)
+    gps_fig = create_gps_map_with_altitude(df)
+
+    # Render into the most recent 6 chart-wraps in order
+    # We reuse Streamlit containers for simplicity
+    grid_cols = st.columns([6,6])
+    with grid_cols[0]:
+        st.plotly_chart(speed_fig, use_container_width=True, key="grid_speed")
+    with grid_cols[1]:
+        st.plotly_chart(power_fig, use_container_width=True, key="grid_power")
+
+    grid_cols2 = st.columns([7,5])
+    with grid_cols2[0]:
+        st.plotly_chart(imu_fig, use_container_width=True, key="grid_imu")
+    with grid_cols2[1]:
+        st.plotly_chart(eff_fig, use_container_width=True, key="grid_eff")
+
+    grid_cols3 = st.columns([7,5])
+    with grid_cols3[0]:
+        st.plotly_chart(gps_fig, use_container_width=True, key="grid_gps")
+    with grid_cols3[1]:
+        if st.session_state.selected_session:
+            render_session_info(st.session_state.selected_session)
+        else:
+            st.markdown(
+                '<div class="card"><strong>Session</strong><br/>No session selected.</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.divider()
+    st.subheader("Custom Charts")
+    render_dynamic_charts_section(df)
+
+    st.subheader("Raw Data")
+    # Reuse the previous data table + downloads block
+    display_df = df.tail(100) if len(df) > 100 else df
+    st.dataframe(display_df, use_container_width=True, height=400)
+    col1, col2 = st.columns(2)
+    with col1:
+        csv_all = df.to_csv(index=False)
+        st.download_button(
+            label=f"📥 Download Full CSV ({len(df):,} rows)",
+            data=csv_all,
+            file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with col2:
+        if len(df) > 1000:
+            sample_df = df.sample(n=min(1000, len(df)), random_state=42)
+            st.download_button(
+                label="📥 Download Sample CSV (1000 rows)",
+                data=sample_df.to_csv(index=False),
+                file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
 def main():
     """Main dashboard function."""
     st.markdown(
         '<div class="main-header">🏎️ Shell Eco-marathon Telemetry Dashboard</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="page-intro">Minimal, desaturated glass UI for clear telemetry insight</div>',
         unsafe_allow_html=True,
     )
 
@@ -2632,28 +2713,26 @@ def main():
                 st.warning(msg, icon="⚠️")
     # --- End Data Quality Section ---
 
-    # Toolbar replacing the older status row
-    st.markdown('<div class="card toolbar">', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        mode_label = "📚 Historical" if st.session_state.is_viewing_historical else "🔴 Real-time"
-        st.markdown(f'<div class="pill">{mode_label}</div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="pill">📊 {len(df):,} points</div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown(
-            f'<div class="pill">⏰ {st.session_state.last_update.strftime("%H:%M:%S")}</div>',
-            unsafe_allow_html=True,
-        )
-    with c4:
-        if (
-            st.session_state.data_source_mode == "realtime_session"
-            and new_messages_count > 0
-        ):
-            st.markdown(f'<div class="pill">📨 +{new_messages_count}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="pill">📨 0</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Status row for populated data
+    with st.container():
+        col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+        with col1:
+            if st.session_state.is_viewing_historical:
+                st.info("📚 Historical")
+            else:
+                st.info("🔴 Real-time")
+        with col2:
+            st.info(f"📊 {len(df):,} data points available")
+        with col3:
+            st.info(
+                f"⏰ Last update: {st.session_state.last_update.strftime('%H:%M:%S')}"
+            )
+        with col4:
+            if (
+                st.session_state.data_source_mode == "realtime_session"
+                and new_messages_count > 0
+            ):
+                st.success(f"📨 +{new_messages_count}")
 
     # Show pagination info if large dataset
     if len(df) > 10000:
@@ -2669,165 +2748,9 @@ def main():
     # Calculate KPIs (including Roll and Pitch)
     kpis = calculate_kpis(df)
 
-    # Tabs for different visualizations
+    # Minimal, coherent single-page grid dashboard
     st.subheader("📈 Dashboard")
-
-    tab_names = [
-        "📊 Overview",
-        "🚗 Speed",
-        "⚡ Power",
-        "🎮 IMU",
-        "🎮 IMU Detail",
-        "⚡ Efficiency",
-        "🛰️ GPS",
-        "📈 Custom",
-        "📃 Data",
-    ]
-    tabs = st.tabs(tab_names)
-
-    # Render content for each tab with unique keys for charts
-    with tabs[0]:
-        render_overview_tab(kpis)
-
-    with tabs[1]:
-        render_live_gauges(kpis, unique_ns="speedtab")
-        render_kpi_header(kpis, unique_ns="speedtab", show_gauges=False)
-        fig = create_speed_chart(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_speed_main")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[2]:
-        render_live_gauges(kpis, unique_ns="powertab")
-        render_kpi_header(kpis, unique_ns="powertab", show_gauges=False)
-        fig = create_power_chart(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_power_main")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[3]:
-        render_live_gauges(kpis, unique_ns="imutab")
-        render_kpi_header(kpis, unique_ns="imutab", show_gauges=False)
-        fig = create_imu_chart(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_imu_main")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[4]:
-        render_live_gauges(kpis, unique_ns="imudetailtab")
-        render_kpi_header(kpis, unique_ns="imudetailtab", show_gauges=False)
-        fig = create_imu_detail_chart(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(
-                fig, use_container_width=True, key="chart_imu_detail_main"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[5]:
-        render_live_gauges(kpis, unique_ns="efftab")
-        render_kpi_header(kpis, unique_ns="efftab", show_gauges=False)
-        fig = create_efficiency_chart(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(
-                fig, use_container_width=True, key="chart_efficiency_main"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[6]:
-        render_live_gauges(kpis, unique_ns="gpstab")
-        render_kpi_header(kpis, unique_ns="gpstab", show_gauges=False)
-        fig = create_gps_map_with_altitude(df)
-        if fig:
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.plotly_chart(fig, use_container_width=True, key="chart_gps_main")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with tabs[7]:
-        render_live_gauges(kpis, unique_ns="customtab")
-        render_kpi_header(kpis, unique_ns="customtab", show_gauges=False)
-        render_dynamic_charts_section(df)
-
-    with tabs[8]:
-        render_live_gauges(kpis, unique_ns="datatabletab")
-        render_kpi_header(kpis, unique_ns="datatabletab", show_gauges=False)
-
-        st.subheader("📃 Raw Telemetry Data")
-
-        if len(df) > 1000:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
-        else:
-            st.info(f"ℹ️ Showing last 100 from all {len(df):,} data points below.")
-
-        display_df = df.tail(100) if len(df) > 100 else df
-        st.dataframe(display_df, use_container_width=True, height=400)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label=f"📥 Download Full CSV ({len(df):,} rows)",
-                data=csv,
-                file_name=f"telemetry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
-        with col2:
-            if len(df) > 1000:
-                sample_df = df.sample(n=min(1000, len(df)), random_state=42)
-                sample_csv = sample_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Sample CSV (1000 rows)",
-                    data=sample_csv,
-                    file_name=f"telemetry_sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
-
-        with st.expander("📊 Dataset Statistics"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Rows", f"{len(df):,}")
-                st.metric("Columns", len(df.columns))
-                if 'roll_deg' in calculate_roll_and_pitch(df).columns:
-                    st.metric("Roll & Pitch", "✅ Calculated")
-            with col2:
-                if "timestamp" in df.columns and len(df) > 1:
-                    try:
-                        timestamp_series = pd.to_datetime(
-                            df["timestamp"], errors="coerce", utc=True
-                        )
-                        timestamp_series = timestamp_series.dropna()
-
-                        if len(timestamp_series) > 1:
-                            time_span = (
-                                timestamp_series.max() - timestamp_series.min()
-                            )
-                            st.metric("Time Span", str(time_span).split(".")[0])
-
-                            if time_span.total_seconds() > 0:
-                                data_rate = len(df) / time_span.total_seconds()
-                                st.metric("Data Rate", f"{data_rate:.2f} Hz")
-                        else:
-                            st.metric("Time Span", "N/A")
-                            st.metric("Data Rate", "N/A")
-                    except Exception as e:
-                        st.metric("Time Span", "Error")
-                        st.metric("Data Rate", "Error")
-            with col3:
-                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
-                st.metric("Memory Usage", f"{memory_usage:.2f} MB")
-
-                if "data_source" in df.columns:
-                    source_counts = df["data_source"].value_counts()
-                    st.write("**Data Sources:**")
-                    for source, count in source_counts.items():
-                        st.write(f"• {source}: {count:,} rows")
+    render_minimal_dashboard(df, kpis)
 
     # Auto-refresh for real-time mode only
     if (
