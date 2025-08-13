@@ -1715,10 +1715,9 @@ def create_efficiency_chart(df: pd.DataFrame):
 
 
 def create_gps_map_with_altitude(df: pd.DataFrame):
-    """Create theme-aware GPS map with altitude chart, filtering invalid points."""
-    if df.empty or not all(
-        col in df.columns for col in ["latitude", "longitude"]
-    ):
+
+    # Basic availability checks
+    if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
         return go.Figure().add_annotation(
             text="No GPS data available",
             xref="paper",
@@ -1726,21 +1725,22 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
-    # Filter out points where GPS coordinates are (0, 0)
+    # 1) Filter invalid coordinate tuples (0,0) and NaNs
     initial_rows = len(df)
-    df_filtered = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
+    df_filtered = df[~((df["latitude"] == 0) & (df["longitude"] == 0))].copy()
+    df_filtered = df_filtered.dropna(subset=["latitude", "longitude"])
     filtered_rows = len(df_filtered)
 
     if initial_rows > 0 and filtered_rows < initial_rows:
         st.warning(
-            f"🛰️ **GPS Signal Issue:** Excluded {initial_rows - filtered_rows} data points with invalid (0,0) coordinates."
+            f"🛰️ GPS Signal Issue: Excluded {initial_rows - filtered_rows:,} "
+            "data points with invalid (0,0) coordinates."
         )
 
-    df_valid = df_filtered.dropna(subset=["latitude", "longitude"])
-    if df_valid.empty:
+    if df_filtered.empty:
         return go.Figure().add_annotation(
             text="No valid GPS coordinates found after filtering",
             xref="paper",
@@ -1748,33 +1748,142 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"color": "var(--text-muted)"}
+            font={"color": "var(--text-muted)"},
         )
 
-    # Create subplot with map on left and altitude on right
+    # Ensure timestamp column is parsed (keep original timestamps column too)
+    if "timestamp" in df_filtered.columns:
+        try:
+            df_filtered["timestamp"] = pd.to_datetime(
+                df_filtered["timestamp"], errors="coerce", utc=True
+            )
+        except Exception:
+            df_filtered["timestamp"] = pd.to_datetime(
+                df_filtered["timestamp"], errors="coerce"
+            )
+
+    # Center for map
+    center_point = dict(
+        lat=float(df_filtered["latitude"].mean()), lon=float(df_filtered["longitude"].mean())
+    )
+
+    # Helper: robust altitude cleaning
+    def _clean_altitude_series(
+        alt_series: pd.Series,
+        timestamps: Optional[pd.Series] = None,
+        abs_min: float = -500.0,
+        abs_max: float = 10000.0,
+        iqr_multiplier: float = 3.0,
+        rolling_window: int = 7,
+        spike_threshold_m: float = 50.0,
+        interp_limit: int = 10,
+    ) -> pd.Series:
+        """
+        Return cleaned altitude Series (same index as input).
+        Steps:
+          - to_numeric -> NaN
+          - absolute clip (abs_min/abs_max)
+          - IQR mask (iqr_multiplier)
+          - rolling median spike removal (rolling_window,
+            threshold = max(spike_threshold_m, 3*rolling_std))
+          - interpolate small gaps (time-aware if timestamps provided)
+        """
+        s = pd.to_numeric(alt_series, errors="coerce").copy()
+
+        # Absolute physical clipping (remove impossible values)
+        s = s.where((s >= abs_min) & (s <= abs_max))
+
+        if s.dropna().empty:
+            return s
+
+        # IQR-based masking (robust global outliers)
+        q1 = s.quantile(0.25)
+        q3 = s.quantile(0.75)
+        iqr = q3 - q1
+        lower = q1 - iqr_multiplier * iqr
+        upper = q3 + iqr_multiplier * iqr
+        s = s.where((s >= lower) & (s <= upper))
+
+        if s.dropna().empty:
+            return s
+
+        # Rolling-median despike (local spike removal)
+        # If timestamps given, make a time-indexed Series for time-aware rolling
+        if timestamps is not None:
+            idx = pd.to_datetime(timestamps, errors="coerce", utc=True)
+            tmp = pd.Series(s.values, index=idx)
+            roll_med = tmp.rolling(rolling_window, min_periods=1, center=True).median()
+            roll_std = tmp.rolling(rolling_window, min_periods=1, center=True).std().fillna(0)
+            threshold = np.maximum(spike_threshold_m, 3.0 * roll_std)
+            spike_mask = (tmp - roll_med).abs() > threshold
+            tmp[spike_mask] = np.nan
+            # Put back to original index alignment
+            s = tmp.reindex_like(s)
+            # time-aware interpolation where possible
+            try:
+                s = s.interpolate(method="time", limit=interp_limit, limit_direction="both")
+            except Exception:
+                s = s.interpolate(limit=interp_limit, limit_direction="both")
+        else:
+            roll_med = s.rolling(rolling_window, min_periods=1, center=True).median()
+            roll_std = s.rolling(rolling_window, min_periods=1, center=True).std().fillna(0)
+            threshold = np.maximum(spike_threshold_m, 3.0 * roll_std)
+            spike_mask = (s - roll_med).abs() > threshold
+            s[spike_mask] = np.nan
+            s = s.interpolate(limit=interp_limit, limit_direction="both")
+
+        return s
+
+    # Apply cleaning if altitude column exists
+    altitude_clean = pd.Series(dtype=float)
+    initial_alt_rows = 0
+    if "altitude" in df_filtered.columns:
+        initial_alt_rows = df_filtered["altitude"].dropna().shape[0]
+        altitude_clean = _clean_altitude_series(
+            df_filtered["altitude"],
+            timestamps=df_filtered["timestamp"] if "timestamp" in df_filtered.columns else None,
+            abs_min=-500.0,  # configurable
+            abs_max=10000.0,  # configurable
+            iqr_multiplier=3.0,
+            rolling_window=7,
+            spike_threshold_m=50.0,
+            interp_limit=10,
+        )
+
+    final_alt_rows = altitude_clean.dropna().shape[0]
+
+    if initial_alt_rows > final_alt_rows:
+        st.warning(
+            f"⛰️ **Altitude Cleanup:** removed {initial_alt_rows - final_alt_rows:,} "
+            "invalid/outlier altitude points during cleaning."
+        )
+
+    # Build subplot: map (left) + altitude (right)
     fig = make_subplots(
         rows=1,
         cols=2,
         column_widths=[0.7, 0.3],
         subplot_titles=("🛰️ Vehicle Track", "⛰️ Altitude Profile"),
-        specs=[[{"type": "scattermap"}, {"type": "scatter"}]],
+        specs=[[{"type": "scattermap"}, {"type": "xy"}]],
     )
 
-    center_point = dict(
-        lat=df_valid["latitude"].mean(), lon=df_valid["longitude"].mean()
+    # Map trace (left)
+    marker_color = (
+        df_filtered["speed_ms"]
+        if "speed_ms" in df_filtered.columns
+        else "#1f77b4"
     )
-
     fig.add_trace(
         go.Scattermap(
-            lat=df_valid["latitude"],
-            lon=df_valid["longitude"],
+            lat=df_filtered["latitude"],
+            lon=df_filtered["longitude"],
             mode="markers+lines",
             marker=go.scattermap.Marker(
                 size=8,
-                color=df_valid["speed_ms"] if "speed_ms" in df_valid.columns else "#1f77b4",
-                colorscale="plasma",
-                showscale=True,
-                colorbar=dict(title="Speed (m/s)", x=0.65),
+                color=marker_color,
+                colorscale="plasma" if "speed_ms" in df_filtered.columns else None,
+                showscale=("speed_ms" in df_filtered.columns),
+                colorbar=dict(title="Speed (m/s)", x=0.65) if "speed_ms" in df_filtered.columns else None,
             ),
             line=dict(width=2, color="#1f77b4"),
             hovertemplate="Lat: %{lat}<br>Lon: %{lon}<extra></extra>",
@@ -1784,78 +1893,75 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Altitude
-    if "altitude" in df.columns:
-        altitude_data = df.dropna(subset=["altitude"])
-        initial_alt_rows = len(altitude_data)
-        altitude_data = altitude_data[altitude_data["altitude"] != 0]
-        filtered_alt_rows = len(altitude_data)
-
-        if initial_alt_rows > 0 and filtered_alt_rows < initial_alt_rows:
-            st.warning(
-                f"⛰️ **Altitude Sensor Issue:** Excluded {initial_alt_rows - filtered_alt_rows} data points with 0 altitude."
-            )
-
-        if not altitude_data.empty:
-            fig.add_trace(
-                go.Scatter(
-                    x=altitude_data["timestamp"],
-                    y=altitude_data["altitude"],
-                    mode="lines",
-                    line=dict(color="#2ca02c", width=2),
-                    name="Altitude",
-                    hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>",
-                ),
-                row=1,
-                col=2,
-            )
+    # Altitude: always try to plot cleaned altitude; else show placeholder text
+    if not altitude_clean.empty and altitude_clean.dropna().any():
+        # Align x axis: prefer timestamp column, else index
+        if "timestamp" in df_filtered.columns:
+            x_axis = df_filtered["timestamp"]
         else:
-            fig.add_trace(
-                go.Scatter(
-                    x=[0],
-                    y=[0],
-                    mode="text",
-                    text=["No valid altitude data"],
-                    textposition="middle center",
-                    showlegend=False,
-                    textfont={"color": "var(--text-muted)"}
-                ),
-                row=1,
-                col=2,
-            )
-    else:
+            x_axis = df_filtered.index
+
         fig.add_trace(
             go.Scatter(
-                x=[0],
-                y=[0],
-                mode="text",
-                text=["No altitude data available"],
-                textposition="middle center",
-                showlegend=False,
-                textfont={"color": "var(--text-muted)"}
+                x=x_axis,
+                y=altitude_clean,
+                mode="lines",
+                line=dict(color="#2ca02c", width=2),
+                name="Altitude",
+                hovertemplate="Time: %{x}<br>Altitude: %{y:.1f} m<extra></extra>",
             ),
             row=1,
             col=2,
         )
 
+        # Y axis label and styling for altitude subplot
+        fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
+        fig.update_xaxes(title_text="Time", row=1, col=2)
+    else:
+        # No valid altitude after cleaning — show placeholder text and last-known
+        last_valid = None
+        if "altitude" in df_filtered.columns and df_filtered["altitude"].dropna().any():
+            last_valid = float(
+                pd.to_numeric(df_filtered["altitude"], errors="coerce").dropna().iloc[-1]
+            )
+
+        placeholder_text = "No valid altitude data after cleaning"
+        if last_valid is not None:
+            placeholder_text = f"No valid altitude after cleaning — last valid: {last_valid:.1f} m"
+
+        fig.add_trace(
+            go.Scatter(
+                x=[0],
+                y=[0],
+                mode="text",
+                text=[placeholder_text],
+                textposition="middle center",
+                showlegend=False,
+                hoverinfo="none",
+                textfont={"color": "var(--text-muted)"},
+            ),
+            row=1,
+            col=2,
+        )
+        fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
+        fig.update_xaxes(visible=False, row=1, col=2)
+
     fig.update_layout(
         title_text="🛰️ GPS Tracking and Altitude Analysis",
-        height=500,
+        height=520,
         showlegend=False,
         map_style="open-street-map",
         map=dict(center=center_point, zoom=14),
         paper_bgcolor="rgba(0,0,0,0)",
         font={"color": "var(--text)"},
-        title_font={"color": "var(--text)"}
+        title_font={"color": "var(--text)"},
     )
 
-    fig.update_xaxes(title_text="Time", row=1, col=2,
-                     gridcolor="var(--border-light)", color="var(--text-secondary)")
-    fig.update_yaxes(title_text="Altitude (m)", row=1, col=2,
-                     gridcolor="var(--border-light)", color="var(--text-secondary)")
+    # Nice axis colors
+    fig.update_xaxes(row=1, col=2, gridcolor="var(--border-light)", color="var(--text-secondary)")
+    fig.update_yaxes(row=1, col=2, gridcolor="var(--border-light)", color="var(--text-secondary)")
 
     return fig
-
 
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
