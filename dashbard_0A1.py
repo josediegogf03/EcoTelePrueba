@@ -1184,11 +1184,11 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
 
     with col3:
         st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.1f} V")
-        st.metric("🔄 Current", f"{kpis['c_current_a']:.1f}a")
+        st.metric("🔄 Current", f"{kpis['c_current_a']:.1f} A")
 
     with col4:
         st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-        st.metric("🌊 Avg Current ", f"{kpis['avg_current_a']:.1f} a")
+        st.metric("🌊 Avg Current ", f"{kpis['avg_current_a']:.1f} A")
 
     if show_gauges:
         render_live_gauges(kpis, unique_ns)
