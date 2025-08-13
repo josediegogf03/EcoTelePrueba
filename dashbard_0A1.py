@@ -880,7 +880,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
             "distance_m",
             "power_w",
             "voltage_v",
-            "current_a",
+            "c_current_a",
             "latitude",
             "longitude",
             "altitude",
