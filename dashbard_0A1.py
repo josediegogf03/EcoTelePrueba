@@ -959,11 +959,10 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
             curr_data = df["current_a"].dropna()
             if not curr_data.empty:
                 kpis["avg_current_a"] = max(0.0, curr_data.mean())
-                        
-        if "current_a" in df.columns:
-            curr_data = df["current_a"].dropna()
-            if not curr_data.empty:
-                kpis["c_current_a"] = "current_a"
+                # use the most recent current value for display
+                kpis["c_current_a"] = max(0.0, curr_data.iloc[-1])
+            else:
+                kpis["c_current_a"] = 0.0
 
         # Roll and Pitch (latest and max values)
         if "roll_deg" in df.columns:
