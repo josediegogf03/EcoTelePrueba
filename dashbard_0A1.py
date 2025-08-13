@@ -856,6 +856,7 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
         "avg_speed_kmh": 0.0,
         "total_energy_kwh": 0.0,
         "avg_power_w": 0.0,
+        "c_current_a": 0.0,
         "efficiency_km_per_kwh": 0.0,
         "battery_voltage_v": 0.0,
         "battery_percentage": 0.0,
@@ -958,6 +959,11 @@ def calculate_kpis(df: pd.DataFrame) -> Dict[str, float]:
             curr_data = df["current_a"].dropna()
             if not curr_data.empty:
                 kpis["avg_current_a"] = max(0.0, curr_data.mean())
+                        
+        if "current_a" in df.columns:
+            curr_data = df["current_a"].dropna()
+            if not curr_data.empty:
+                kpis["c_current_a"] = "current_a"
 
         # Roll and Pitch (latest and max values)
         if "roll_deg" in df.columns:
@@ -1179,11 +1185,11 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
 
     with col3:
         st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.1f} V")
-        st.metric("🔄 Current Roll", f"{kpis['current_roll_deg']:.1f}°")
+        st.metric("🔄 Current", f"{kpis['c_current_a']:.1f}a")
 
     with col4:
         st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-        st.metric("📐 Current Pitch", f"{kpis['current_pitch_deg']:.1f}°")
+        st.metric("🌊 Avg Current ", f"{kpis['avg_current_a']:.1f} a")
 
     if show_gauges:
         render_live_gauges(kpis, unique_ns)
