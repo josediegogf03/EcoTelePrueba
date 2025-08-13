@@ -1715,9 +1715,19 @@ def create_efficiency_chart(df: pd.DataFrame):
 
 
 def create_gps_map_with_altitude(df: pd.DataFrame):
+    """
+    Create theme-aware GPS map with altitude subplot and permissive cleaning.
 
+    - Always renders two panels: map (left) and altitude (right).
+    - Cleans altitude using a permissive, progressive pipeline so that all
+      numeric altitude is preserved when possible (no accidental total
+      removal).
+    - Provides warnings when rows are filtered or when points are removed
+      by cleanup.
+    """
     # Basic availability checks
-    if df.empty or not all(col in df.columns for col in ["latitude", "longitude"]):
+    if df.empty or not all(col in df.columns for col in ["latitude",
+                                                         "longitude"]):
         return go.Figure().add_annotation(
             text="No GPS data available",
             xref="paper",
@@ -1730,14 +1740,16 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
 
     # 1) Filter invalid coordinate tuples (0,0) and NaNs
     initial_rows = len(df)
-    df_filtered = df[~((df["latitude"] == 0) & (df["longitude"] == 0))].copy()
+    df_filtered = df.loc[~((df["latitude"] == 0) &
+                           (df["longitude"] == 0))].copy()
     df_filtered = df_filtered.dropna(subset=["latitude", "longitude"])
     filtered_rows = len(df_filtered)
 
     if initial_rows > 0 and filtered_rows < initial_rows:
         st.warning(
-            f"🛰️ GPS Signal Issue: Excluded {initial_rows - filtered_rows:,} "
-            "data points with invalid (0,0) coordinates."
+            "🛰️ GPS Signal Issue: Excluded "
+            f"{initial_rows - filtered_rows:,} data points with invalid "
+            "(0,0) coordinates."
         )
 
     if df_filtered.empty:
@@ -1751,7 +1763,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             font={"color": "var(--text-muted)"},
         )
 
-    # Ensure timestamp column is parsed (keep original timestamps column too)
+    # Ensure timestamp column is parsed (keep UTC if present)
     if "timestamp" in df_filtered.columns:
         try:
             df_filtered["timestamp"] = pd.to_datetime(
@@ -1762,12 +1774,9 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 df_filtered["timestamp"], errors="coerce"
             )
 
-    # Center for map
-    center_point = dict(
-        lat=float(df_filtered["latitude"].mean()), lon=float(df_filtered["longitude"].mean())
-    )
-
-    # Helper: robust altitude cleaning
+    # -------------------------
+    # Permissive cleaning helper
+    # -------------------------
     def _clean_altitude_series(
         alt_series: pd.Series,
         timestamps: Optional[pd.Series] = None,
@@ -1777,62 +1786,133 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         rolling_window: int = 7,
         spike_threshold_m: float = 50.0,
         interp_limit: int = 10,
+        min_valid_fraction: float = 0.01,
+        min_valid_absolute: int = 3,
     ) -> pd.Series:
         """
-        Return cleaned altitude Series (same index as input).
+        Permissive altitude cleaning that progressively relaxes filters.
+
         Steps:
-          - to_numeric -> NaN
-          - absolute clip (abs_min/abs_max)
-          - IQR mask (iqr_multiplier)
-          - rolling median spike removal (rolling_window,
-            threshold = max(spike_threshold_m, 3*rolling_std))
-          - interpolate small gaps (time-aware if timestamps provided)
+          - numeric conversion
+          - absolute clipping (disabled if too aggressive)
+          - progressive IQR filtering
+          - progressive rolling-median despike
+          - interpolate small gaps (time-aware when possible)
+          - fallbacks to percentile clipping or smoothing to avoid returning
+            all-NaNs when there was numeric altitude originally
         """
-        s = pd.to_numeric(alt_series, errors="coerce").copy()
+        s_orig = pd.to_numeric(alt_series, errors="coerce").copy()
+        if s_orig.dropna().empty:
+            return s_orig
 
-        # Absolute physical clipping (remove impossible values)
-        s = s.where((s >= abs_min) & (s <= abs_max))
+        orig_valid = s_orig.dropna().shape[0]
+        min_valid = max(min_valid_absolute,
+                        int(max(1, orig_valid * min_valid_fraction)))
 
-        if s.dropna().empty:
-            return s
+        # 1) Absolute clipping; revert if removes too many points
+        s = s_orig.where((s_orig >= abs_min) & (s_orig <= abs_max))
+        if s.dropna().shape[0] < min_valid:
+            s = s_orig.copy()
 
-        # IQR-based masking (robust global outliers)
-        q1 = s.quantile(0.25)
-        q3 = s.quantile(0.75)
-        iqr = q3 - q1
-        lower = q1 - iqr_multiplier * iqr
-        upper = q3 + iqr_multiplier * iqr
-        s = s.where((s >= lower) & (s <= upper))
+        # 2) IQR filtering with progressive relaxation
+        multipliers = [iqr_multiplier, iqr_multiplier * 2,
+                       iqr_multiplier * 5, None]
+        for mult in multipliers:
+            if mult is None:
+                s_iqr = s.copy()
+            else:
+                q1 = s.quantile(0.25)
+                q3 = s.quantile(0.75)
+                iqr = q3 - q1
+                if pd.isna(iqr) or iqr == 0:
+                    lower = s.min() - 1e6
+                    upper = s.max() + 1e6
+                else:
+                    lower = q1 - mult * iqr
+                    upper = q3 + mult * iqr
+                s_iqr = s.where((s >= lower) & (s <= upper))
 
-        if s.dropna().empty:
-            return s
+            if s_iqr.dropna().shape[0] >= min_valid or mult is None:
+                s = s_iqr
+                break
 
-        # Rolling-median despike (local spike removal)
-        # If timestamps given, make a time-indexed Series for time-aware rolling
-        if timestamps is not None:
-            idx = pd.to_datetime(timestamps, errors="coerce", utc=True)
-            tmp = pd.Series(s.values, index=idx)
-            roll_med = tmp.rolling(rolling_window, min_periods=1, center=True).median()
-            roll_std = tmp.rolling(rolling_window, min_periods=1, center=True).std().fillna(0)
-            threshold = np.maximum(spike_threshold_m, 3.0 * roll_std)
-            spike_mask = (tmp - roll_med).abs() > threshold
-            tmp[spike_mask] = np.nan
-            # Put back to original index alignment
-            s = tmp.reindex_like(s)
-            # time-aware interpolation where possible
+        # 3) Rolling-median despike with progressive thresholds
+        idx_ts = None
+        if timestamps is not None and len(timestamps) == len(s):
             try:
-                s = s.interpolate(method="time", limit=interp_limit, limit_direction="both")
+                idx_ts = pd.to_datetime(timestamps, errors="coerce", utc=True)
+                if idx_ts.isna().all():
+                    idx_ts = None
             except Exception:
-                s = s.interpolate(limit=interp_limit, limit_direction="both")
-        else:
-            roll_med = s.rolling(rolling_window, min_periods=1, center=True).median()
-            roll_std = s.rolling(rolling_window, min_periods=1, center=True).std().fillna(0)
-            threshold = np.maximum(spike_threshold_m, 3.0 * roll_std)
-            spike_mask = (s - roll_med).abs() > threshold
-            s[spike_mask] = np.nan
-            s = s.interpolate(limit=interp_limit, limit_direction="both")
+                idx_ts = None
 
-        return s
+        thresholds = [spike_threshold_m, spike_threshold_m * 2,
+                      spike_threshold_m * 5, None]
+        for thr in thresholds:
+            if thr is None:
+                s_rd = s.copy()
+            else:
+                if idx_ts is not None:
+                    tmp = pd.Series(s.values, index=idx_ts)
+                    roll_med = tmp.rolling(rolling_window, min_periods=1,
+                                           center=True).median()
+                    roll_std = tmp.rolling(rolling_window, min_periods=1,
+                                           center=True).std().fillna(0)
+                    thr_arr = np.maximum(thr, 3.0 * roll_std)
+                    spike_mask = (tmp - roll_med).abs() > thr_arr
+                    tmp2 = tmp.copy()
+                    tmp2[spike_mask] = np.nan
+                    s_rd = pd.Series(tmp2.values, index=s.index)
+                else:
+                    roll_med = s.rolling(rolling_window, min_periods=1,
+                                         center=True).median()
+                    roll_std = s.rolling(rolling_window, min_periods=1,
+                                         center=True).std().fillna(0)
+                    thr_arr = np.maximum(thr, 3.0 * roll_std)
+                    spike_mask = (s - roll_med).abs() > thr_arr
+                    s_rd = s.copy()
+                    s_rd[spike_mask] = np.nan
+
+            if s_rd.dropna().shape[0] >= min_valid or thr is None:
+                s = s_rd
+                break
+
+        # 4) Interpolate small gaps
+        if idx_ts is not None:
+            tmp = pd.Series(s.values, index=idx_ts)
+            try:
+                tmp_interp = tmp.interpolate(method="time", limit=interp_limit,
+                                             limit_direction="both")
+            except Exception:
+                tmp_interp = tmp.interpolate(limit=interp_limit,
+                                             limit_direction="both")
+            s_final = pd.Series(tmp_interp.values, index=s.index)
+        else:
+            s_final = s.interpolate(limit=interp_limit,
+                                    limit_direction="both")
+
+        # 5) Final fallbacks to avoid an all-NaN result
+        if s_final.dropna().empty:
+            try:
+                low_p, high_p = s_orig.quantile([0.01, 0.99])
+                s_pct = s_orig.where((s_orig >= low_p) & (s_orig <= high_p))
+            except Exception:
+                s_pct = s_orig.copy()
+
+            if not s_pct.dropna().empty:
+                s_final = s_pct.interpolate(limit=interp_limit,
+                                            limit_direction="both")
+            else:
+                sm = s_orig.rolling(3, min_periods=1, center=True).median()
+                filled = sm.fillna(method="ffill").fillna(method="bfill")
+                if filled.dropna().empty:
+                    median_val = s_orig.median()
+                    filled = s_orig.fillna(median_val)
+                s_final = filled
+
+        s_final = s_final.reindex(s_orig.index)
+        s_final = pd.to_numeric(s_final, errors="coerce")
+        return s_final
 
     # Apply cleaning if altitude column exists
     altitude_clean = pd.Series(dtype=float)
@@ -1841,21 +1921,25 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         initial_alt_rows = df_filtered["altitude"].dropna().shape[0]
         altitude_clean = _clean_altitude_series(
             df_filtered["altitude"],
-            timestamps=df_filtered["timestamp"] if "timestamp" in df_filtered.columns else None,
-            abs_min=-500.0,  # configurable
-            abs_max=10000.0,  # configurable
+            timestamps=df_filtered["timestamp"]
+            if "timestamp" in df_filtered.columns
+            else None,
+            abs_min=-500.0,
+            abs_max=10000.0,
             iqr_multiplier=3.0,
             rolling_window=7,
             spike_threshold_m=50.0,
             interp_limit=10,
+            min_valid_fraction=0.01,
+            min_valid_absolute=3,
         )
 
     final_alt_rows = altitude_clean.dropna().shape[0]
 
     if initial_alt_rows > final_alt_rows:
         st.warning(
-            f"⛰️ **Altitude Cleanup:** removed {initial_alt_rows - final_alt_rows:,} "
-            "invalid/outlier altitude points during cleaning."
+            "⛰️ Altitude Cleanup: removed "
+            f"{initial_alt_rows - final_alt_rows:,} invalid/outlier points."
         )
 
     # Build subplot: map (left) + altitude (right)
@@ -1867,12 +1951,9 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         specs=[[{"type": "scattermap"}, {"type": "xy"}]],
     )
 
-    # Map trace (left)
-    marker_color = (
-        df_filtered["speed_ms"]
-        if "speed_ms" in df_filtered.columns
-        else "#1f77b4"
-    )
+    # Map trace
+    marker_color = (df_filtered["speed_ms"]
+                    if "speed_ms" in df_filtered.columns else "#1f77b4")
     fig.add_trace(
         go.Scattermap(
             lat=df_filtered["latitude"],
@@ -1881,9 +1962,11 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             marker=go.scattermap.Marker(
                 size=8,
                 color=marker_color,
-                colorscale="plasma" if "speed_ms" in df_filtered.columns else None,
+                colorscale="plasma" if "speed_ms" in df_filtered.columns
+                else None,
                 showscale=("speed_ms" in df_filtered.columns),
-                colorbar=dict(title="Speed (m/s)", x=0.65) if "speed_ms" in df_filtered.columns else None,
+                colorbar=(dict(title="Speed (m/s)", x=0.65)
+                          if "speed_ms" in df_filtered.columns else None),
             ),
             line=dict(width=2, color="#1f77b4"),
             hovertemplate="Lat: %{lat}<br>Lon: %{lon}<extra></extra>",
@@ -1893,7 +1976,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         col=1,
     )
 
-    # Altitude: always try to plot cleaned altitude; else show placeholder text
+    # Altitude: always show cleaned altitude or a helpful placeholder
     if not altitude_clean.empty and altitude_clean.dropna().any():
         # Align x axis: prefer timestamp column, else index
         if "timestamp" in df_filtered.columns:
@@ -1901,10 +1984,12 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         else:
             x_axis = df_filtered.index
 
+        y_vals = altitude_clean.reindex(df_filtered.index)
+
         fig.add_trace(
             go.Scatter(
                 x=x_axis,
-                y=altitude_clean,
+                y=y_vals,
                 mode="lines",
                 line=dict(color="#2ca02c", width=2),
                 name="Altitude",
@@ -1914,20 +1999,27 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
             col=2,
         )
 
-        # Y axis label and styling for altitude subplot
         fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
         fig.update_xaxes(title_text="Time", row=1, col=2)
     else:
-        # No valid altitude after cleaning — show placeholder text and last-known
+        # No valid altitude after cleaning — placeholder and last-known value
         last_valid = None
-        if "altitude" in df_filtered.columns and df_filtered["altitude"].dropna().any():
-            last_valid = float(
-                pd.to_numeric(df_filtered["altitude"], errors="coerce").dropna().iloc[-1]
-            )
+        if "altitude" in df_filtered.columns and df_filtered[
+            "altitude"].dropna().any():
+            try:
+                last_valid = float(
+                    pd.to_numeric(df_filtered["altitude"],
+                                  errors="coerce").dropna().iloc[-1]
+                )
+            except Exception:
+                last_valid = None
 
         placeholder_text = "No valid altitude data after cleaning"
         if last_valid is not None:
-            placeholder_text = f"No valid altitude after cleaning — last valid: {last_valid:.1f} m"
+            placeholder_text = (
+                "No valid altitude after cleaning — last valid: "
+                f"{last_valid:.1f} m"
+            )
 
         fig.add_trace(
             go.Scatter(
@@ -1946,6 +2038,12 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
         fig.update_xaxes(visible=False, row=1, col=2)
 
+    # Layout tweaks
+    center_point = dict(
+        lat=float(df_filtered["latitude"].mean()),
+        lon=float(df_filtered["longitude"].mean()),
+    )
+
     fig.update_layout(
         title_text="🛰️ GPS Tracking and Altitude Analysis",
         height=520,
@@ -1957,12 +2055,14 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
         title_font={"color": "var(--text)"},
     )
 
-    # Nice axis colors
-    fig.update_xaxes(row=1, col=2, gridcolor="var(--border-light)", color="var(--text-secondary)")
-    fig.update_yaxes(row=1, col=2, gridcolor="var(--border-light)", color="var(--text-secondary)")
+    fig.update_xaxes(row=1, col=2,
+                     gridcolor="var(--border-light)",
+                     color="var(--text-secondary)")
+    fig.update_yaxes(row=1, col=2,
+                     gridcolor="var(--border-light)",
+                     color="var(--text-secondary)")
 
     return fig
-
 def get_available_columns(df: pd.DataFrame) -> List[str]:
     """Get available numeric columns for plotting."""
     if df.empty:
