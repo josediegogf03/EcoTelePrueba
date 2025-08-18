@@ -54,7 +54,7 @@ DASHBOARD_ABLY_API_KEY = (
 )
 DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://dsfmdziehhgmrconjcns.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzZm1kemllaGhnbXJjb25qY25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MDEyOTIsImV4cCI6MjA2NzQ3NzI5Mn0.P41bpLkP0tKpTktLx6hFOnnyjAB9N_yihQP1v6zTRwc"
+SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzZm1kemllaGhnbXJjb25qY25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MDEyOTIsImV4cCI6MjA2NzQ3NzI5Mn0.P41bpLkP0tKpTktLx6hFOnnyrAB9N_yihQP1v6zTRwc"
 SUPABASE_TABLE_NAME = "telemetry"
 
 # Pagination constants
@@ -220,7 +220,7 @@ html, body { color: var(--text); }
 }
 .stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover {
   transform: translateY(-2px);
-  box_shadow: 0 10px 22px color_mix(in oklab, hsl(var(--brand-2)) 18%, transparent) !important;
+  box-shadow: 0 10px 22px color-mix(in oklab, hsl(var(--brand-2)) 18%, transparent) !important;
 }
 .stButton > button:active, div[data-testid="stDownloadButton"] > button:active { transform: translateY(0); }
 
@@ -259,8 +259,8 @@ div[data-testid="stMetric"] {
   border-radius: 18px;
   padding: 1rem 1.1rem;
   background:
-    radial-gradient(120% 140% at 10% 0%, color_mix(in oklab, hsl(var(--brand-1)) 7%, transparent), transparent 60%),
-    radial_gradient(140% 120% at 90% 100%, color_mix(in oklab, hsl(var(--brand-2)) 7%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 10% 0%, color-mix(in oklab, hsl(var(--brand-1)) 7%, transparent), transparent 60%),
+    radial-gradient(140% 120% at 90% 100%, color-mix(in oklab, hsl(var(--brand-2)) 7%, transparent), transparent 60%),
     var(--glass);
   backdrop-filter: blur(14px) saturate(140%);
   border: 1px solid var(--glass-border);
@@ -270,7 +270,7 @@ div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
   font-weight: 700;
   padding: .15rem .45rem;
   border-radius: 999px;
-  background: color_mix(in oklab, var(--ok) 10%, transparent);
+  background: color-mix(in oklab, var(--ok) 10%, transparent);
 }
 
 /* Sidebar */
@@ -511,7 +511,7 @@ class EnhancedTelemetryManager:
 
                     response = (
                         self.supabase_client.table(SUPABASE_TABLE_NAME)
-                        .select("*") # Select all columns, including session_name
+                        .select("*")
                         .eq("session_id", session_id)
                         .order("timestamp", desc=False)
                         .range(offset, range_end)
@@ -588,113 +588,113 @@ class EnhancedTelemetryManager:
         return self._paginated_fetch(session_id, "supabase_current")
 
     def get_historical_sessions(self) -> List[Dict[str, Any]]:
-        """Get list of historical sessions with pagination support."""
-        try:
-            if not self.supabase_client:
-                self.logger.error("❌ Supabase client not initialized")
-                return []
+    """Get list of historical sessions with pagination support."""
+    try:
+        if not self.supabase_client:
+            self.logger.error("❌ Supabase client not initialized")
+            return []
 
-            self.logger.info("🔄 Fetching historical sessions list...")
+        self.logger.info("🔄 Fetching historical sessions list...")
 
-            all_records = []
-            offset = 0
+        all_records = []
+        offset = 0
 
-            while True:
-                try:
-                    range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
+        while True:
+            try:
+                range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
 
-                    # --- MODIFICATION START ---
-                    # Select session_name in addition to session_id and timestamp
-                    response = (
-                        self.supabase_client.table(SUPABASE_TABLE_NAME)
-                        .select("session_id, session_name, timestamp")
-                        .order("timestamp", desc=True)
-                        .range(offset, range_end)
-                        .execute()
-                    )
-                    # --- MODIFICATION END ---
+                response = (
+                    self.supabase_client.table(SUPABASE_TABLE_NAME)
+                    # include session_name now
+                    .select("session_id, session_name, timestamp")
+                    .order("timestamp", desc=True)
+                    .range(offset, range_end)
+                    .execute()
+                )
 
-                    if not response.data:
-                        break
-
-                    all_records.extend(response.data)
-
-                    if len(response.data) < SUPABASE_MAX_ROWS_PER_REQUEST:
-                        break
-
-                    offset += SUPABASE_MAX_ROWS_PER_REQUEST
-
-                except Exception as e:
-                    self.logger.error(
-                        f"❌ Error fetching session records at offset {offset}: {e}"
-                    )
+                if not response.data:
                     break
 
-            if not all_records:
-                self.logger.warning("⚠️ No session records found")
-                return []
+                all_records.extend(response.data)
 
-            sessions = {}
-            for record in all_records:
-                session_id = record["session_id"]
-                timestamp = record["timestamp"]
-                session_name = record.get("session_name", "Unnamed Session") # Get session name
+                if len(response.data) < SUPABASE_MAX_ROWS_PER_REQUEST:
+                    break
 
-                if session_id not in sessions:
-                    sessions[session_id] = {
-                        "session_id": session_id,
-                        "session_name": session_name, # Store session name
-                        "start_time": timestamp,
-                        "end_time": timestamp,
-                        "record_count": 1,
-                    }
-                else:
-                    sessions[session_id]["record_count"] += 1
-                    if timestamp < sessions[session_id]["start_time"]:
-                        sessions[session_id]["start_time"] = timestamp
-                    if timestamp > sessions[session_id]["end_time"]:
-                        sessions[session_id]["end_time"] = timestamp
+                offset += SUPABASE_MAX_ROWS_PER_REQUEST
 
-            session_list = []
-            for session_info in sessions.values():
-                try:
-                    start_dt = datetime.fromisoformat(
-                        session_info["start_time"].replace("Z", "+00:00")
-                    )
-                    end_dt = datetime.fromisoformat(
-                        session_info["end_time"].replace("Z", "+00:00")
-                    )
-                    duration = end_dt - start_dt
+            except Exception as e:
+                self.logger.error(
+                    f"❌ Error fetching session records at offset {offset}: {e}"
+                )
+                break
 
-                    session_list.append(
-                        {
-                            "session_id": session_info["session_id"],
-                            "session_name": session_info["session_name"], # Pass session name through
-                            "start_time": start_dt,
-                            "end_time": end_dt,
-                            "duration": duration,
-                            "record_count": session_info["record_count"],
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(
-                        f"❌ Error processing session {session_info['session_id']}: {e}"
-                    )
-
-            sorted_sessions = sorted(
-                session_list, key=lambda x: x["start_time"], reverse=True
-            )
-            self.logger.info(
-                f"✅ Found {len(sorted_sessions)} unique sessions"
-            )
-            return sorted_sessions
-
-        except Exception as e:
-            self.logger.error(f"❌ Error fetching historical sessions: {e}")
-            with self._lock:
-                self.stats["errors"] += 1
-                self.stats["last_error"] = str(e)
+        if not all_records:
+            self.logger.warning("⚠️ No session records found")
             return []
+
+        sessions = {}
+        for record in all_records:
+            session_id = record["session_id"]
+            timestamp = record["timestamp"]
+            session_name = record.get("session_name")
+
+            if session_id not in sessions:
+                sessions[session_id] = {
+                    "session_id": session_id,
+                    "session_name": session_name,
+                    "start_time": timestamp,
+                    "end_time": timestamp,
+                    "record_count": 1,
+                }
+            else:
+                sessions[session_id]["record_count"] += 1
+                # prefer first non-empty session_name seen
+                if session_name and not sessions[session_id].get("session_name"):
+                    sessions[session_id]["session_name"] = session_name
+                if timestamp < sessions[session_id]["start_time"]:
+                    sessions[session_id]["start_time"] = timestamp
+                if timestamp > sessions[session_id]["end_time"]:
+                    sessions[session_id]["end_time"] = timestamp
+
+        session_list = []
+        for session_info in sessions.values():
+            try:
+                start_dt = datetime.fromisoformat(
+                    session_info["start_time"].replace("Z", "+00:00")
+                )
+                end_dt = datetime.fromisoformat(
+                    session_info["end_time"].replace("Z", "+00:00")
+                )
+                duration = end_dt - start_dt
+
+                session_list.append(
+                    {
+                        "session_id": session_info["session_id"],
+                        # keep session_name (may be None)
+                        "session_name": session_info.get("session_name"),
+                        "start_time": start_dt,
+                        "end_time": end_dt,
+                        "duration": duration,
+                        "record_count": session_info["record_count"],
+                    }
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"❌ Error processing session {session_info['session_id']}: {e}"
+                )
+
+        sorted_sessions = sorted(
+            session_list, key=lambda x: x["start_time"], reverse=True
+        )
+        self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
+        return sorted_sessions
+
+    except Exception as e:
+        self.logger.error(f"❌ Error fetching historical sessions: {e}")
+        with self._lock:
+            self.stats["errors"] += 1
+            self.stats["last_error"] = str(e)
+        return []
 
     def get_historical_data(self, session_id: str) -> pd.DataFrame:
         """Get historical data for a specific session with pagination support."""
@@ -1213,15 +1213,13 @@ def render_overview_tab(kpis: Dict[str, float]):
 
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
-    # --- MODIFICATION START ---
-    # Display session_name along with session_id
-    session_name_display = session_data.get('session_name', 'Unnamed Session')
-    # --- MODIFICATION END ---
+    session_name = session_data.get("session_name") or "Unnamed"
     st.markdown(
         f"""
     <div class="card session-info">
         <h3>📊 Session Information</h3>
-        <p>📋 <strong>Session:</strong> {session_name_display} ({session_data['session_id'][:8]}...)</p>
+        <p>📛 <strong>Name:</strong> {session_name}</p>
+        <p>📋 <strong>Session:</strong> {session_data['session_id'][:8]}...</p>
         <p>📅 <strong>Start:</strong> {session_data['start_time'].strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>⏱️ <strong>Duration:</strong> {str(session_data['duration']).split('.')[0]}</p>
         <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
@@ -1229,7 +1227,6 @@ def render_session_info(session_data: Dict[str, Any]):
     """,
         unsafe_allow_html=True,
     )
-
 
 def analyze_data_quality(df: pd.DataFrame, is_realtime: bool):
     """
@@ -1673,12 +1670,6 @@ def create_imu_detail_chart(df: pd.DataFrame):
         paper_bgcolor="rgba(0,0,0,0)",
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
-        legend=dict(
-            bgcolor="var(--glass-bg)",
-            bordercolor="var(--border)",
-            borderwidth=1,
-            font=dict(color="var(--text)"),
-        ),
     )
 
     # Update axes colors
@@ -2096,7 +2087,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 col=2,
             )
             fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
-            fig.update_xaxes(visible=False, row=1, col=2)
+            fig.update_xaxes(title_text="Time", row=1, col=2)
         else:
             last_valid = None
             if df_filtered["altitude"].dropna().any():
@@ -2701,11 +2692,12 @@ def main():
             if st.session_state.historical_sessions:
                 session_options = []
                 for session in st.session_state.historical_sessions:
-                    # Use session_name in the display format
-                    session_name_display = session.get('session_name')
+                    name = session.get("session_name") or "Unnamed"
                     session_options.append(
-                        f"{session_name_display} ({session['session_id'][:8]}...) - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
-                    )
+                    f"{session['session_id'][:8]}... - {name} - "
+                    f"{session['start_time'].strftime('%Y-%m-%d %H:%M')} "
+                    f"({session['record_count']:,} records)"
+                        )
 
                 selected_session_idx = st.selectbox(
                     "📋 Select Session",
