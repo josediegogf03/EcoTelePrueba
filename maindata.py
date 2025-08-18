@@ -41,7 +41,7 @@ SUPABASE_TABLE_NAME = "telemetry"
 # Mock data configuration
 MOCK_DATA_INTERVAL = 2.0  # seconds
 DB_BATCH_INTERVAL = 9.0   # seconds - send to database every 9 seconds
-MAX_BATCH_SIZE = 100      # maximum number of records to batch before forcing database write
+MAX_BATCH_SIZE = 100      # maximum number of records to batch before forcing write
 
 # Logging setup
 logging.basicConfig(
@@ -60,7 +60,7 @@ class TelemetryBridgeWithDB:
     4. Manages sessions for historical data retrieval
     """
 
-    def __init__(self, mock_mode=False):
+    def __init__(self, mock_mode: bool = False, session_name: Optional[str] = None):
         self.mock_mode = mock_mode
         self.esp32_client = None
         self.dashboard_client = None
@@ -73,7 +73,15 @@ class TelemetryBridgeWithDB:
         self.db_buffer_lock = threading.Lock()
         self.session_id = str(uuid.uuid4())
         self.session_start_time = datetime.now(timezone.utc)
-        
+
+        # Session name (user supplied). If None, use a generated default.
+        if session_name and session_name.strip():
+            self.session_name = session_name.strip()
+        else:
+            # sensible default if user provided empty name
+            short_id = self.session_id[:8]
+            self.session_name = f"Session {short_id}"
+
         # Statistics
         self.stats = {
             "messages_received": 0,
@@ -84,22 +92,24 @@ class TelemetryBridgeWithDB:
             "errors": 0,
             "last_error": None,
             "current_session_id": self.session_id,
+            "current_session_name": self.session_name,
             "session_start_time": self.session_start_time.isoformat(),
         }
-        
+
         # Binary message parsing (updated for new structure)
-        self.BINARY_FORMAT = "<ffffffI"  # Updated format: speed, voltage, current, lat, lon, altitude, message_id
+        self.BINARY_FORMAT = "<ffffffI"  # speed, voltage, current, lat, lon,
+        # altitude, message_id
         self.BINARY_FIELD_NAMES = [
             'speed_ms',
             'voltage_v',
             'current_a',
             'latitude',
             'longitude',
-            'altitude',  # Added altitude field
+            'altitude',
             'message_id',
         ]
         self.BINARY_MESSAGE_SIZE = struct.calcsize(self.BINARY_FORMAT)
-        
+
         # Mock data simulation state
         self.cumulative_distance = 0.0
         self.cumulative_energy = 0.0
@@ -107,12 +117,14 @@ class TelemetryBridgeWithDB:
         self.prev_speed = 0.0
         self.message_count = 0
         self.base_altitude = 100.0  # Base altitude for simulation
-        
+
         # Signal handling
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
-        
+
         logger.info(f"🆔 New session started: {self.session_id}")
+        logger.info(f"📝 Session name: {self.session_name}")
+
         if self.mock_mode:
             logger.info("🎭 MOCK MODE ENABLED - Will generate simulated telemetry data")
         else:
@@ -156,7 +168,9 @@ class TelemetryBridgeWithDB:
         try:
             self.dashboard_client = AblyRealtime(DASHBOARD_ABLY_API_KEY)
             await self._wait_for_connection(self.dashboard_client, "Dashboard")
-            self.dashboard_channel = self.dashboard_client.channels.get(DASHBOARD_CHANNEL_NAME)
+            self.dashboard_channel = self.dashboard_client.channels.get(
+                DASHBOARD_CHANNEL_NAME
+            )
             logger.info(f"✅ Connected to Dashboard channel: {DASHBOARD_CHANNEL_NAME}")
             return True
         except Exception as e:
@@ -179,60 +193,60 @@ class TelemetryBridgeWithDB:
     def generate_mock_telemetry_data(self) -> Dict[str, Any]:
         """Generate realistic mock telemetry data"""
         current_time = datetime.now(timezone.utc)
-        
+
         # Generate realistic vehicle dynamics
         base_speed = 15.0 + 5.0 * math.sin(self.simulation_time * 0.1)
         speed_variation = random.gauss(0, 1.5)
         speed = max(0, min(25, base_speed + speed_variation))
-        
+
         # Electrical system simulation
         voltage = max(40, min(55, 48.0 + random.gauss(0, 1.5)))
         current = max(0, min(15, 8.0 + speed * 0.2 + random.gauss(0, 1.0)))
         power = voltage * current
-        
+
         # Energy and distance integration
         energy_delta = power * MOCK_DATA_INTERVAL
         distance_delta = speed * MOCK_DATA_INTERVAL
         self.cumulative_energy += energy_delta
         self.cumulative_distance += distance_delta
-        
+
         # GPS simulation (circular track with altitude variation)
         base_lat, base_lon = 40.7128, -74.0060
         lat_offset = 0.001 * math.sin(self.simulation_time * 0.05)
         lon_offset = 0.001 * math.cos(self.simulation_time * 0.05)
         latitude = base_lat + lat_offset + random.gauss(0, 0.0001)
         longitude = base_lon + lon_offset + random.gauss(0, 0.0001)
-        
+
         # Altitude simulation (varies with track elevation)
-        altitude_variation = 10.0 * math.sin(self.simulation_time * 0.03)  # ±10m variation
+        altitude_variation = 10.0 * math.sin(self.simulation_time * 0.03)
         altitude = self.base_altitude + altitude_variation + random.gauss(0, 1.0)
-        
+
         # IMU simulation
         turning_rate = 2.0 * math.sin(self.simulation_time * 0.08)
         gyro_x = random.gauss(0, 0.5)
         gyro_y = random.gauss(0, 0.3)
         gyro_z = turning_rate + random.gauss(0, 0.8)
-        
+
         # Acceleration simulation
         speed_acceleration = (speed - self.prev_speed) / MOCK_DATA_INTERVAL
         self.prev_speed = speed
-        
+
         accel_x = speed_acceleration + random.gauss(0, 0.2)
         accel_y = turning_rate * speed * 0.1 + random.gauss(0, 0.1)
         accel_z = 9.81 + random.gauss(0, 0.05)
-        
+
         # Add vibration effects
         vibration_factor = speed * 0.02
         accel_x += random.gauss(0, vibration_factor)
         accel_y += random.gauss(0, vibration_factor)
         accel_z += random.gauss(0, vibration_factor)
-        
+
         # Calculate total acceleration
         total_acceleration = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
-        
+
         self.simulation_time += 1
         self.message_count += 1
-        
+
         return {
             'timestamp': current_time.isoformat(),
             'speed_ms': round(speed, 2),
@@ -243,7 +257,7 @@ class TelemetryBridgeWithDB:
             'distance_m': round(self.cumulative_distance, 2),
             'latitude': round(latitude, 6),
             'longitude': round(longitude, 6),
-            'altitude': round(altitude, 2),  # Added altitude field
+            'altitude': round(altitude, 2),
             'gyro_x': round(gyro_x, 3),
             'gyro_y': round(gyro_y, 3),
             'gyro_z': round(gyro_z, 3),
@@ -255,6 +269,7 @@ class TelemetryBridgeWithDB:
             'uptime_seconds': self.simulation_time * MOCK_DATA_INTERVAL,
             'data_source': 'MOCK_GENERATOR',
             'session_id': self.session_id,
+            'session_name': self.session_name,
         }
 
     def _parse_json_message(self, data_bytes: bytes) -> Optional[Dict]:
@@ -264,9 +279,10 @@ class TelemetryBridgeWithDB:
                 data_str = data_bytes.decode('utf-8')
             else:
                 data_str = str(data_bytes)
-            
+
             parsed_data = json.loads(data_str)
-            logger.debug(f"✅ Successfully parsed JSON message with {len(parsed_data)} fields")
+            logger.debug(f"✅ Successfully parsed JSON message with "
+                         f"{len(parsed_data)} fields")
             return parsed_data
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.debug(f"JSON parsing failed: {e}")
@@ -275,9 +291,12 @@ class TelemetryBridgeWithDB:
     def _parse_binary_message(self, data_bytes: bytes) -> Optional[Dict]:
         """Parse binary message from bytes"""
         if len(data_bytes) != self.BINARY_MESSAGE_SIZE:
-            logger.debug(f"Binary message size mismatch. Expected {self.BINARY_MESSAGE_SIZE}, got {len(data_bytes)}")
+            logger.debug(
+                f"Binary message size mismatch. Expected "
+                f"{self.BINARY_MESSAGE_SIZE}, got {len(data_bytes)}"
+            )
             return None
-        
+
         try:
             unpacked_values = struct.unpack(self.BINARY_FORMAT, data_bytes)
             data_dict = dict(zip(self.BINARY_FIELD_NAMES, unpacked_values))
@@ -291,25 +310,28 @@ class TelemetryBridgeWithDB:
     def _normalize_telemetry_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize and enhance telemetry data for consistent format"""
         normalized = data.copy()
-        
-        # Add session information
+
+        # Add session information (user-supplied name + uuid)
         normalized['session_id'] = self.session_id
-        
+        normalized['session_name'] = self.session_name
+
         # Ensure we have a current timestamp
-        if 'timestamp' not in normalized or normalized['timestamp'].startswith('1970-01-01'):
+        if 'timestamp' not in normalized or normalized['timestamp'].startswith(
+            '1970-01-01'
+        ):
             normalized['timestamp'] = datetime.now(timezone.utc).isoformat()
-        
+
         # Ensure timestamp is properly formatted for database
         if isinstance(normalized['timestamp'], str):
             try:
-                # Parse and reformat timestamp to ensure UTC timezone
-                dt = datetime.fromisoformat(normalized['timestamp'].replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(normalized['timestamp'].replace('Z',
+                                                                           '+00:00'))
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 normalized['timestamp'] = dt.isoformat()
             except ValueError:
                 normalized['timestamp'] = datetime.now(timezone.utc).isoformat()
-        
+
         # Ensure all required fields are present with reasonable defaults
         required_fields = {
             'speed_ms': 0.0,
@@ -320,7 +342,7 @@ class TelemetryBridgeWithDB:
             'distance_m': 0.0,
             'latitude': 0.0,
             'longitude': 0.0,
-            'altitude': 0.0,  # Added altitude field
+            'altitude': 0.0,
             'gyro_x': 0.0,
             'gyro_y': 0.0,
             'gyro_z': 0.0,
@@ -331,35 +353,37 @@ class TelemetryBridgeWithDB:
             'message_id': 0,
             'uptime_seconds': 0.0
         }
-        
+
         for field, default_value in required_fields.items():
             if field not in normalized:
                 normalized[field] = default_value
-        
+
         # Calculate power if not present
         if 'power_w' not in normalized or normalized['power_w'] == 0:
             normalized['power_w'] = normalized['voltage_v'] * normalized['current_a']
-        
+
         # Calculate total acceleration if not present
-        if 'total_acceleration' not in normalized or normalized['total_acceleration'] == 0:
+        if 'total_acceleration' not in normalized or normalized[
+            'total_acceleration'
+        ] == 0:
             normalized['total_acceleration'] = math.sqrt(
-                normalized['accel_x']**2 + 
-                normalized['accel_y']**2 + 
+                normalized['accel_x']**2 +
+                normalized['accel_y']**2 +
                 normalized['accel_z']**2
             )
-        
+
         # Add data source tag
         normalized['data_source'] = 'ESP32_REAL' if not self.mock_mode else 'MOCK_GENERATOR'
-        
+
         return normalized
 
     def _on_esp32_message_received(self, message):
         """Handle incoming messages from ESP32 with improved parsing"""
         try:
             logger.debug(f"📨 Received message from ESP32 - Type: {type(message.data)}")
-            
+
             data = None
-            
+
             # Try to parse the message data
             if isinstance(message.data, (bytes, bytearray)):
                 # Try JSON first (most common case)
@@ -384,22 +408,24 @@ class TelemetryBridgeWithDB:
                 self.stats["last_error"] = "Failed to parse message"
                 return
 
-            # Normalize the data
+            # Normalize the data (this will attach session_name/session_id)
             normalized_data = self._normalize_telemetry_data(data)
-            
+
             # Add to message queue for real-time republishing
             self.message_queue.put(normalized_data)
-            
+
             # Add to database buffer
             with self.db_buffer_lock:
                 self.db_buffer.append(normalized_data)
-            
+
             self.stats["messages_received"] += 1
             self.stats["last_message_time"] = datetime.now(timezone.utc)
-            
-            logger.debug(f"📊 ESP32 Data Processed - Speed: {normalized_data.get('speed_ms', 0):.2f} m/s, "
-                        f"Power: {normalized_data.get('power_w', 0):.2f} W, "
-                        f"Altitude: {normalized_data.get('altitude', 0):.2f} m")
+
+            logger.debug(
+                f"📊 ESP32 Data Processed - Speed: {normalized_data.get('speed_ms', 0):.2f} "
+                f"m/s, Power: {normalized_data.get('power_w', 0):.2f} W, "
+                f"Altitude: {normalized_data.get('altitude', 0):.2f} m"
+            )
 
         except Exception as e:
             logger.error(f"❌ Error handling ESP32 message: {e}")
@@ -410,23 +436,23 @@ class TelemetryBridgeWithDB:
         """Generate mock data at regular intervals"""
         if not self.mock_mode:
             return
-        
+
         while self.running:
             try:
                 mock_data = self.generate_mock_telemetry_data()
-                
+
                 # Add to message queue for real-time republishing
                 self.message_queue.put(mock_data)
-                
+
                 # Add to database buffer
                 with self.db_buffer_lock:
                     self.db_buffer.append(mock_data)
-                
+
                 self.stats["messages_received"] += 1
                 self.stats["last_message_time"] = datetime.now(timezone.utc)
-                
+
                 await asyncio.sleep(MOCK_DATA_INTERVAL)
-                
+
             except Exception as e:
                 logger.error(f"❌ Error generating mock data: {e}")
                 self.stats["errors"] += 1
@@ -438,24 +464,29 @@ class TelemetryBridgeWithDB:
             try:
                 if not self.message_queue.empty():
                     messages_to_publish = []
-                    while not self.message_queue.empty() and len(messages_to_publish) < 10:
+                    while not self.message_queue.empty() and len(
+                        messages_to_publish
+                    ) < 10:
                         messages_to_publish.append(self.message_queue.get_nowait())
 
                     for message_data in messages_to_publish:
                         try:
-                            await self.dashboard_channel.publish('telemetry_update', message_data)
+                            await self.dashboard_channel.publish(
+                                'telemetry_update', message_data
+                            )
                             self.stats["messages_republished"] += 1
                         except Exception as e:
                             logger.error(f"❌ Failed to republish message: {e}")
                             self.stats["errors"] += 1
                             self.stats["last_error"] = str(e)
-                    
+
                     if messages_to_publish:
                         source_info = "MOCK" if self.mock_mode else "ESP32"
-                        logger.debug(f"📡 Republished {len(messages_to_publish)} {source_info} messages")
-                
+                        logger.debug(f"📡 Republished {len(messages_to_publish)} "
+                                     f"{source_info} messages")
+
                 await asyncio.sleep(0.1)
-                
+
             except Exception as e:
                 logger.error(f"❌ Error in republish loop: {e}")
                 self.stats["errors"] += 1
@@ -466,18 +497,18 @@ class TelemetryBridgeWithDB:
         while self.running:
             try:
                 await asyncio.sleep(DB_BATCH_INTERVAL)
-                
+
                 # Get current batch of data
                 batch_data = []
                 with self.db_buffer_lock:
                     if self.db_buffer:
                         batch_data = self.db_buffer.copy()
                         self.db_buffer.clear()
-                
+
                 # Write batch to database if we have data
                 if batch_data:
                     await self._write_batch_to_database(batch_data)
-                
+
             except Exception as e:
                 logger.error(f"❌ Error in database batch writer: {e}")
                 self.stats["errors"] += 1
@@ -488,12 +519,13 @@ class TelemetryBridgeWithDB:
         try:
             if not self.supabase_client or not batch_data:
                 return
-            
+
             # Prepare data for database insertion
             db_records = []
             for record in batch_data:
                 db_record = {
                     'session_id': record['session_id'],
+                    'session_name': record.get('session_name', self.session_name),
                     'timestamp': record['timestamp'],
                     'speed_ms': record['speed_ms'],
                     'voltage_v': record['voltage_v'],
@@ -503,7 +535,7 @@ class TelemetryBridgeWithDB:
                     'distance_m': record['distance_m'],
                     'latitude': record['latitude'],
                     'longitude': record['longitude'],
-                    'altitude_m': record['altitude'],  # Map altitude to altitude_m for database
+                    'altitude_m': record['altitude'],
                     'gyro_x': record['gyro_x'],
                     'gyro_y': record['gyro_y'],
                     'gyro_z': record['gyro_z'],
@@ -515,20 +547,24 @@ class TelemetryBridgeWithDB:
                     'uptime_seconds': record['uptime_seconds'],
                 }
                 db_records.append(db_record)
-            
+
             # Insert batch into database
-            response = self.supabase_client.table(SUPABASE_TABLE_NAME).insert(db_records).execute()
-            
+            response = self.supabase_client.table(SUPABASE_TABLE_NAME).insert(
+                db_records
+            ).execute()
+
             if response.data:
                 records_written = len(response.data)
                 self.stats["messages_stored_db"] += records_written
                 self.stats["last_db_write_time"] = datetime.now(timezone.utc)
-                
-                logger.info(f"💾 Wrote {records_written} records to database "
-                           f"(Session: {self.session_id[:8]}...)")
+
+                logger.info(
+                    f"💾 Wrote {records_written} records to database "
+                    f"(Session: {self.session_name} / {self.session_id[:8]}...)"
+                )
             else:
                 logger.warning("⚠️ Database write returned no data")
-                
+
         except Exception as e:
             logger.error(f"❌ Failed to write batch to database: {e}")
             self.stats["errors"] += 1
@@ -539,10 +575,10 @@ class TelemetryBridgeWithDB:
         while self.running:
             try:
                 await asyncio.sleep(30)
-                
+
                 mode_info = "MOCK DATA" if self.mock_mode else "ESP32 DATA"
                 buffer_size = len(self.db_buffer)
-                
+
                 logger.info(
                     f"📊 STATS ({mode_info}) - "
                     f"Received: {self.stats['messages_received']}, "
@@ -550,12 +586,12 @@ class TelemetryBridgeWithDB:
                     f"DB Stored: {self.stats['messages_stored_db']}, "
                     f"Buffer: {buffer_size}, "
                     f"Errors: {self.stats['errors']}, "
-                    f"Session: {self.session_id[:8]}..."
+                    f"Session: {self.session_name} ({self.session_id[:8]}...)"
                 )
-                
+
                 if self.stats['last_error']:
                     logger.info(f"🔍 Last Error: {self.stats['last_error']}")
-                    
+
             except Exception as e:
                 logger.error(f"❌ Error in stats loop: {e}")
 
@@ -566,34 +602,37 @@ class TelemetryBridgeWithDB:
             if not await self.connect_supabase():
                 logger.error("❌ Failed to connect to Supabase, exiting")
                 return
-            
+
             # Connect to ESP32 source (or skip if mock mode)
             if not await self.connect_esp32_subscriber() and not self.mock_mode:
                 logger.error("❌ Failed to connect to ESP32, exiting")
                 return
-            
+
             # Connect to dashboard output
             if not await self.connect_dashboard_publisher():
                 logger.error("❌ Failed to connect to dashboard, exiting")
                 return
-            
+
             self.running = True
-            logger.info(f"🚀 Telemetry bridge started successfully (Session: {self.session_id[:8]}...)")
-            
+            logger.info(
+                f"🚀 Telemetry bridge started successfully "
+                f"(Session: {self.session_name} / {self.session_id[:8]}...)"
+            )
+
             # Start all async tasks
             tasks = [
                 self.republish_messages(),
                 self.database_batch_writer(),
                 self.print_stats()
             ]
-            
+
             # Add mock data generation if in mock mode
             if self.mock_mode:
                 tasks.append(self.generate_mock_data_loop())
-            
+
             # Run all tasks concurrently
             await asyncio.gather(*tasks)
-            
+
         except Exception as e:
             logger.error(f"❌ Fatal error in main run loop: {e}")
             self.stats["errors"] += 1
@@ -605,28 +644,36 @@ class TelemetryBridgeWithDB:
         """Cleanup resources and connections"""
         try:
             logger.info("🧹 Cleaning up...")
-            
+
             # Write any remaining buffered data to database
-            if self.db_buffer:
-                logger.info(f"💾 Writing final batch of {len(self.db_buffer)} records to database")
-                await self._write_batch_to_database(self.db_buffer)
-            
+            with self.db_buffer_lock:
+                remaining = self.db_buffer.copy()
+                self.db_buffer.clear()
+
+            if remaining:
+                logger.info(f"💾 Writing final batch of {len(remaining)} records to database")
+                await self._write_batch_to_database(remaining)
+
             # Close Ably connections
             if self.esp32_client:
                 await self.esp32_client.close()
             if self.dashboard_client:
                 await self.dashboard_client.close()
-            
+
             # Supabase client doesn't need explicit cleanup
-            
+
             logger.info("✅ Cleanup completed")
-            
+
         except Exception as e:
             logger.error(f"❌ Error during cleanup: {e}")
 
 
-def get_user_preferences():
-    """Get user preferences through terminal input"""
+def get_user_preferences() -> (bool, str):
+    """Get user preferences through terminal input and ask for session name.
+
+    Returns:
+        (mock_mode, session_name)
+    """
     print("\n" + "=" * 70)
     print("🚀 TELEMETRY BRIDGE WITH DATABASE - ESP32 to Dashboard & Supabase")
     print("=" * 70)
@@ -645,27 +692,53 @@ def get_user_preferences():
     while True:
         choice = input("Enter your choice (1 or 2): ").strip()
         if choice == '1':
+            mock_mode = False
             print("\n✅ Selected: REAL DATA mode")
-            return False
+            break
         elif choice == '2':
+            mock_mode = True
             print("\n✅ Selected: MOCK DATA mode")
-            return True
+            break
         else:
             print("❌ Invalid choice. Please enter 1 or 2.")
+
+    # Ask for a user-friendly session name (not the session UUID)
+    print()
+    if mock_mode:
+        prompt = ("Enter a session name (label) for this MOCK session "
+                  "(e.g. 'Practice session 2'):\n> ")
+    else:
+        prompt = ("Enter a session name (label) for this REAL session "
+                  "(e.g. 'Route A - Test 2025-08-18'):\n> ")
+
+    session_name = input(prompt).strip()
+
+    # If blank, build a default name
+    if not session_name:
+        generated = str(uuid.uuid4())[:8]
+        session_name = f"{'M ' if mock_mode else ''}Session {generated}"
+
+    # For mock sessions, ensure leading "M " prefix
+    if mock_mode and not session_name.startswith("M "):
+        session_name = "M " + session_name
+
+    print(f"\n📝 Session name set to: {session_name}")
+    return mock_mode, session_name
 
 
 async def main():
     """Main application entry point"""
     try:
-        mock_mode = get_user_preferences()
-        
+        mock_mode, session_name = get_user_preferences()
+
         print("\n" + "-" * 70)
         print("🔧 STARTING TELEMETRY BRIDGE WITH DATABASE...")
         print("-" * 70)
-        
-        bridge = TelemetryBridgeWithDB(mock_mode=mock_mode)
+
+        bridge = TelemetryBridgeWithDB(mock_mode=mock_mode,
+                                      session_name=session_name)
         await bridge.run()
-        
+
     except KeyboardInterrupt:
         logger.info("🛑 Bridge stopped by user")
     except Exception as e:
