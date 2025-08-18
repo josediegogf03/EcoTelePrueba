@@ -2701,13 +2701,11 @@ def main():
             if st.session_state.historical_sessions:
                 session_options = []
                 for session in st.session_state.historical_sessions:
-                    # --- MODIFICATION START ---
                     # Use session_name in the display format
-                    session_name_display = session.get('session_name', 'Unnamed Session')
+                    session_name_display = session.get('session_name')
                     session_options.append(
                         f"{session_name_display} ({session['session_id'][:8]}...) - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
                     )
-                    # --- MODIFICATION END ---
 
                 selected_session_idx = st.selectbox(
                     "📋 Select Session",
