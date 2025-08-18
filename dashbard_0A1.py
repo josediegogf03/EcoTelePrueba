@@ -2694,7 +2694,7 @@ def main():
                 for session in st.session_state.historical_sessions:
                     name = session.get("session_name") or "Unnamed"
                     session_options.append(
-                    f"{session[:8]}... - {name} - ['session_id'] "
+                    f"{session[{name}  "
                     f"{session['start_time'].strftime('%Y-%m-%d %H:%M')} "
                     f"({session['record_count']:,} records)"
                         )
