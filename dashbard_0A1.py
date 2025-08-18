@@ -54,7 +54,7 @@ DASHBOARD_ABLY_API_KEY = (
 )
 DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://dsfmdziehhgmrconjcns.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzZm1kemllaGhnbXJjb25qY25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MDEyOTIsImV4cCI6MjA2NzQ3NzI5Mn0.P41bpLkP0tKpTktLx6hFOnnyrAB9N_yihQP1v6zTRwc"
+SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzZm1kemllaGhnbXJjb25qY25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MDEyOTIsImV4cCI6MjA2NzQ3NzI5Mn0.P41bpLkP0tKpTktLx6hFOnnyjAB9N_yihQP1v6zTRwc"
 SUPABASE_TABLE_NAME = "telemetry"
 
 # Pagination constants
@@ -220,7 +220,7 @@ html, body { color: var(--text); }
 }
 .stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 22px color-mix(in oklab, hsl(var(--brand-2)) 18%, transparent) !important;
+  box_shadow: 0 10px 22px color_mix(in oklab, hsl(var(--brand-2)) 18%, transparent) !important;
 }
 .stButton > button:active, div[data-testid="stDownloadButton"] > button:active { transform: translateY(0); }
 
@@ -259,8 +259,8 @@ div[data-testid="stMetric"] {
   border-radius: 18px;
   padding: 1rem 1.1rem;
   background:
-    radial-gradient(120% 140% at 10% 0%, color-mix(in oklab, hsl(var(--brand-1)) 7%, transparent), transparent 60%),
-    radial-gradient(140% 120% at 90% 100%, color-mix(in oklab, hsl(var(--brand-2)) 7%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 10% 0%, color_mix(in oklab, hsl(var(--brand-1)) 7%, transparent), transparent 60%),
+    radial_gradient(140% 120% at 90% 100%, color_mix(in oklab, hsl(var(--brand-2)) 7%, transparent), transparent 60%),
     var(--glass);
   backdrop-filter: blur(14px) saturate(140%);
   border: 1px solid var(--glass-border);
@@ -270,7 +270,7 @@ div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
   font-weight: 700;
   padding: .15rem .45rem;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--ok) 10%, transparent);
+  background: color_mix(in oklab, var(--ok) 10%, transparent);
 }
 
 /* Sidebar */
@@ -511,7 +511,7 @@ class EnhancedTelemetryManager:
 
                     response = (
                         self.supabase_client.table(SUPABASE_TABLE_NAME)
-                        .select("*")
+                        .select("*") # Select all columns, including session_name
                         .eq("session_id", session_id)
                         .order("timestamp", desc=False)
                         .range(offset, range_end)
@@ -603,13 +603,16 @@ class EnhancedTelemetryManager:
                 try:
                     range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
 
+                    # --- MODIFICATION START ---
+                    # Select session_name in addition to session_id and timestamp
                     response = (
                         self.supabase_client.table(SUPABASE_TABLE_NAME)
-                        .select("session_id, timestamp")
+                        .select("session_id, session_name, timestamp")
                         .order("timestamp", desc=True)
                         .range(offset, range_end)
                         .execute()
                     )
+                    # --- MODIFICATION END ---
 
                     if not response.data:
                         break
@@ -635,10 +638,12 @@ class EnhancedTelemetryManager:
             for record in all_records:
                 session_id = record["session_id"]
                 timestamp = record["timestamp"]
+                session_name = record.get("session_name", "Unnamed Session") # Get session name
 
                 if session_id not in sessions:
                     sessions[session_id] = {
                         "session_id": session_id,
+                        "session_name": session_name, # Store session name
                         "start_time": timestamp,
                         "end_time": timestamp,
                         "record_count": 1,
@@ -664,6 +669,7 @@ class EnhancedTelemetryManager:
                     session_list.append(
                         {
                             "session_id": session_info["session_id"],
+                            "session_name": session_info["session_name"], # Pass session name through
                             "start_time": start_dt,
                             "end_time": end_dt,
                             "duration": duration,
@@ -1207,11 +1213,15 @@ def render_overview_tab(kpis: Dict[str, float]):
 
 def render_session_info(session_data: Dict[str, Any]):
     """Render session information card."""
+    # --- MODIFICATION START ---
+    # Display session_name along with session_id
+    session_name_display = session_data.get('session_name', 'Unnamed Session')
+    # --- MODIFICATION END ---
     st.markdown(
         f"""
     <div class="card session-info">
         <h3>📊 Session Information</h3>
-        <p>📋 <strong>Session:</strong> {session_data['session_id'][:8]}...</p>
+        <p>📋 <strong>Session:</strong> {session_name_display} ({session_data['session_id'][:8]}...)</p>
         <p>📅 <strong>Start:</strong> {session_data['start_time'].strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>⏱️ <strong>Duration:</strong> {str(session_data['duration']).split('.')[0]}</p>
         <p>📊 <strong>Records:</strong> {session_data['record_count']:,}</p>
@@ -1663,6 +1673,12 @@ def create_imu_detail_chart(df: pd.DataFrame):
         paper_bgcolor="rgba(0,0,0,0)",
         font={"color": "var(--text)"},
         title_font={"color": "var(--text)"},
+        legend=dict(
+            bgcolor="var(--glass-bg)",
+            bordercolor="var(--border)",
+            borderwidth=1,
+            font=dict(color="var(--text)"),
+        ),
     )
 
     # Update axes colors
@@ -2080,7 +2096,7 @@ def create_gps_map_with_altitude(df: pd.DataFrame):
                 col=2,
             )
             fig.update_yaxes(title_text="Altitude (m)", row=1, col=2)
-            fig.update_xaxes(title_text="Time", row=1, col=2)
+            fig.update_xaxes(visible=False, row=1, col=2)
         else:
             last_valid = None
             if df_filtered["altitude"].dropna().any():
@@ -2685,9 +2701,13 @@ def main():
             if st.session_state.historical_sessions:
                 session_options = []
                 for session in st.session_state.historical_sessions:
+                    # --- MODIFICATION START ---
+                    # Use session_name in the display format
+                    session_name_display = session.get('session_name', 'Unnamed Session')
                     session_options.append(
-                        f"{session['session_id'][:8]}... - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
+                        f"{session_name_display} ({session['session_id'][:8]}...) - {session['start_time'].strftime('%Y-%m-%d %H:%M')} ({session['record_count']:,} records)"
                     )
+                    # --- MODIFICATION END ---
 
                 selected_session_idx = st.selectbox(
                     "📋 Select Session",
