@@ -588,113 +588,113 @@ class EnhancedTelemetryManager:
         return self._paginated_fetch(session_id, "supabase_current")
 
     def get_historical_sessions(self) -> List[Dict[str, Any]]:
-    """Get list of historical sessions with pagination support."""
-    try:
-        if not self.supabase_client:
-            self.logger.error("❌ Supabase client not initialized")
-            return []
-
-        self.logger.info("🔄 Fetching historical sessions list...")
-
-        all_records = []
-        offset = 0
-
-        while True:
-            try:
-                range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
-
-                response = (
-                    self.supabase_client.table(SUPABASE_TABLE_NAME)
-                    # include session_name now
-                    .select("session_id, session_name, timestamp")
-                    .order("timestamp", desc=True)
-                    .range(offset, range_end)
-                    .execute()
-                )
-
-                if not response.data:
+        """Get list of historical sessions with pagination support."""
+        try:
+            if not self.supabase_client:
+                self.logger.error("❌ Supabase client not initialized")
+                return []
+    
+            self.logger.info("🔄 Fetching historical sessions list...")
+    
+            all_records = []
+            offset = 0
+    
+            while True:
+                try:
+                    range_end = offset + SUPABASE_MAX_ROWS_PER_REQUEST - 1
+    
+                    response = (
+                        self.supabase_client.table(SUPABASE_TABLE_NAME)
+                        # include session_name now
+                        .select("session_id, session_name, timestamp")
+                        .order("timestamp", desc=True)
+                        .range(offset, range_end)
+                        .execute()
+                    )
+    
+                    if not response.data:
+                        break
+    
+                    all_records.extend(response.data)
+    
+                    if len(response.data) < SUPABASE_MAX_ROWS_PER_REQUEST:
+                        break
+    
+                    offset += SUPABASE_MAX_ROWS_PER_REQUEST
+    
+                except Exception as e:
+                    self.logger.error(
+                        f"❌ Error fetching session records at offset {offset}: {e}"
+                    )
                     break
-
-                all_records.extend(response.data)
-
-                if len(response.data) < SUPABASE_MAX_ROWS_PER_REQUEST:
-                    break
-
-                offset += SUPABASE_MAX_ROWS_PER_REQUEST
-
-            except Exception as e:
-                self.logger.error(
-                    f"❌ Error fetching session records at offset {offset}: {e}"
-                )
-                break
-
-        if not all_records:
-            self.logger.warning("⚠️ No session records found")
-            return []
-
-        sessions = {}
-        for record in all_records:
-            session_id = record["session_id"]
-            timestamp = record["timestamp"]
-            session_name = record.get("session_name")
-
-            if session_id not in sessions:
-                sessions[session_id] = {
-                    "session_id": session_id,
-                    "session_name": session_name,
-                    "start_time": timestamp,
-                    "end_time": timestamp,
-                    "record_count": 1,
-                }
-            else:
-                sessions[session_id]["record_count"] += 1
-                # prefer first non-empty session_name seen
-                if session_name and not sessions[session_id].get("session_name"):
-                    sessions[session_id]["session_name"] = session_name
-                if timestamp < sessions[session_id]["start_time"]:
-                    sessions[session_id]["start_time"] = timestamp
-                if timestamp > sessions[session_id]["end_time"]:
-                    sessions[session_id]["end_time"] = timestamp
-
-        session_list = []
-        for session_info in sessions.values():
-            try:
-                start_dt = datetime.fromisoformat(
-                    session_info["start_time"].replace("Z", "+00:00")
-                )
-                end_dt = datetime.fromisoformat(
-                    session_info["end_time"].replace("Z", "+00:00")
-                )
-                duration = end_dt - start_dt
-
-                session_list.append(
-                    {
-                        "session_id": session_info["session_id"],
-                        # keep session_name (may be None)
-                        "session_name": session_info.get("session_name"),
-                        "start_time": start_dt,
-                        "end_time": end_dt,
-                        "duration": duration,
-                        "record_count": session_info["record_count"],
+    
+            if not all_records:
+                self.logger.warning("⚠️ No session records found")
+                return []
+    
+            sessions = {}
+            for record in all_records:
+                session_id = record["session_id"]
+                timestamp = record["timestamp"]
+                session_name = record.get("session_name")
+    
+                if session_id not in sessions:
+                    sessions[session_id] = {
+                        "session_id": session_id,
+                        "session_name": session_name,
+                        "start_time": timestamp,
+                        "end_time": timestamp,
+                        "record_count": 1,
                     }
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"❌ Error processing session {session_info['session_id']}: {e}"
-                )
-
-        sorted_sessions = sorted(
-            session_list, key=lambda x: x["start_time"], reverse=True
-        )
-        self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
-        return sorted_sessions
-
-    except Exception as e:
-        self.logger.error(f"❌ Error fetching historical sessions: {e}")
-        with self._lock:
-            self.stats["errors"] += 1
-            self.stats["last_error"] = str(e)
-        return []
+                else:
+                    sessions[session_id]["record_count"] += 1
+                    # prefer first non-empty session_name seen
+                    if session_name and not sessions[session_id].get("session_name"):
+                        sessions[session_id]["session_name"] = session_name
+                    if timestamp < sessions[session_id]["start_time"]:
+                        sessions[session_id]["start_time"] = timestamp
+                    if timestamp > sessions[session_id]["end_time"]:
+                        sessions[session_id]["end_time"] = timestamp
+    
+            session_list = []
+            for session_info in sessions.values():
+                try:
+                    start_dt = datetime.fromisoformat(
+                        session_info["start_time"].replace("Z", "+00:00")
+                    )
+                    end_dt = datetime.fromisoformat(
+                        session_info["end_time"].replace("Z", "+00:00")
+                    )
+                    duration = end_dt - start_dt
+    
+                    session_list.append(
+                        {
+                            "session_id": session_info["session_id"],
+                            # keep session_name (may be None)
+                            "session_name": session_info.get("session_name"),
+                            "start_time": start_dt,
+                            "end_time": end_dt,
+                            "duration": duration,
+                            "record_count": session_info["record_count"],
+                        }
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"❌ Error processing session {session_info['session_id']}: {e}"
+                    )
+    
+            sorted_sessions = sorted(
+                session_list, key=lambda x: x["start_time"], reverse=True
+            )
+            self.logger.info(f"✅ Found {len(sorted_sessions)} unique sessions")
+            return sorted_sessions
+    
+        except Exception as e:
+            self.logger.error(f"❌ Error fetching historical sessions: {e}")
+            with self._lock:
+                self.stats["errors"] += 1
+                self.stats["last_error"] = str(e)
+            return []
 
     def get_historical_data(self, session_id: str) -> pd.DataFrame:
         """Get historical data for a specific session with pagination support."""
