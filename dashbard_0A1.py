@@ -50,9 +50,9 @@ warnings.filterwarnings(
 
 # Configuration
 DASHBOARD_ABLY_API_KEY = (
-    "ja_fwQ.K6CTEw:F-aWFMdJXPCv9MvxhYztCGna3XdRJZVgA0qm9pMfDOQ"
+    "DxuYSw.fQHpug:sa4tOcqWDkYBW9ht56s7fT0G091R1fyXQc6mc8WthxQ"
 )
-DASHBOARD_CHANNEL_NAME = "EcoTele"
+DASHBOARD_CHANNEL_NAME = "telemetry-dashboard-channel"
 SUPABASE_URL = "https://rtfqlrvbmsnrkrdrknsp.supabase.co"
 SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0ZnFscnZibXNucmtyZHJrbnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIxMjA3NjQsImV4cCI6MjA2NzY5Njc2NH0.bz23OIWDRPJXgEvJdEof21UVDSi572IfcAdZS2C4gTU"
 SUPABASE_TABLE_NAME = "telemetry"
