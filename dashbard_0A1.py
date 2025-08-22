@@ -1182,19 +1182,19 @@ def render_kpi_header(kpis: Dict[str, float], unique_ns: str = "kpiheader", show
 
     with col1:
         st.metric("📏 Distance", f"{kpis['total_distance_km']:.2f} km")
-        st.metric("🏃 Max Speed", f"{kpis['max_speed_kmh']:.1f} km/h")
+        st.metric("🏃 Max Speed", f"{kpis['max_speed_kmh']:.2f} km/h")
 
     with col2:
-        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_kmh']:.1f} km/h")
+        st.metric("⚡ Avg Speed", f"{kpis['avg_speed_kmh']:.2f} km/h")
         st.metric("🔋 Energy", f"{kpis['total_energy_kwh']:.2f} kWh")
 
     with col3:
-        st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.1f} V")
-        st.metric("🔄 Current", f"{kpis['c_current_a']:.1f} A")
+        st.metric("⚡ Voltage", f"{kpis['battery_voltage_v']:.2f} V")
+        st.metric("🔄 Current", f"{kpis['c_current_a']:.2f} A")
 
     with col4:
-        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.1f} W")
-        st.metric("🌊 Avg Current ", f"{kpis['avg_current_a']:.1f} A")
+        st.metric("💡 Avg Power", f"{kpis['avg_power_w']:.2f} W")
+        st.metric("🌊 Avg Current ", f"{kpis['avg_current_a']:.2f} A")
 
     if show_gauges:
         render_live_gauges(kpis, unique_ns)
